@@ -1,0 +1,9 @@
+density_value,turbulence_model,ref_v,mesh,K0
+1.1,Spalart-Allmaras,,mesh1.med,1000
+1.2,Spalart-Allmaras,,mesh1.med,1000
+1.1,kwSST,0.1,mesh1.med,1000
+1.2,kwSST,0.2,mesh1.med,1000
+1.1,Spalart-Allmaras,,mesh2.med,2000
+1.2,Spalart-Allmaras,,mesh2.med,2000
+1.1,kwSST,0.1,mesh2.med,2000
+1.2,kwSST,0.2,mesh2.med,2000

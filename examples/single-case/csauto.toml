@@ -1,0 +1,11 @@
+# Use the code_saturne docker container
+runtime = "docker"                                                                                     
+docker_image = "simvia/code_saturne:latest"
+
+# Expose UI to all interfaces
+host = "127.0.0.1"
+port = 8000
+
+# Required when host is not 127.0.0.1 or localhost
+[api]
+token = "your-secret-token"

@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+title: csauto
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - name: Simvia SAS
+    website: "https://simvia.tech/"
+    country: FR
+    city: Palaiseau
+    address: 7 Bd Gaspard Monge
+    post-code: "91120"
+repository-code: "https://github.com/simvia-tech/csauto"
+abstract: >-
+  csauto automates code_saturne CFD simulation campaigns.
+  It generates cases from a Design of Experiments CSV and a template,
+  launches them locally or on Slurm clusters, and provides a web
+  dashboard for real-time monitoring.
+license: GPL-3.0

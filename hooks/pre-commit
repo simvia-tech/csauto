@@ -1,0 +1,73 @@
+#!/bin/sh
+#
+# Pre-commit hook:
+#   1. Auto-format staged Python files with ruff
+#   2. Auto-format staged frontend files with prettier
+#   3. Rebuild frontend/dist/ when frontend source files change
+#
+# Only files that were already staged are re-staged after formatting.
+#
+
+if git rev-parse --verify HEAD >/dev/null 2>&1; then
+    against=HEAD
+else
+    against=$(git hash-object -t tree /dev/null)
+fi
+
+STAGED_VERSION=$(git diff --cached --name-only --diff-filter=ACMR "$against" -- 'VERSION')
+STAGED_PY=$(git diff --cached --name-only --diff-filter=ACMR "$against" -- '*.py')
+STAGED_FRONTEND=$(git diff --cached --name-only --diff-filter=ACMR "$against" -- \
+    'frontend/src/**' \
+    'frontend/static/**' \
+    'frontend/svelte.config.js' \
+    'frontend/vite.config.ts' \
+    'frontend/tsconfig.json' \
+    'frontend/package.json' \
+    'frontend/pnpm-lock.yaml')
+
+# --- Sync VERSION → package.json ---
+if [ -n "$STAGED_VERSION" ]; then
+    VERSION=$(cat VERSION | tr -d '[:space:]')
+    if [ -f frontend/package.json ]; then
+        sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" frontend/package.json
+        git add frontend/package.json
+        echo "[pre-commit] Synced VERSION ($VERSION) → frontend/package.json."
+    fi
+fi
+
+# --- Python formatting ---
+if [ -n "$STAGED_PY" ]; then
+    if command -v ruff >/dev/null 2>&1; then
+        echo "$STAGED_PY" | xargs ruff format --quiet
+        echo "$STAGED_PY" | xargs ruff check --fix --quiet 2>/dev/null
+        echo "$STAGED_PY" | xargs git add
+        echo "[pre-commit] Formatted $(echo "$STAGED_PY" | wc -l | tr -d ' ') Python file(s)."
+    else
+        echo "[pre-commit] WARNING: ruff not found, skipping Python formatting."
+    fi
+fi
+
+# --- Frontend formatting + rebuild ---
+if [ -n "$STAGED_FRONTEND" ]; then
+    if ! command -v pnpm >/dev/null 2>&1; then
+        echo "[pre-commit] ERROR: pnpm not found. Install it or build frontend/dist/ manually."
+        exit 1
+    fi
+
+    # Format only the staged frontend files
+    echo "$STAGED_FRONTEND" | xargs pnpm --dir frontend prettier --write --ignore-unknown 2>/dev/null
+    echo "$STAGED_FRONTEND" | xargs git add
+    echo "[pre-commit] Formatted $(echo "$STAGED_FRONTEND" | wc -l | tr -d ' ') frontend file(s)."
+
+    # Rebuild dist
+    echo "[pre-commit] Rebuilding frontend/dist/..."
+    (cd frontend && pnpm build)
+    if [ $? -ne 0 ]; then
+        echo "[pre-commit] ERROR: frontend build failed. Commit aborted."
+        exit 1
+    fi
+    git add frontend/dist/
+    echo "[pre-commit] frontend/dist/ rebuilt and staged."
+fi
+
+exit 0

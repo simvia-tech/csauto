@@ -1,0 +1,34 @@
+eval
+
+# Python cache/build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Runtime-generated artifacts
+RUNS/
+**/RESU/
+**/registry.json
+**/.csauto.cid
+**/.csauto.jobid
+**/.csauto.history.jsonl
+**/csauto.stdout
+**/csauto.stderr
+
+# Virtual environments
+.venv/
+
+# Frontend dev artifacts
+frontend/node_modules/
+frontend/.svelte-kit/
+
+# AI agent development
+AGENTS.md
+CLAUDE.md
+.CLAUDE
+.claude/
