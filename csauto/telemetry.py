@@ -65,6 +65,8 @@ def get_or_create_user_id() -> str:
 
 
 def is_enabled() -> bool:
+    if os.environ.get("CSAUTO_TELEMETRY_DISABLED") == "1":
+        return False
     return _load_state().get("enabled", True)
 
 

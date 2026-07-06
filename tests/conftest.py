@@ -1,9 +1,16 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
+
+# Tests spawn the CLI/serve command directly; without this, every such run
+# would fire a real telemetry ping to the production endpoint. Set as a
+# module-level env var (not a fixture) so it's also inherited by the
+# `csauto serve` subprocesses tests spawn via subprocess.Popen(env=os.environ).
+os.environ["CSAUTO_TELEMETRY_DISABLED"] = "1"
 
 
 @pytest.fixture()
