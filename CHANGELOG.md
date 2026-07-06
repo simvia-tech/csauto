@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] - 2026-07-06
+
+Fix DOE CSV parsing to tolerate whitespace around headers and values.
+
+### Added
+-
+
+### Fixed
+- DOE CSV files with spaces around delimiters (e.g. after a comma) or leading/trailing whitespace on headers and values are now parsed correctly; whitespace is stripped before column matching and value casting, while spaces inside quoted values are preserved.
+
 ## [0.1.0] - 2026-04-10
 
 ### Added

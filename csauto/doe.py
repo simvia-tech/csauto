@@ -44,10 +44,14 @@ def load_doe(doe_path: Path) -> tuple[list[str], list[dict[str, str]]]:
         if reader.fieldnames is None:
             raise ValueError("The DOE file has no header row.")
 
-        headers = [name if name is not None else "" for name in reader.fieldnames]
+        headers = [name.strip() if name is not None else "" for name in reader.fieldnames]
         rows: list[dict[str, str]] = []
-        for row in reader:
-            normalized = {header: (row.get(header) or "") for header in headers}
+        for raw_row in reader:
+            stripped_row = {
+                (key.strip() if key is not None else ""): (value.strip() if isinstance(value, str) else value)
+                for key, value in raw_row.items()
+            }
+            normalized = {header: (stripped_row.get(header) or "") for header in headers}
             rows.append(normalized)
 
     if not rows:

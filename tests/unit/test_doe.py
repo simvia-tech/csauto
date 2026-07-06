@@ -23,6 +23,24 @@ def test_load_doe_normalizes_empty_values(tmp_path: Path) -> None:
     assert rows == [{"a": "", "b": "2"}]
 
 
+def test_load_doe_strips_whitespace_around_headers_and_values(tmp_path: Path) -> None:
+    doe_path = tmp_path / "doe.csv"
+    doe_path.write_text("velocity, angle, turbulence_model\n10, 0, k-omega-sst\n20, 5, k-epsilon\n", encoding="utf-8")
+    headers, rows = load_doe(doe_path)
+    assert headers == ["velocity", "angle", "turbulence_model"]
+    assert rows == [
+        {"velocity": "10", "angle": "0", "turbulence_model": "k-omega-sst"},
+        {"velocity": "20", "angle": "5", "turbulence_model": "k-epsilon"},
+    ]
+
+
+def test_load_doe_preserves_spaces_inside_quoted_values(tmp_path: Path) -> None:
+    doe_path = tmp_path / "doe.csv"
+    doe_path.write_text('a,b\n"has space", 2\n', encoding="utf-8")
+    headers, rows = load_doe(doe_path)
+    assert rows == [{"a": "has space", "b": "2"}]
+
+
 def test_read_doe_row_returns_values_and_columns(tmp_path: Path) -> None:
     case_dir = tmp_path / "case0001"
     case_dir.mkdir()
