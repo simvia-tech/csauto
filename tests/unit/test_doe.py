@@ -37,7 +37,7 @@ def test_load_doe_strips_whitespace_around_headers_and_values(tmp_path: Path) ->
 def test_load_doe_preserves_spaces_inside_quoted_values(tmp_path: Path) -> None:
     doe_path = tmp_path / "doe.csv"
     doe_path.write_text('a,b\n"has space", 2\n', encoding="utf-8")
-    headers, rows = load_doe(doe_path)
+    _headers, rows = load_doe(doe_path)
     assert rows == [{"a": "has space", "b": "2"}]
 
 

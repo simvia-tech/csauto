@@ -1,9 +1,10 @@
 name: Release
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches: [main]
-    paths: ['VERSION']
 
 permissions:
   contents: write
@@ -14,17 +15,30 @@ concurrency:
 
 jobs:
   release:
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+
+      - name: Check if VERSION changed in this commit
+        id: version_changed
+        run: |
+          if git diff --name-only HEAD^ HEAD | grep -qx VERSION; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Read version
+        if: steps.version_changed.outputs.changed == 'true'
         id: version
         run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
 
       - name: Check if tag already exists
+        if: steps.version_changed.outputs.changed == 'true'
         id: check_tag
         run: |
           if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
@@ -34,7 +48,7 @@ jobs:
           fi
 
       - name: Extract changelog section
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.version_changed.outputs.changed == 'true' && steps.check_tag.outputs.exists == 'false'
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           awk -v ver="$VERSION" '
@@ -51,11 +65,11 @@ jobs:
           fi
 
       - name: Create GitHub release
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.version_changed.outputs.changed == 'true' && steps.check_tag.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "v${{ steps.version.outputs.version }}" \
             --title "v${{ steps.version.outputs.version }}" \
             --notes-file release_notes.md \
-            --target "${{ github.sha }}"
+            --target "${{ github.event.workflow_run.head_sha }}"
