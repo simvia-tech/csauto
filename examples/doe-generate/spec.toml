@@ -1,0 +1,6 @@
+[parameters.u_inlet]
+min = 0.5
+max = 5.0
+
+[parameters.turbulence_model]
+levels = ["k-epsilon", "k-omega-sst"]

@@ -85,6 +85,9 @@ You need at least one code_saturne runtime:
 > **First time?** Follow the [Quickstart guide](docs/quickstart.md) for a complete walkthrough from zero to a running campaign.
 
 ```bash
+# 0. (Optional) Generate doe.csv from a parameter spec instead of hand-writing it
+csauto doe spec.toml doe.csv --method lhs --samples 40 --seed 42
+
 # 1. Generate cases from your DOE and template
 csauto prepare doe.csv TEMPLATE RUNS
 
@@ -96,6 +99,8 @@ csauto serve RUNS --host 127.0.0.1 --port 8000
 ```
 
 Open [http://127.0.0.1:8000](http://127.0.0.1:8000), then launch runs from the **Status** panel: `Ctrl+A` → **Run Selected**.
+
+See [docs/doe-format.md](docs/doe-format.md) for the `doe.csv` format and the `csauto doe` generator (factorial/LHS/Sobol/CCD).
 
 ### Example project layout
 

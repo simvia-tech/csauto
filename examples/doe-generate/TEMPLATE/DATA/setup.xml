@@ -1,0 +1,6 @@
+<root>
+  <inlet label="INLET">
+    <velocity>{u_inlet}</velocity>
+    <turbulence model="{turbulence_model}"/>
+  </inlet>
+</root>

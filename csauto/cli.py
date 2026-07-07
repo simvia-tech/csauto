@@ -107,6 +107,42 @@ def parse_arguments(
     prepare_parser.add_argument("doe_csv", type=Path, help="Path to the doe.csv file")
     prepare_parser.add_argument("template_case", type=Path, help="Template case directory")
     prepare_parser.add_argument("output_root", type=Path, help="Root directory where cases will be generated")
+
+    doe_parser = subparsers.add_parser(
+        "doe", help="Generate a doe.csv from a parameter spec (factorial/lhs/sobol/ccd)."
+    )
+    doe_parser.add_argument("spec", type=Path, help="Path to the parameter spec TOML file")
+    doe_parser.add_argument("output_csv", type=Path, help="Path to write the generated doe.csv")
+    doe_parser.add_argument(
+        "--method",
+        choices=["factorial", "lhs", "sobol", "ccd"],
+        required=True,
+        help="Sampling method.",
+    )
+    doe_parser.add_argument(
+        "--samples",
+        type=int,
+        default=None,
+        help="Number of sample points (required for lhs/sobol).",
+    )
+    doe_parser.add_argument(
+        "--seed",
+        type=int,
+        default=0,
+        help="Random seed for lhs/sobol (default 0).",
+    )
+    doe_parser.add_argument(
+        "--round",
+        dest="round_ndigits",
+        type=int,
+        default=6,
+        help="Decimal precision for continuous values (default 6).",
+    )
+    doe_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite output_csv if it already exists.",
+    )
     run_parser = subparsers.add_parser("run", help="Launch code_saturne on all cases.")
     run_parser.add_argument("runs_dir", type=Path, help="Directory containing generated cases")
     run_parser.add_argument("--n", dest="nprocs", type=int, required=True, help="Number of MPI processes")
@@ -288,6 +324,7 @@ def parse_arguments(
     # Backward compatibility: allow legacy call without subcommand.
     commands = {
         "prepare",
+        "doe",
         "run",
         "status",
         "residuals",
@@ -339,6 +376,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "prepare":
             headers, rows = load_doe(args.doe_csv)
             generate_cases(headers, rows, args.template_case, args.output_root)
+        elif args.command == "doe":
+            from .doe_generate import generate_rows, load_doe_spec, write_doe_csv
+
+            spec_params = load_doe_spec(args.spec)
+            spec_rows = generate_rows(
+                spec_params,
+                args.method,
+                samples=args.samples,
+                seed=args.seed,
+                round_ndigits=args.round_ndigits,
+            )
+            if args.output_csv.exists() and not args.force:
+                raise FileExistsError(f"{args.output_csv} already exists (use --force to overwrite)")
+            write_doe_csv([p.name for p in spec_params], spec_rows, args.output_csv)
+            print(f"Wrote {len(spec_rows)} rows to {args.output_csv}")
         elif args.command == "run":
             runtime_selection = resolve_runtime(
                 runtime=args.runtime,

@@ -48,6 +48,52 @@ And `case0002/DATA/setup.xml` becomes:
 
 ---
 
+## Generating doe.csv with `csauto doe`
+
+Instead of hand-writing `doe.csv`, generate it from a parameter spec:
+
+```bash
+csauto doe spec.toml doe.csv --method lhs --samples 40 --seed 42
+```
+
+The spec is a TOML file with one `[parameters.<name>]` table per column. Each
+parameter is either **continuous** (sampled within a range) or **discrete**
+(an explicit list of levels):
+
+```toml
+[parameters.u_inlet]
+min = 0.5
+max = 5.0
+
+[parameters.turbulence_model]
+levels = ["k-epsilon", "k-omega-sst"]
+```
+
+Parameter names follow the same character rules as placeholders (letters,
+digits, `.`, `_`, `-`) and `case_id` is reserved.
+
+### Methods
+
+| `--method` | Use case | Notes |
+|---|---|---|
+| `factorial` | All combinations of discrete levels | Every parameter must define `levels` (no continuous ranges) |
+| `lhs` | Space-filling Latin Hypercube sampling | `--samples N` required; pure stdlib |
+| `sobol` | Low-discrepancy quasi-random sampling | `--samples N` required, ideally a power of 2; requires `pip install "csauto[doe]"` |
+| `ccd` | Face-centered central composite design | Corner + axial + center points, always within `[min, max]` |
+
+### Mixing continuous and discrete parameters
+
+For `lhs`/`sobol`/`ccd`, continuous parameters are sampled using the chosen
+method, and discrete parameters are crossed with every sample (outer
+product) — e.g. 10 LHS samples over one continuous parameter crossed with a
+2-level discrete parameter yields 20 rows.
+
+Continuous values are rounded to `--round` digits (default 6). Use `--seed`
+to make `lhs`/`sobol` reproducible (same spec + seed always yields the same
+CSV). Pass `--force` to overwrite an existing output file.
+
+---
+
 ## `case_id` rules
 
 - The `case_id` column is optional

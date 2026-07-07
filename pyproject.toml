@@ -15,6 +15,7 @@ csauto = "csauto.cli:main"
 [project.optional-dependencies]
 web = ["fastapi>=0.100", "uvicorn>=0.20", "pydantic>=2.0"]
 dev = ["pytest", "httpx", "ruff"]
+doe = ["scipy>=1.10"]
 
 [tool.hatch.version]
 path = "VERSION"
