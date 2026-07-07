@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-07-07
+
+Add a `csauto doe` command to generate `doe.csv` from a parameter spec, plus release automation improvements.
+
+### Added
+- `csauto doe` command to generate `doe.csv` from a TOML parameter spec, supporting factorial, Latin Hypercube (LHS), Sobol (requires the `doe` extra), and central composite (CCD) sampling
+- Automatic GitHub release creation when `VERSION` changes on `main`
+
+### Fixed
+- Tests no longer send real telemetry pings
+- Release workflow now gates on CI success
+
 ## [0.1.1] - 2026-07-06
 
 Fix DOE CSV parsing to tolerate whitespace around headers and values.
