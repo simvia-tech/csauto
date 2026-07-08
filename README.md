@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://simvia-tech.github.io/csauto/"><img src="https://img.shields.io/badge/website-landing%20page-1057C8" alt="Website" /></a>
-  <a href="/"><img src="https://img.shields.io/badge/version-0.2.0-blue" alt="Version" /></a>
+  <a href="/"><img src="https://img.shields.io/badge/version-0.3.0-blue" alt="Version" /></a>
   <a href="https://github.com/simvia-tech/csauto/actions/workflows/pr.yml"><img src="https://github.com/simvia-tech/csauto/actions/workflows/pr.yml/badge.svg" alt="CI-CD" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-GPL%203.0-green" alt="License" /></a>
 </p>

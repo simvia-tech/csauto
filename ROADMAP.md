@@ -4,14 +4,14 @@
 
 This roadmap is a declaration of intent, not a contractual engagement. It is updated at each minor or major release.
 
-*Last updated: v0.2.0 — 2026-07-07*
+*Last updated: v0.3.0 — 2026-07-08*
 
-## Current Capabilities (v0.2.0)
+## Current Capabilities (v0.3.0)
 
-- Case generation from DOE CSV + template directory
+- Case generation from DOE CSV + template directory, or a generated parameter spec
 - Local and Slurm job execution
 - Web monitoring dashboard (residuals, probes, logs, status)
-- Restart from checkpoint, input file comparison, cleanup
+- Restart from checkpoint, live case steering (stop/extend/checkpoint), input file comparison, cleanup
 - Support for native, Docker, and Singularity runtimes
 
 ## Short Term
