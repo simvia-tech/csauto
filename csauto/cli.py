@@ -8,6 +8,7 @@ from typing import Any
 
 from . import __version__
 from .config import Config, load_config
+from .control import control_case
 from .doe import generate_cases, load_doe
 from .execution import (
     RUNTIME_DOCKER,
@@ -268,6 +269,34 @@ def parse_arguments(
         help="Print the end of the file then exit (no real-time follow).",
     )
 
+    control_parser = subparsers.add_parser(
+        "control", help="Send a live control directive to a running case (stop/extend/checkpoint/flush)."
+    )
+    control_parser.add_argument("runs_dir", type=Path, help="Directory containing generated cases")
+    control_parser.add_argument("case", help="Case name (caseXXXX)")
+    control_action_group = control_parser.add_mutually_exclusive_group(required=True)
+    control_action_group.add_argument(
+        "--stop",
+        action="store_true",
+        help="Graceful stop: finish the current time step, checkpoint, and exit (no restart needed).",
+    )
+    control_action_group.add_argument(
+        "--extend",
+        type=int,
+        metavar="N",
+        help="Extend the run by N additional time steps beyond its current progress.",
+    )
+    control_action_group.add_argument(
+        "--checkpoint",
+        action="store_true",
+        help="Request a checkpoint at the next time step.",
+    )
+    control_action_group.add_argument(
+        "--flush",
+        action="store_true",
+        help="Flush logs and time plots at the next time step.",
+    )
+
     add_serve_subcommands(subparsers, config)
 
     doctor_parser = subparsers.add_parser("doctor", help="Check configuration and cases.")
@@ -330,6 +359,7 @@ def parse_arguments(
         "residuals",
         "perf",
         "tail",
+        "control",
         "serve",
         "doctor",
         "cleanup",
@@ -447,6 +477,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                 lines=args.lines,
                 follow=not args.no_follow,
             )
+        elif args.command == "control":
+            if args.stop:
+                control_action, control_value = "stop", None
+            elif args.extend is not None:
+                control_action, control_value = "extend", args.extend
+            elif args.checkpoint:
+                control_action, control_value = "checkpoint", None
+            else:
+                control_action, control_value = "flush", None
+            details = control_case(args.runs_dir, args.case, control_action, value=control_value, source="cli")
+            print(f"control: {control_action} -> {details}")
         elif dispatch_serve_command(
             args,
             config,

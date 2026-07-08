@@ -1025,3 +1025,128 @@ def test_api_kill_case_partial_failure_returns_500(
         httpd.shutdown()
         httpd.server_close()
         thread.join(timeout=2)
+
+
+# ---------------------------------------------------------------------------
+# control_case
+# ---------------------------------------------------------------------------
+
+
+def test_api_control_case_stop_writes_control_file(web_env) -> None:
+    base_url, case_dir = web_env
+    registry = load_registry(case_dir.parent)
+    registry["case0001"]["status"] = "RUNNING"
+    save_registry(case_dir.parent, registry)
+
+    status, body = _http_post(f"{base_url}/api/control_case", {"cases": ["case0001"], "action": "stop"})
+    assert status == 200
+    assert json.loads(body)["status"] == "ok"
+
+    control_file = case_dir / "RESU" / "001" / "control_file"
+    assert control_file.read_text(encoding="utf-8") == "max_time_step 0\n"
+    history = (case_dir / ".csauto.history.jsonl").read_text(encoding="utf-8").splitlines()
+    entry = json.loads(history[-1])
+    assert entry["action"] == "control_stop"
+    assert entry["source"] == "web"
+
+
+def test_api_control_case_checkpoint_writes_control_file(web_env) -> None:
+    base_url, case_dir = web_env
+    registry = load_registry(case_dir.parent)
+    registry["case0001"]["status"] = "RUNNING"
+    save_registry(case_dir.parent, registry)
+
+    status, _body = _http_post(f"{base_url}/api/control_case", {"cases": ["case0001"], "action": "checkpoint"})
+    assert status == 200
+    control_file = case_dir / "RESU" / "001" / "control_file"
+    assert control_file.read_text(encoding="utf-8") == "checkpoint_time_step 0\n"
+
+
+def test_api_control_case_flush_writes_control_file(web_env) -> None:
+    base_url, case_dir = web_env
+    registry = load_registry(case_dir.parent)
+    registry["case0001"]["status"] = "RUNNING"
+    save_registry(case_dir.parent, registry)
+
+    status, _body = _http_post(f"{base_url}/api/control_case", {"cases": ["case0001"], "action": "flush"})
+    assert status == 200
+    control_file = case_dir / "RESU" / "001" / "control_file"
+    assert control_file.read_text(encoding="utf-8") == "flush\n"
+
+
+def test_api_control_case_extend_computes_target_from_configured_max(web_env) -> None:
+    base_url, case_dir = web_env
+    registry = load_registry(case_dir.parent)
+    registry["case0001"]["status"] = "RUNNING"
+    save_registry(case_dir.parent, registry)
+    # Only 9 steps in -- extend must still add to the configured limit (500), not to 9.
+    (case_dir / "RESU" / "001" / "run_solver.log").write_text("Time step 9\n", encoding="utf-8")
+    (case_dir / "RESU" / "001" / "setup.log").write_text(
+        "    Stop time\n\n      nt_max:  500 (final time step)\n\n", encoding="utf-8"
+    )
+
+    status, _body = _http_post(
+        f"{base_url}/api/control_case", {"cases": ["case0001"], "action": "extend", "value": 500}
+    )
+    assert status == 200
+    control_file = case_dir / "RESU" / "001" / "control_file"
+    assert control_file.read_text(encoding="utf-8") == "max_time_step 1000\n"
+
+
+def test_api_control_case_extend_falls_back_to_current_iteration(web_env) -> None:
+    base_url, case_dir = web_env
+    registry = load_registry(case_dir.parent)
+    registry["case0001"]["status"] = "RUNNING"
+    save_registry(case_dir.parent, registry)
+    (case_dir / "RESU" / "001" / "run_solver.log").write_text("Time step 100\n", encoding="utf-8")
+
+    status, _body = _http_post(
+        f"{base_url}/api/control_case", {"cases": ["case0001"], "action": "extend", "value": 500}
+    )
+    assert status == 200
+    control_file = case_dir / "RESU" / "001" / "control_file"
+    assert control_file.read_text(encoding="utf-8") == "max_time_step 600\n"
+
+
+def test_api_control_case_invalid_action_returns_400(web_env) -> None:
+    base_url, _case_dir = web_env
+    with pytest.raises(HTTPError) as excinfo:
+        _http_post(f"{base_url}/api/control_case", {"cases": ["case0001"], "action": "explode"})
+    assert excinfo.value.code == 400
+
+
+def test_api_control_case_rejects_non_running_case(web_env) -> None:
+    base_url, _case_dir = web_env  # status stays PREPARED from web_env fixture
+    with pytest.raises(HTTPError) as excinfo:
+        _http_post(f"{base_url}/api/control_case", {"cases": ["case0001"], "action": "stop"})
+    assert excinfo.value.code == 500
+
+
+def test_api_control_case_bulk_partial_failure_returns_500(runs_dir: Path, case_factory) -> None:
+    case1 = case_factory(runs_dir, "case0001")
+    case2 = case_factory(runs_dir, "case0002")
+    (case1 / "RESU" / "001").mkdir(parents=True)
+    # case0002 has no RESU dir -> write_control_directive will fail for it
+    save_registry(
+        runs_dir,
+        {
+            "case0001": {"case_id": "case0001", "path": str(case1), "status": "RUNNING"},
+            "case0002": {"case_id": "case0002", "path": str(case2), "status": "RUNNING"},
+        },
+    )
+
+    base_url, thread, httpd = _start_server(runs_dir)
+    try:
+        with pytest.raises(HTTPError) as excinfo:
+            _http_post(
+                f"{base_url}/api/control_case",
+                {"cases": ["case0001", "case0002"], "action": "flush"},
+            )
+        assert excinfo.value.code == 500
+        assert "case0002" in excinfo.value.read().decode("utf-8")
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2)
+
+    assert (case1 / "RESU" / "001" / "control_file").read_text(encoding="utf-8") == "flush\n"

@@ -5,6 +5,8 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
+from ..control import VALID_ACTIONS as VALID_CONTROL_ACTIONS
+from ..control import control_case
 from ..execution import build_runtime_gui_command, resolve_runtime
 from ..logs import locate_case_file
 from ..maintenance import cleanup_runs
@@ -49,6 +51,11 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
 
     class KillCasesPayload(BaseModel):
         cases: list[str] | str | None = None
+
+    class ControlCasePayload(BaseModel):
+        cases: list[str] | str | None = None
+        action: str | None = None
+        value: int | None = None
 
     class OpenGuiPayload(BaseModel):
         case: str | None = None
@@ -284,6 +291,58 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
                 futures = {
                     pool.submit(
                         kill_case, ctx.runs_dir, case_id, actor=actor, job_id_patterns=ctx.job_id_patterns
+                    ): case_id
+                    for case_id in case_ids
+                }
+                for future in as_completed(futures):
+                    case_id = futures[future]
+                    try:
+                        future.result()
+                    except Exception as exc:
+                        errors.append(f"{case_id}: {exc}")
+        if errors:
+            raise ctx.http_exception_cls(status_code=500, detail="; ".join(errors))
+        ctx.invalidate_status_cache()
+        return {"status": "ok"}
+
+    @app.post("/api/control_case", response_model=SuccessResponse)
+    def api_control_case(
+        request: Request,
+        payload: ControlCasePayload,
+        x_csauto_token: str | None = Header(default=None),
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, str]:
+        ctx.require_auth(x_csauto_token, authorization)
+        if payload.action not in VALID_CONTROL_ACTIONS:
+            raise ctx.http_exception_cls(
+                status_code=400, detail=f"Invalid action (expected one of {sorted(VALID_CONTROL_ACTIONS)})"
+            )
+        cases = normalize_cases(payload.cases)
+        if not cases:
+            raise ctx.http_exception_cls(status_code=400, detail="Missing cases parameter")
+        try:
+            case_ids = [ctx.validate_case(case) for case in cases]
+        except ValueError as exc:
+            raise ctx.http_exception_cls(status_code=400, detail=str(exc)) from exc
+        actor = request.client.host if request.client else None
+        errors: list[str] = []
+        if len(case_ids) == 1:
+            try:
+                control_case(ctx.runs_dir, case_ids[0], payload.action, value=payload.value, source="web", actor=actor)
+            except Exception as exc:
+                errors.append(f"{case_ids[0]}: {exc}")
+        else:
+            workers = max(1, min(len(case_ids), (os.cpu_count() or 2), 8))
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                futures = {
+                    pool.submit(
+                        control_case,
+                        ctx.runs_dir,
+                        case_id,
+                        payload.action,
+                        value=payload.value,
+                        source="web",
+                        actor=actor,
                     ): case_id
                     for case_id in case_ids
                 }

@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from csauto.cli import main
+import pytest
+
+from csauto.cli import main, parse_arguments
+from csauto.config import Config
 from csauto.execution import RuntimeSelection
 
 
@@ -145,3 +148,62 @@ def test_serve_command_invokes_fastapi_entrypoint(tmp_path: Path) -> None:
     assert call["port"] == 9000
     assert call["api_token"] == "secret-token"
     assert call["runtime"] == "auto"
+
+
+@pytest.mark.parametrize(
+    ("flags", "expected_action", "expected_value"),
+    [
+        (["--stop"], "stop", None),
+        (["--extend", "500"], "extend", 500),
+        (["--checkpoint"], "checkpoint", None),
+        (["--flush"], "flush", None),
+    ],
+)
+def test_control_command_parses_action_flags(flags: list[str], expected_action: str, expected_value) -> None:
+    _parser, args = parse_arguments(["control", "RUNS", "case0007", *flags], Config())
+    assert args.command == "control"
+    assert args.runs_dir == Path("RUNS")
+    assert args.case == "case0007"
+    if expected_action == "extend":
+        assert args.extend == expected_value
+    else:
+        assert getattr(args, expected_action) is True
+
+
+def test_control_command_requires_an_action() -> None:
+    with pytest.raises(SystemExit):
+        parse_arguments(["control", "RUNS", "case0007"], Config())
+
+
+def test_control_command_rejects_multiple_actions() -> None:
+    with pytest.raises(SystemExit):
+        parse_arguments(["control", "RUNS", "case0007", "--stop", "--checkpoint"], Config())
+
+
+def test_control_command_invokes_control_case(tmp_path: Path) -> None:
+    runs_dir = tmp_path / "RUNS"
+    runs_dir.mkdir()
+
+    from csauto import cli as cli_module
+
+    call: dict[str, object] = {}
+
+    def control_case_stub(runs_dir_arg, case_id, action, *, value=None, source="cli"):
+        call.update(runs_dir=runs_dir_arg, case_id=case_id, action=action, value=value, source=source)
+        return {"action": action}
+
+    original_control_case = cli_module.control_case
+    cli_module.control_case = control_case_stub
+    try:
+        exit_code = main(["control", str(runs_dir), "case0007", "--extend", "500"])
+    finally:
+        cli_module.control_case = original_control_case
+
+    assert exit_code == 0
+    assert call == {
+        "runs_dir": runs_dir,
+        "case_id": "case0007",
+        "action": "extend",
+        "value": 500,
+        "source": "cli",
+    }
