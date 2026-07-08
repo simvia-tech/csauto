@@ -111,6 +111,12 @@ When you restart a case, a new `RESU/<timestamp>/` directory is created alongsid
 the previous one. The Residuals Plot `Start from = 0` option displays data from
 all RESU runs for the full history.
 
+While a case is `RUNNING`, `csauto control` (CLI) and the Stop/Extend buttons
+(web UI) drop a `control_file` into the active `RESU/<timestamp>/` directory.
+code_saturne polls this file once per time step, applies the directive, and
+deletes it — so it's a transient handshake file, not part of the persisted
+RESU output.
+
 ---
 
 ## Slurm specifics

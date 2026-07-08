@@ -210,9 +210,36 @@ curl -s -X POST "http://127.0.0.1:8000/api/run_case" \
 
 ---
 
+## Steer a running case without killing it
+
+A case about to hit its time step limit doesn't need a kill + restart round
+trip. Use `csauto control` (or the Status panel's **Stop** / **More ▾** menu)
+instead:
+
+```bash
+csauto control RUNS case0007 --stop        # finish current step, checkpoint, exit
+csauto control RUNS case0007 --extend 500  # keep going 500 more time steps
+csauto control RUNS case0007 --checkpoint  # checkpoint now, keep running
+csauto control RUNS case0007 --flush       # flush logs/time plots now
+```
+
+API alternative:
+
+```bash
+curl -s -X POST "http://127.0.0.1:8000/api/control_case" \
+  -H "Content-Type: application/json" \
+  -d '{"cases": ["case0001"], "action": "extend", "value": 500}'
+```
+
+See [docs/cli.md](./cli.md#control) for details on each action.
+
+---
+
 ## Kill running cases
 
-In the **Status** panel: select the running cases → **Kill Selected**.
+In the **Status** panel: select the running cases → **Kill Selected**. Prefer
+**Stop** (above) when you just want the run to wind down cleanly — Kill
+discards in-flight work and requires restarting from the last checkpoint.
 
 API alternative:
 

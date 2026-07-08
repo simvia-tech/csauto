@@ -19,7 +19,7 @@ It offers:
 - Generation of tens or hundreds of cases from one template + one CSV, in seconds
 - Local and Slurm job execution with status tracking
 - A web dashboard for monitoring residuals, probes, logs, and job status in real time
-- Restart from checkpoint, input file comparison, and cleanup utilities
+- Restart from checkpoint, live case steering (stop/extend/checkpoint without killing), input file comparison, and cleanup utilities
 
 No manual case duplication. No directory juggling. Just simulations.
 
@@ -119,16 +119,18 @@ my-campaign/
 
 ### CLI commands
 
-The web UI (`csauto serve`) is the primary interface for runtime monitoring and operations — launching, killing, restarting, comparing, and inspecting cases. The CLI covers initial setup (`prepare`, `doctor`), data export (`residuals`, `perf`), and offers terminal alternatives for common actions.
+The web UI (`csauto serve`) is the primary interface for runtime monitoring and operations — launching, steering, killing, restarting, comparing, and inspecting cases. The CLI covers initial setup (`prepare`, `doctor`), data export (`residuals`, `perf`), and offers terminal alternatives for common actions.
 
 | Command     | Description                                       | UI equivalent              |
 |-------------|---------------------------------------------------|----------------------------|
 | `prepare`   | Generate cases from a DOE CSV and a template      | — (CLI only)               |
+| `doe`       | Generate a `doe.csv` from a parameter spec (factorial/LHS/Sobol/CCD) | — (CLI only) |
 | `doctor`    | Validate runtime environment and configuration    | — (CLI only)               |
 | `serve`     | Start the web monitoring dashboard                | — (starts the UI)          |
 | `run`       | Launch cases locally or on Slurm (`--n`, `--nt` required) | Status → Run Selected |
 | `status`    | Show case status in the terminal                  | Status panel               |
 | `tail`      | Stream a case log file (like `tail -f`)           | Log Tail panel             |
+| `control`   | Steer a running case: stop/extend/checkpoint/flush | Status → Stop / More ▾ menu |
 | `residuals` | Export residuals data and/or SVG plot             | Residuals Plot panel       |
 | `perf`      | Extract performance metrics from logs             | Timing Snapshot panel      |
 | `cleanup`   | Remove old RESU dirs, logs (`--prune-resu`, etc.) | Status → Clean Selected    |

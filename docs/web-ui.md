@@ -86,8 +86,26 @@ stop criterion:
 csauto automatically finds the latest checkpoint and computes the absolute
 target value. You do not need to know the checkpoint path.
 
+**Stop**: gracefully stop the selected running cases — code_saturne finishes
+its current time step, writes a checkpoint, and exits on its own. Unlike
+Kill, no process is signaled and no restart is needed afterwards.
+
+**More ▾**: secondary controls for running cases, next to Stop:
+- **Extend**: raise the time step limit so the case keeps going instead of
+  stopping. A popup asks how many additional time steps to add to the case's
+  configured limit (repeated extends stack correctly).
+- **Checkpoint**: request a checkpoint at the next time step, without
+  stopping the run. Useful for grabbing a restart point mid-run. This does
+  not add a marker to the Residuals/Probes plots — those only mark actual
+  restarts (a new run launched from a checkpoint), not in-place checkpoints.
+- **Flush**: force logs and time-plot/probe files to be written to disk
+  immediately, without waiting for the next automatic write. Doesn't affect
+  the simulation itself.
+
 **Kill**: send a termination signal to the selected running cases.
-Works for both local processes and Slurm jobs.
+Works for both local processes and Slurm jobs. Use Stop instead when you
+just want the run to wind down cleanly — Kill discards in-flight work and
+requires restarting from the last checkpoint.
 
 **Clean**: remove old RESU directories and/or truncate heavy logs for
 the selected cases. A popup lets you choose which RESU runs to keep or delete.

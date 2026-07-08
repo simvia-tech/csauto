@@ -38,6 +38,7 @@ If `--config` is omitted, config discovery follows the order in [config.md](./co
 | `run` | Launch selected or all prepared cases | Status panel → Run Selected |
 | `status` | Refresh and print current case states | Status panel (auto-refreshes) |
 | `tail` | Stream a case log file (like `tail -f`) | Log Tail panel |
+| `control` | Steer a running case (stop/extend/checkpoint/flush) without killing it | Status panel → Stop, More ▾ menu (Extend/Checkpoint/Flush) |
 | `residuals` | Export residuals data and/or SVG plot | Residuals Plot panel |
 | `perf` | Extract performance metrics from logs | Timing Snapshot panel |
 | `cleanup` | Prune old data and truncate heavy logs | Status panel → Clean Selected |
@@ -230,6 +231,52 @@ csauto tail RUNS --case case0001 --file listing -n 200
 
 # One-shot read of launch log
 csauto tail RUNS --case case0001 --file csauto.stdout -n 50 --no-follow
+```
+
+---
+
+## `control`
+
+> **UI equivalent**: Status panel → **Stop** button, plus a **More ▾** menu
+> with Extend, Checkpoint, and Flush.
+
+Sends a live steering directive to a running case by dropping a
+`control_file` into its active `RESU/<run>/` directory, which code_saturne
+polls once per time step. This is the non-destructive alternative to killing
+the process: the solver finishes its current step cleanly instead of being
+interrupted mid-iteration.
+
+```bash
+csauto control <runs_dir> <case_id> [--stop | --extend N | --checkpoint | --flush]
+```
+
+Exactly one action is required:
+
+- `--stop`: graceful stop — finish the current time step, write a checkpoint,
+  and exit. No restart is needed afterwards; the run is already at a
+  consistent state.
+- `--extend N`: raise the case's configured iteration limit (`nt_max`, as
+  code_saturne itself reports it — not csauto's own `--nt`/OpenMP thread count)
+  by `N`, so it keeps running past a limit it's about to hit instead of
+  stopping. csauto reads the actual limit from the solver's own logs
+  (`setup.log`, or a prior extend's echo in `run_solver.log`/`listing`), so
+  repeated extends compound correctly. Falls back to the case's current
+  iteration if the configured limit can't be read yet (e.g. right after
+  launch, before `setup.log` is written), or `0` if that isn't available either.
+- `--checkpoint`: request a checkpoint at the next time step, without
+  stopping the run.
+- `--flush`: flush logs and time plots at the next time step.
+
+The case must be `RUNNING` for any of these to apply. Each action is logged
+to the case's `.csauto.history.jsonl`.
+
+Examples:
+
+```bash
+csauto control RUNS case0007 --stop
+csauto control RUNS case0007 --extend 500
+csauto control RUNS case0007 --checkpoint
+csauto control RUNS case0007 --flush
 ```
 
 ---

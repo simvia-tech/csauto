@@ -7,7 +7,7 @@
 1. `prepare` -> DOE/template rendering (CLI only)
 2. `doctor` -> environment validation (CLI only)
 3. `serve` -> primary FastAPI web UI + HTTP API (daily driver)
-4. `run` / `status` / `tail` / `residuals` / `perf` / `cleanup` -> CLI alternatives for operations also available in the web UI
+4. `run` / `status` / `tail` / `control` / `residuals` / `perf` / `cleanup` -> CLI alternatives for operations also available in the web UI
 
 The web UI is the primary interface for daily operations. After `prepare` and optionally `doctor`, users work through the browser.
 
@@ -18,6 +18,7 @@ The web UI is the primary interface for daily operations. After `prepare` and op
 - `csauto/doe.py` - DOE parsing and case generation
 - `csauto/template.py` - placeholder and IF rendering
 - `csauto/runner.py` - launch, restart, kill, status transitions
+- `csauto/control.py` - live steering (stop/extend/checkpoint/flush) via `control_file`, without killing the process
 - `csauto/execution.py` - runtime resolution and commands
 - `csauto/docker.py` - Docker container commands (run, GUI, terminate)
 - `csauto/logs.py` - logs, anomalies, tails, restart origin

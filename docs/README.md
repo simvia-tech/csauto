@@ -9,7 +9,7 @@
 
 The web UI is the recommended interface for all daily operations.
 
-- [Web UI guide](./web-ui.md) — launch, monitor, restart, kill, clean from the browser
+- [Web UI guide](./web-ui.md) — launch, monitor, restart, stop/extend/checkpoint, kill, clean from the browser
 - [Task cookbook](./task-cookbook.md) — copy/paste recipes, UI-first with CLI alternatives
 - [Run lifecycle](./run-lifecycle.md) — case states, transitions, and state files
 

@@ -548,6 +548,40 @@ Success response:
 { "status": "ok" }
 ```
 
+## `POST /api/control_case`
+
+Purpose:
+
+- send a live steering directive to one or more running cases, by dropping a
+  `control_file` into the active `RESU/<run>/` directory (code_saturne polls
+  it once per time step) — an alternative to killing the process
+
+Payload:
+
+```json
+{ "cases": ["case0001", "case0002"], "action": "stop", "value": null }
+```
+
+- `action`: one of `"stop"`, `"extend"`, `"checkpoint"`, `"flush"`
+- `value`: required positive integer for `"extend"` (additional time steps); ignored otherwise
+
+Behavior:
+
+- multi-case control runs in parallel
+- every selected case must currently be `RUNNING`, or the request fails
+- `extend` raises the case's actual configured iteration limit (as
+  code_saturne reports it, not csauto's own `--nt`/OpenMP thread count) by
+  `value`; repeated extends stack correctly
+- returns `500` if any selected case fails (not `RUNNING`, no active RESU
+  directory, invalid `value` for `extend`, etc.)
+- each action is logged to the case's `.csauto.history.jsonl`
+
+Success response:
+
+```json
+{ "status": "ok" }
+```
+
 ## `POST /api/open_gui`
 
 Purpose:
