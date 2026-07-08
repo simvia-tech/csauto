@@ -208,6 +208,18 @@ export function killCase(cases: string[]): Promise<void> {
   return apiPost("/api/kill_case", { cases }).then(() => undefined);
 }
 
+export function controlCase(params: {
+  cases: string[];
+  action: "stop" | "extend" | "checkpoint" | "flush";
+  value?: number;
+}): Promise<void> {
+  return apiPost("/api/control_case", {
+    cases: params.cases,
+    action: params.action,
+    value: params.value ?? undefined,
+  }).then(() => undefined);
+}
+
 export function cleanupCases(params: {
   cases: string[];
   keepLast?: number;

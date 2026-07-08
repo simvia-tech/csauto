@@ -9,10 +9,21 @@
   import AutoRefreshToggle from "$lib/components/shared/AutoRefreshToggle.svelte";
   import Button from "$lib/components/shared/Button.svelte";
   import Icon from "$lib/components/shared/Icon.svelte";
+  import ActionMenuButton from "$lib/components/shared/ActionMenuButton.svelte";
   import ViewManager from "./ViewManager.svelte";
   import StatusTable from "./StatusTable.svelte";
   import ConvergenceMenu from "./ConvergenceMenu.svelte";
-  import { RefreshCw, Play, RotateCcw, XCircle, Trash2 } from "lucide-svelte";
+  import {
+    RefreshCw,
+    Play,
+    RotateCcw,
+    XCircle,
+    Trash2,
+    CircleStop,
+    FastForward,
+    Save,
+    Droplets,
+  } from "lucide-svelte";
   import {
     getAutoRefresh,
     setAutoRefresh,
@@ -45,8 +56,15 @@
     openRestartDialog,
     openCleanDialog,
     appConfirm,
+    appPrompt,
   } from "$lib/actions/dialog.svelte";
-  import { runCase, killCase, cleanupCases } from "$lib/api/endpoints";
+  import { showToast } from "$lib/actions/toast.svelte";
+  import {
+    runCase,
+    killCase,
+    controlCase,
+    cleanupCases,
+  } from "$lib/api/endpoints";
   import { appAlert } from "$lib/actions/dialog.svelte";
 
   interface Props {
@@ -125,6 +143,91 @@
     }
   }
 
+  async function stopSelected() {
+    const cases = getSelectedArray();
+    if (!cases.length) return;
+    const ok = await appConfirm(
+      `Stop ${cases.length} case${cases.length > 1 ? "s" : ""} gracefully (checkpoint + exit)?`,
+      "Confirm Stop",
+      "Stop",
+      "danger",
+    );
+    if (!ok) return;
+    try {
+      await controlCase({ cases, action: "stop" });
+      onRefresh();
+      showToast(
+        `Stop requested for ${cases.length} case${cases.length > 1 ? "s" : ""} — will checkpoint and exit`,
+      );
+    } catch (err) {
+      await appAlert(
+        `Stop failed: ${err instanceof Error ? err.message : err}`,
+        "Error",
+      );
+    }
+  }
+
+  async function checkpointSelected() {
+    const cases = getSelectedArray();
+    if (!cases.length) return;
+    try {
+      await controlCase({ cases, action: "checkpoint" });
+      onRefresh();
+      showToast(
+        `Checkpoint requested for ${cases.length} case${cases.length > 1 ? "s" : ""}`,
+      );
+    } catch (err) {
+      await appAlert(
+        `Checkpoint failed: ${err instanceof Error ? err.message : err}`,
+        "Error",
+      );
+    }
+  }
+
+  async function extendSelected() {
+    const cases = getSelectedArray();
+    if (!cases.length) return;
+    const input = await appPrompt(
+      "Extend by how many additional time steps?",
+      "500",
+      "Extend Run",
+    );
+    if (input === null) return;
+    const n = parseInt(input, 10);
+    if (!Number.isFinite(n) || n <= 0) {
+      await appAlert("Enter a positive integer number of time steps.", "Error");
+      return;
+    }
+    try {
+      await controlCase({ cases, action: "extend", value: n });
+      onRefresh();
+      showToast(
+        `Extended ${cases.length} case${cases.length > 1 ? "s" : ""} by ${n} time steps`,
+      );
+    } catch (err) {
+      await appAlert(
+        `Extend failed: ${err instanceof Error ? err.message : err}`,
+        "Error",
+      );
+    }
+  }
+
+  async function flushSelected() {
+    const cases = getSelectedArray();
+    if (!cases.length) return;
+    try {
+      await controlCase({ cases, action: "flush" });
+      showToast(
+        `Flush requested for ${cases.length} case${cases.length > 1 ? "s" : ""}`,
+      );
+    } catch (err) {
+      await appAlert(
+        `Flush failed: ${err instanceof Error ? err.message : err}`,
+        "Error",
+      );
+    }
+  }
+
   async function cleanSelected() {
     const cases = getSelectedArray();
     if (!cases.length) return;
@@ -188,6 +291,10 @@
     );
   });
   let canKill = $derived.by(() => {
+    const statuses = getSelectedStatuses();
+    return statuses.size > 0 && statuses.has("RUNNING");
+  });
+  let canControl = $derived.by(() => {
     const statuses = getSelectedStatuses();
     return statuses.size > 0 && statuses.has("RUNNING");
   });
@@ -338,6 +445,34 @@
           onclick={restartSelected}
           disabled={!canRestart}><Icon icon={RotateCcw} /> Restart</Button
         >
+        <Button
+          variant="warning"
+          size="sm"
+          onclick={stopSelected}
+          disabled={!canControl}><Icon icon={CircleStop} /> Stop</Button
+        >
+        <ActionMenuButton
+          items={[
+            {
+              label: "Extend",
+              icon: FastForward,
+              onClick: extendSelected,
+              disabled: !canControl,
+            },
+            {
+              label: "Checkpoint",
+              icon: Save,
+              onClick: checkpointSelected,
+              disabled: !canControl,
+            },
+            {
+              label: "Flush",
+              icon: Droplets,
+              onClick: flushSelected,
+              disabled: !canControl,
+            },
+          ]}
+        />
         <Button
           variant="danger"
           size="sm"

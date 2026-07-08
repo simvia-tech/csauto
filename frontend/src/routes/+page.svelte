@@ -9,6 +9,7 @@
   import "../app.css";
 
   import DialogManager from "$lib/components/dialogs/DialogManager.svelte";
+  import ToastManager from "$lib/components/shared/ToastManager.svelte";
   import HeroBanner from "$lib/components/hero/HeroBanner.svelte";
   import simviaLogo from "../assets/simvia-logo.svg";
   import StatusCard from "$lib/components/status/StatusCard.svelte";
@@ -59,6 +60,7 @@
 </script>
 
 <DialogManager />
+<ToastManager />
 
 <HeroBanner
   totalCases={heroCounts.totalCases}
