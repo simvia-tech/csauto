@@ -21,6 +21,7 @@ class Config:
     use_slurm: bool | None = None
     mpi_exec_options: str | None = None
     max_parallel: int = 1
+    mesh_mode: str = "copy"
     host: str = "127.0.0.1"
     port: int = 8000
     api_token: str | None = None
@@ -87,6 +88,13 @@ def _parse_runtime(value: Any, *, config_path: Path) -> str:
             f"Invalid runtime in {config_path}: {runtime!r} (expected auto, docker, singularity, or native)"
         )
     return runtime
+
+
+def _parse_mesh_mode(value: Any, *, config_path: Path) -> str:
+    mesh_mode = _coerce_str(value, "copy").strip().lower()
+    if mesh_mode not in {"copy", "symlink"}:
+        raise ValueError(f"Invalid mesh_mode in {config_path}: {mesh_mode!r} (expected copy or symlink)")
+    return mesh_mode
 
 
 def find_config(path: Path | None = None) -> Path | None:
@@ -158,6 +166,8 @@ def load_config(path: Path | None = None) -> Config:
             config_path=config_path,
             min_value=1,
         )
+    if "mesh_mode" in data:
+        config.mesh_mode = _parse_mesh_mode(data.get("mesh_mode"), config_path=config_path)
     if "host" in data:
         host = _coerce_str(data.get("host"), "").strip()
         if not host:

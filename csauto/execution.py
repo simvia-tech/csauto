@@ -153,6 +153,31 @@ def resolve_runtime(
     )
 
 
+def check_shared_dir_symlinks(runs_dir: Path, runtime: str) -> None:
+    """Raise if a symlinked shared dir (MESH/POST) would be invisible inside a container.
+
+    Docker/Singularity only bind-mount `runs_dir` itself, so a MESH/POST symlink
+    pointing outside `runs_dir` (as produced by `mesh_mode = "symlink"`) resolves to a
+    path that is not mounted inside the container.
+    """
+    if runtime not in (RUNTIME_DOCKER, RUNTIME_SINGULARITY):
+        return
+    resolved_runs_dir = runs_dir.resolve()
+    for name in ("MESH", "POST"):
+        shared_dir = runs_dir / name
+        if not shared_dir.is_symlink():
+            continue
+        target = shared_dir.resolve()
+        if target == resolved_runs_dir or resolved_runs_dir in target.parents:
+            continue
+        raise RuntimeError(
+            f"{shared_dir} is a symlink to {target}, which is outside {runs_dir}. "
+            f"The {runtime} runtime only mounts {runs_dir} into the container, so this mesh would "
+            "not be visible at run time. Re-run `csauto prepare` with mesh_mode=copy, or use "
+            "runtime=native for this campaign."
+        )
+
+
 def _singularity_paths(case_dir: Path) -> tuple[Path, str, str]:
     """Return (runs_root, container_root, container_case) for singularity mounts."""
     runs_root = case_dir.parent.resolve()

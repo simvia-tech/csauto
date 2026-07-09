@@ -117,6 +117,7 @@ token = "your-secret-token"
 | `use_slurm` | (auto-detected) | `true` to force Slurm submission, `false` to force local |
 | `mpi_exec_options` | (none) | Options injected as `CS_MPIEXEC_OPTIONS` in Slurm jobs |
 | `max_parallel` | `1` | Maximum simultaneous case launches |
+| `mesh_mode` | `copy` | How `prepare` places the shared `MESH`/`POST` dirs into `RUNS/`: `copy` or `symlink` (see [concepts.md](./concepts.md#shared-meshpost-directories)) |
 | `host` | `127.0.0.1` | Bind address for `serve` |
 | `port` | `8000` | Bind port for `serve` |
 | `[api].token` | (none) | API authentication token |

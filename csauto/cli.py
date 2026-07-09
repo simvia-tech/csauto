@@ -108,6 +108,15 @@ def parse_arguments(
     prepare_parser.add_argument("doe_csv", type=Path, help="Path to the doe.csv file")
     prepare_parser.add_argument("template_case", type=Path, help="Template case directory")
     prepare_parser.add_argument("output_root", type=Path, help="Root directory where cases will be generated")
+    prepare_parser.add_argument(
+        "--mesh-mode",
+        dest="mesh_mode",
+        choices=["copy", "symlink"],
+        default=config.mesh_mode,
+        help="How to place the shared MESH/POST dirs into output_root: 'copy' (default) or 'symlink'. "
+        "'symlink' avoids duplicating large meshes but is not supported with the docker/singularity "
+        "runtimes unless the mesh lives inside output_root already.",
+    )
 
     doe_parser = subparsers.add_parser(
         "doe", help="Generate a doe.csv from a parameter spec (factorial/lhs/sobol/ccd)."
@@ -405,7 +414,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         elif args.command == "prepare":
             headers, rows = load_doe(args.doe_csv)
-            generate_cases(headers, rows, args.template_case, args.output_root)
+            generate_cases(headers, rows, args.template_case, args.output_root, mesh_mode=args.mesh_mode)
         elif args.command == "doe":
             from .doe_generate import generate_rows, load_doe_spec, write_doe_csv
 

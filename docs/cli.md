@@ -61,6 +61,13 @@ Arguments:
 - `<template_dir>`: base case root containing `setup.xml` (at root or under `DATA/`)
 - `<output_dir>`: destination root where `caseXXXX/` folders are created
 
+Options:
+
+- `--mesh-mode {copy,symlink}`: how to place the shared `MESH`/`POST` dirs (siblings of
+  `<template_dir>`) into `<output_dir>`. Defaults to `mesh_mode` in `csauto.toml`
+  (itself defaulting to `copy`). See [concepts.md](./concepts.md#shared-meshpost-directories)
+  for the tradeoffs, in particular the `symlink` + container-runtime caveat.
+
 Generated files:
 
 ```

@@ -78,6 +78,50 @@ def test_generate_cases_copies_shared_dirs_from_template_parent_even_when_cwd_di
     assert (output_dir / "POST" / "probe.txt").read_text(encoding="utf-8") == "post-data\n"
 
 
+def test_generate_cases_symlinks_shared_dirs_when_mesh_mode_symlink(tmp_path: Path, monkeypatch) -> None:
+    project_dir = tmp_path / "project"
+    template_dir = project_dir / "TEMPLATE"
+    (template_dir / "DATA").mkdir(parents=True)
+    (template_dir / "DATA" / "setup.xml").write_text("<root>{foo}</root>", encoding="utf-8")
+    (project_dir / "MESH").mkdir(parents=True)
+    (project_dir / "MESH" / "mesh.med").write_text("mesh-data\n", encoding="utf-8")
+    (project_dir / "POST").mkdir(parents=True)
+    (project_dir / "POST" / "probe.txt").write_text("post-data\n", encoding="utf-8")
+
+    doe_path = tmp_path / "doe.csv"
+    doe_path.write_text("foo\n7\n", encoding="utf-8")
+
+    output_dir = tmp_path / "RUNS"
+    headers, rows = load_doe(doe_path)
+    monkeypatch.chdir(tmp_path)
+    generate_cases(headers, rows, template_dir, output_dir, mesh_mode="symlink")
+
+    mesh_dir = output_dir / "MESH"
+    post_dir = output_dir / "POST"
+    assert mesh_dir.is_symlink()
+    assert post_dir.is_symlink()
+    assert mesh_dir.resolve() == (project_dir / "MESH").resolve()
+    assert (mesh_dir / "mesh.med").read_text(encoding="utf-8") == "mesh-data\n"
+    assert (post_dir / "probe.txt").read_text(encoding="utf-8") == "post-data\n"
+
+    # Re-running generate_cases with the same mode is idempotent.
+    generate_cases(headers, rows, template_dir, output_dir, mesh_mode="symlink")
+    assert mesh_dir.is_symlink()
+
+
+def test_generate_cases_invalid_mesh_mode_raises(tmp_path: Path) -> None:
+    template_dir = tmp_path / "TEMPLATE"
+    (template_dir / "DATA").mkdir(parents=True)
+    (template_dir / "DATA" / "setup.xml").write_text("<root>{foo}</root>", encoding="utf-8")
+    doe_path = tmp_path / "doe.csv"
+    doe_path.write_text("foo\n1\n", encoding="utf-8")
+    output_dir = tmp_path / "RUNS"
+    headers, rows = load_doe(doe_path)
+
+    with pytest.raises(ValueError, match="mesh_mode"):
+        generate_cases(headers, rows, template_dir, output_dir, mesh_mode="bogus")
+
+
 def test_generate_cases_warns_unused_columns(tmp_path: Path, monkeypatch, capsys) -> None:
     template_dir = tmp_path / "TEMPLATE"
     (template_dir / "DATA").mkdir(parents=True)

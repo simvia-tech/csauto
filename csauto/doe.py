@@ -98,27 +98,41 @@ def _write_doe_row(case_dir: Path, headers: Sequence[str], row: Mapping[str, str
         writer.writerow(row_data)
 
 
-def _copy_shared_dir(parent_dir: Path, name: str, source_dir: Path) -> None:
-    """Copy a shared folder into the runs directory."""
+def _copy_shared_dir(parent_dir: Path, name: str, source_dir: Path, mesh_mode: str = "copy") -> None:
+    """Copy or symlink a shared folder into the runs directory."""
     dest_dir = parent_dir / name
     if not source_dir.is_dir():
         warn(f"source directory missing for copy {name}: {source_dir}")
         return
+    resolved_source = source_dir.resolve()
     if dest_dir.exists() or dest_dir.is_symlink():
-        if dest_dir.is_dir() and not dest_dir.is_symlink():
-            return
         if dest_dir.is_symlink():
             try:
-                if dest_dir.resolve() == source_dir.resolve():
+                if dest_dir.resolve() == resolved_source:
+                    if mesh_mode == "symlink":
+                        return
                     dest_dir.unlink()
                 else:
                     raise OSError("symlink points to a different target")
             except OSError:
-                warn(f"{dest_dir} already exists (unexpected symlink), copy skipped.")
+                warn(f"{dest_dir} already exists (unexpected symlink), skipped.")
                 return
-        else:
-            warn(f"{dest_dir} already exists, copy skipped.")
+        elif dest_dir.is_dir():
+            if mesh_mode == "copy":
+                return
+            warn(f"{dest_dir} already exists as a directory, cannot symlink to it, skipped.")
             return
+        else:
+            warn(f"{dest_dir} already exists, skipped.")
+            return
+
+    if mesh_mode == "symlink":
+        try:
+            dest_dir.symlink_to(resolved_source, target_is_directory=True)
+            return
+        except OSError as exc:
+            warn(f"Could not symlink {dest_dir} -> {resolved_source} ({exc}), falling back to copy.")
+
     try:
         shutil.copytree(source_dir, dest_dir)
     except OSError as exc:
@@ -243,8 +257,11 @@ def generate_cases(
     rows: Sequence[Mapping[str, str]],
     template_dir: Path,
     output_dir: Path,
+    mesh_mode: str = "copy",
 ) -> None:
     """Generate case folders for each DOE row."""
+    if mesh_mode not in {"copy", "symlink"}:
+        raise ValueError(f"Invalid mesh_mode: {mesh_mode!r} (expected copy or symlink)")
     if not template_dir.is_dir():
         raise FileNotFoundError(f"Template directory not found: {template_dir}")
 
@@ -283,8 +300,8 @@ def generate_cases(
 
     setup_relative = template_setup.relative_to(template_dir)
     shared_root = template_dir.parent
-    _copy_shared_dir(output_dir, "MESH", shared_root / "MESH")
-    _copy_shared_dir(output_dir, "POST", shared_root / "POST")
+    _copy_shared_dir(output_dir, "MESH", shared_root / "MESH", mesh_mode=mesh_mode)
+    _copy_shared_dir(output_dir, "POST", shared_root / "POST", mesh_mode=mesh_mode)
 
     with registry_transaction(output_dir) as registry:
         seen_case_ids: set[str] = set()

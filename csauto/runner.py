@@ -27,6 +27,7 @@ from .execution import (
     RuntimeSelection,
     build_runtime_run_command,
     build_singularity_slurm_script,
+    check_shared_dir_symlinks,
     resolve_runtime,
 )
 from .logs import (
@@ -691,6 +692,7 @@ def run_cases(
         singularity_image=singularity_image,
         singularity_bin=singularity_bin,
     )
+    check_shared_dir_symlinks(runs_dir, selection.runtime)
     use_slurm_scheduler = _should_use_slurm_scheduler(selection.runtime, use_slurm=use_slurm)
 
     allowed_list: list[str] | None = None

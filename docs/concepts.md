@@ -193,6 +193,30 @@ For finished cases, you can set a convergence label (`Converged` /
 
 ---
 
+## Shared MESH/POST directories
+
+`prepare` places one `MESH/` and one `POST/` folder directly under `RUNS/` (not
+per-case) so every case can reference the mesh with a relative `../MESH` path.
+How that folder gets there is controlled by `mesh_mode` in `csauto.toml` (or
+`--mesh-mode` on `csauto prepare`):
+
+- `copy` (default) — the template's sibling `MESH/`/`POST/` dirs are physically
+  copied into `RUNS/`. Safe everywhere, but wastes disk space for large meshes
+  (`.med` files can be gigabytes) since the mesh already exists at the study level.
+- `symlink` — `RUNS/MESH` and `RUNS/POST` become symlinks to the original
+  directories instead of copies. No duplication, but **not supported with the
+  `docker`/`singularity` runtimes**: those runtimes only bind-mount `RUNS/` into
+  the container, so a symlink pointing outside `RUNS/` resolves to a path that
+  is not mounted and the run fails to find the mesh. `csauto run` detects this
+  combination up front and raises a clear error instead of launching a broken
+  container run — use `runtime = "native"`, or keep `mesh_mode = "copy"`, for
+  container-based campaigns.
+- On Windows, creating a symlink may require developer mode or elevated
+  privileges; `prepare` falls back to copying (with a warning) if the symlink
+  cannot be created.
+
+---
+
 ## Slurm mode
 
 On HPC clusters, csauto submits each case as a Slurm job via `sbatch` instead

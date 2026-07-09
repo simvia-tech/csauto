@@ -12,6 +12,7 @@ from csauto.execution import (
     build_runtime_gui_command,
     build_runtime_run_command,
     build_singularity_slurm_script,
+    check_shared_dir_symlinks,
     resolve_runtime,
 )
 
@@ -190,3 +191,44 @@ def test_build_singularity_slurm_script_uses_stage_solver_finalize(tmp_path: Pat
     assert "--parametric-args=--restart=RESU/001/checkpoint" in script
     assert "/images/code_saturne.sif" in script
     assert str(case_dir.resolve()) in script
+
+
+def test_check_shared_dir_symlinks_native_is_always_ok(tmp_path: Path) -> None:
+    runs_dir = tmp_path / "RUNS"
+    runs_dir.mkdir()
+    outside = tmp_path / "study" / "MESH"
+    outside.mkdir(parents=True)
+    (runs_dir / "MESH").symlink_to(outside, target_is_directory=True)
+
+    check_shared_dir_symlinks(runs_dir, RUNTIME_NATIVE)
+
+
+def test_check_shared_dir_symlinks_no_symlink_is_ok_for_containers(tmp_path: Path) -> None:
+    runs_dir = tmp_path / "RUNS"
+    (runs_dir / "MESH").mkdir(parents=True)
+
+    check_shared_dir_symlinks(runs_dir, RUNTIME_DOCKER)
+    check_shared_dir_symlinks(runs_dir, RUNTIME_SINGULARITY)
+
+
+def test_check_shared_dir_symlinks_inside_runs_dir_is_ok_for_containers(tmp_path: Path) -> None:
+    runs_dir = tmp_path / "RUNS"
+    real_mesh = runs_dir / "_MESH_real"
+    real_mesh.mkdir(parents=True)
+    (runs_dir / "MESH").symlink_to(real_mesh, target_is_directory=True)
+
+    check_shared_dir_symlinks(runs_dir, RUNTIME_DOCKER)
+
+
+@pytest.mark.parametrize("runtime", [RUNTIME_DOCKER, RUNTIME_SINGULARITY])
+def test_check_shared_dir_symlinks_raises_for_containers_when_target_outside_runs_dir(
+    tmp_path: Path, runtime: str
+) -> None:
+    runs_dir = tmp_path / "RUNS"
+    runs_dir.mkdir()
+    outside = tmp_path / "study" / "MESH"
+    outside.mkdir(parents=True)
+    (runs_dir / "MESH").symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(RuntimeError, match="symlink"):
+        check_shared_dir_symlinks(runs_dir, runtime)

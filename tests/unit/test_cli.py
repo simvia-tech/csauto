@@ -9,6 +9,39 @@ from csauto.config import Config
 from csauto.execution import RuntimeSelection
 
 
+def test_prepare_command_defaults_mesh_mode_from_config() -> None:
+    config = Config(mesh_mode="symlink")
+    _parser, args = parse_arguments(["prepare", "doe.csv", "TEMPLATE", "RUNS"], config)
+    assert args.mesh_mode == "symlink"
+
+
+def test_prepare_command_allows_mesh_mode_override() -> None:
+    config = Config(mesh_mode="symlink")
+    _parser, args = parse_arguments(["prepare", "doe.csv", "TEMPLATE", "RUNS", "--mesh-mode", "copy"], config)
+    assert args.mesh_mode == "copy"
+
+
+def test_prepare_command_calls_generate_cases_with_mesh_mode(tmp_path: Path, monkeypatch) -> None:
+    template_dir = tmp_path / "TEMPLATE"
+    (template_dir / "DATA").mkdir(parents=True)
+    (template_dir / "DATA" / "setup.xml").write_text("<root>{foo}</root>", encoding="utf-8")
+    doe_csv = tmp_path / "doe.csv"
+    doe_csv.write_text("foo\n1\n", encoding="utf-8")
+    output_root = tmp_path / "RUNS"
+
+    calls: list[dict] = []
+
+    def fake_generate_cases(headers, rows, template_case, output_dir, mesh_mode="copy"):
+        calls.append({"mesh_mode": mesh_mode})
+
+    monkeypatch.setattr("csauto.cli.generate_cases", fake_generate_cases)
+
+    exit_code = main(["prepare", str(doe_csv), str(template_dir), str(output_root), "--mesh-mode", "symlink"])
+
+    assert exit_code == 0
+    assert calls == [{"mesh_mode": "symlink"}]
+
+
 def test_run_precheck_receives_runtime_configuration_from_resolved_runtime(tmp_path: Path) -> None:
     runs_dir = tmp_path / "RUNS"
     case_dir = runs_dir / "case0001" / "DATA"
