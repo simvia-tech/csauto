@@ -40,12 +40,15 @@ def _serve_common_prechecks(
     print_doctor: Callable[[Sequence[object]], bool],
 ) -> tuple[str, str | None]:
     if not args.no_doctor:
+        from .solvers import get_solver_adapter
+
         items = run_doctor(
             args.runs_dir,
             require_docker=False,
             check_display=True,
             require_write=True,
             check_setup=True,
+            adapter=get_solver_adapter(config.solver),
         )
         if print_doctor(items):
             raise ValueError("Pre-check failed.")

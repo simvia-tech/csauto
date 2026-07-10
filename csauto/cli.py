@@ -416,7 +416,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         elif args.command == "prepare":
             headers, rows = load_doe(args.doe_csv)
-            generate_cases(headers, rows, args.template_case, args.output_root, mesh_mode=args.mesh_mode)
+            generate_cases(
+                headers, rows, args.template_case, args.output_root, mesh_mode=args.mesh_mode, adapter=adapter
+            )
         elif args.command == "doe":
             from .doe_generate import generate_rows, load_doe_spec, write_doe_csv
 
@@ -453,6 +455,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     saturne_bin=runtime_selection.saturne_bin,
                     singularity_image=runtime_selection.singularity_image,
                     singularity_bin=runtime_selection.singularity_bin,
+                    adapter=adapter,
                 )
                 if _print_doctor(items):
                     raise ValueError("Pre-check failed.")
@@ -489,6 +492,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.file_name,
                 lines=args.lines,
                 follow=not args.no_follow,
+                adapter=adapter,
             )
         elif args.command == "control":
             if args.stop:
@@ -519,6 +523,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 saturne_bin=config.saturne_bin,
                 singularity_image=config.singularity_image,
                 singularity_bin=config.singularity_bin,
+                adapter=adapter,
             )
             if _print_doctor(items):
                 return 1
@@ -534,6 +539,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 clear_cid=args.clear_cid,
                 clear_pyc=args.clear_pyc,
                 dry_run=args.dry_run,
+                adapter=adapter,
             )
             prefix = "DRY-RUN " if args.dry_run else ""
             print(f"{prefix}RESU removed: {report.resu_removed}")

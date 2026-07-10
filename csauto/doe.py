@@ -12,11 +12,16 @@ from .registry import STATUS_PREPARED, registry_transaction, update_case
 from .template import (
     extract_condition_variables,
     extract_placeholders,
-    find_run_cfg,
-    find_setup_file,
     render_template,
 )
 from .warn import warn
+
+
+def _default_adapter():
+    from .solvers import get_solver_adapter
+
+    return get_solver_adapter(None)
+
 
 RESERVED_COLUMNS = {"case_id"}
 CASE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
@@ -139,8 +144,8 @@ def _copy_shared_dir(parent_dir: Path, name: str, source_dir: Path, mesh_mode: s
         raise OSError(f"Failed to copy {source_dir} -> {dest_dir}: {exc}") from exc
 
 
-def _collect_render_targets(template_dir: Path) -> list[tuple[Path, str, set[str], set[str]]]:
-    skip_dirs = {"MESH", "POST"}
+def _collect_render_targets(template_dir: Path, adapter) -> list[tuple[Path, str, set[str], set[str]]]:
+    skip_dirs = set(adapter.shared_dir_names)
     targets: list[tuple[Path, str, set[str], set[str]]] = []
     for path in template_dir.rglob("*"):
         if not path.is_file():
@@ -149,7 +154,7 @@ def _collect_render_targets(template_dir: Path) -> list[tuple[Path, str, set[str
             relative = path.relative_to(template_dir)
         except ValueError:
             continue
-        if relative.name in {"setup.xml", "run.cfg"}:
+        if relative.name in adapter.template_input_names:
             continue
         if relative.parts and relative.parts[0] in skip_dirs:
             continue
@@ -258,6 +263,7 @@ def generate_cases(
     template_dir: Path,
     output_dir: Path,
     mesh_mode: str = "copy",
+    adapter=None,
 ) -> None:
     """Generate case folders for each DOE row."""
     if mesh_mode not in {"copy", "symlink"}:
@@ -265,12 +271,13 @@ def generate_cases(
     if not template_dir.is_dir():
         raise FileNotFoundError(f"Template directory not found: {template_dir}")
 
-    template_setup = find_setup_file(template_dir)
+    adapter = adapter or _default_adapter()
+    template_setup = adapter.find_setup_file(template_dir)
 
     setup_text = template_setup.read_text(encoding="utf-8")
     placeholders = extract_placeholders(setup_text)
     condition_vars = extract_condition_variables(setup_text)
-    run_cfg_path = find_run_cfg(template_dir)
+    run_cfg_path = adapter.find_run_config(template_dir)
     run_cfg_template_text: str | None = None
     run_cfg_placeholders: set[str] = set()
     run_cfg_condition_vars: set[str] = set()
@@ -283,7 +290,7 @@ def generate_cases(
         placeholders |= run_cfg_placeholders
         condition_vars |= run_cfg_condition_vars
 
-    extra_targets = _collect_render_targets(template_dir)
+    extra_targets = _collect_render_targets(template_dir, adapter)
     for _, _, extra_placeholders, extra_condition in extra_targets:
         placeholders |= extra_placeholders
         condition_vars |= extra_condition
@@ -300,8 +307,8 @@ def generate_cases(
 
     setup_relative = template_setup.relative_to(template_dir)
     shared_root = template_dir.parent
-    _copy_shared_dir(output_dir, "MESH", shared_root / "MESH", mesh_mode=mesh_mode)
-    _copy_shared_dir(output_dir, "POST", shared_root / "POST", mesh_mode=mesh_mode)
+    for shared_name in adapter.shared_dir_names:
+        _copy_shared_dir(output_dir, shared_name, shared_root / shared_name, mesh_mode=mesh_mode)
 
     with registry_transaction(output_dir) as registry:
         seen_case_ids: set[str] = set()

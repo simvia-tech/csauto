@@ -35,6 +35,7 @@ from .base import SolverAdapterBase
 
 if TYPE_CHECKING:
     from ..execution import RuntimeSelection
+    from ..maintenance import DoctorItem
 
 CHECKPOINT_STATE_RE = re.compile(r"Checkpoint at iteration\s+(?P<iter>\d+),\s+physical time\s+(?P<time>[-+0-9.eE]+)")
 
@@ -331,6 +332,30 @@ class CodeSaturneAdapter(SolverAdapterBase):
 
     def find_run_config(self, template_dir: Path) -> Path | None:
         return find_run_cfg(template_dir)
+
+    def doctor_checks(
+        self,
+        runs_dir: Path,
+        case_dirs: Sequence[Path],
+        *,
+        runtime: str | None = None,
+        solver_bin: str | None = None,
+        singularity_image: str | None = None,
+        singularity_bin: str | None = None,
+    ) -> list[DoctorItem]:
+        from ..maintenance import DoctorItem
+
+        missing: list[str] = []
+        for case_dir in case_dirs:
+            try:
+                find_setup_file(case_dir)
+            except (FileNotFoundError, ValueError):
+                missing.append(case_dir.name)
+        if missing:
+            sample = ", ".join(missing[:5])
+            suffix = " ..." if len(missing) > 5 else ""
+            return [DoctorItem(level="fail", message=f"setup.xml missing for: {sample}{suffix}")]
+        return [DoctorItem(level="ok", message="setup.xml present in every case")]
 
     def find_residuals_files(self, case_dir: Path, include_history: bool = False) -> list[Path]:
         return find_residuals_files(case_dir, include_history=include_history)

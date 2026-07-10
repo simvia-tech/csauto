@@ -352,9 +352,10 @@ def locate_case_file(case_dir: Path, name: str) -> Path | None:
     return None
 
 
-def read_case_file_text(case_dir: Path, name: str) -> str:
+def read_case_file_text(case_dir: Path, name: str, adapter=None) -> str:
     """Read a case file content as text."""
-    path = locate_case_file(case_dir, name)
+    adapter = adapter or _default_adapter()
+    path = adapter.locate_case_file(case_dir, name)
     if not path:
         raise FileNotFoundError(f"File {name} not found for {case_dir.name}")
     return path.read_text(encoding="utf-8", errors="ignore")
@@ -626,13 +627,15 @@ def tail_log(
     file_name: str,
     lines: int = 20,
     follow: bool = True,
+    adapter=None,
 ) -> None:
     """Tail a case log file (like tail -f)."""
     case_dir = runs_dir / case
     if not case_dir.is_dir():
         raise FileNotFoundError(f"Case not found: {case}")
 
-    path = locate_case_file(case_dir, file_name)
+    adapter = adapter or _default_adapter()
+    path = adapter.locate_case_file(case_dir, file_name)
     if not path:
         raise FileNotFoundError(f"File {file_name} not found for {case}")
 

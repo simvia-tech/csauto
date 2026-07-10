@@ -7,14 +7,19 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from .template import find_setup_file
-from .web_support import is_within_root
+from .pathutil import is_within_root
 
 
 @dataclass
 class DoctorItem:
     level: str  # ok, warn, fail
     message: str
+
+
+def _default_adapter():
+    from .solvers import get_solver_adapter
+
+    return get_solver_adapter(None)
 
 
 _WEB_DEPS = ("fastapi", "uvicorn", "pydantic")
@@ -47,7 +52,9 @@ def run_doctor(
     saturne_bin: str | None = None,
     singularity_image: str | None = None,
     singularity_bin: str | None = None,
+    adapter=None,
 ) -> list[DoctorItem]:
+    adapter = adapter or _default_adapter()
     items: list[DoctorItem] = []
 
     def add(level: str, message: str) -> None:
@@ -69,19 +76,18 @@ def run_doctor(
         add("ok", f"{len(case_dirs)} cases detected")
 
     if check_setup and case_dirs:
-        missing: list[str] = []
-        for case_dir in case_dirs:
-            try:
-                find_setup_file(case_dir)
-            except (FileNotFoundError, ValueError):
-                missing.append(case_dir.name)
-        if missing:
-            sample = ", ".join(missing[:5])
-            suffix = " ..." if len(missing) > 5 else ""
-            add("fail", f"setup.xml missing for: {sample}{suffix}")
-        else:
-            add("ok", "setup.xml present in every case")
+        items.extend(
+            adapter.doctor_checks(
+                runs_dir,
+                case_dirs,
+                runtime=runtime,
+                solver_bin=saturne_bin,
+                singularity_image=singularity_image,
+                singularity_bin=singularity_bin,
+            )
+        )
 
+    solver_bin_name = adapter.native_bin_name
     _rt = (runtime or "auto").strip().lower()
     # Override legacy flags with explicit runtime when provided
     if runtime:
@@ -120,17 +126,17 @@ def run_doctor(
         if _bin:
             _bin_path = Path(_bin).expanduser()
             if _bin_path.is_file() and os.access(_bin_path, os.X_OK):
-                add("ok", f"code_saturne binary: {_bin_path}")
+                add("ok", f"{solver_bin_name} binary: {_bin_path}")
             else:
-                add("fail", f"code_saturne binary not found or not executable: {_bin}")
-        elif shutil.which("code_saturne"):
-            add("ok", "code_saturne found in PATH")
+                add("fail", f"{solver_bin_name} binary not found or not executable: {_bin}")
+        elif shutil.which(solver_bin_name):
+            add("ok", f"{solver_bin_name} found in PATH")
         else:
-            add("fail", "code_saturne not found in PATH and saturne_bin not configured")
+            add("fail", f"{solver_bin_name} not found in PATH and saturne_bin not configured")
     else:
         # auto or unknown: best-effort
         _found: list[str] = []
-        if shutil.which("code_saturne") or (saturne_bin and Path(saturne_bin).expanduser().is_file()):
+        if shutil.which(solver_bin_name) or (saturne_bin and Path(saturne_bin).expanduser().is_file()):
             _found.append("native")
         if shutil.which("docker"):
             _found.append("docker")
@@ -139,7 +145,7 @@ def run_doctor(
         if _found:
             add("ok", f"available runtimes: {', '.join(_found)}")
         else:
-            add("warn", "no runtime found (code_saturne, docker, apptainer/singularity)")
+            add("warn", f"no runtime found ({solver_bin_name}, docker, apptainer/singularity)")
 
     if check_display:
         display = os.environ.get("DISPLAY")
@@ -238,27 +244,22 @@ def cleanup_runs(
     clear_pyc: bool = False,
     dry_run: bool = False,
     cases: Sequence[str] | None = None,
+    adapter=None,
 ) -> CleanupReport:
     report = CleanupReport()
     if not runs_dir.is_dir():
         return report
+    adapter = adapter or _default_adapter()
     keep_last = max(0, keep_last)
     max_bytes = int(max_log_mb * 1024 * 1024) if max_log_mb > 0 else 0
     keep_names = _normalize_resu_names(keep_resu)
     delete_names = _normalize_resu_names(delete_resu)
     if keep_names and delete_names:
         raise ValueError("keep_resu and delete_resu are mutually exclusive")
-    log_names = {
-        "run_solver.log",
-        "listing",
-        "csauto.stdout",
-        "csauto.stderr",
-        "performance.log",
-        "run_status.running",
-    }
+    log_names = adapter.cleanup_log_names
 
     for case_dir in _iter_case_dirs(runs_dir, cases):
-        resu_root = case_dir / "RESU"
+        resu_root = adapter.results_root(case_dir)
         if prune_resu and resu_root.is_dir():
             resu_dirs = [p for p in resu_root.iterdir() if p.is_dir()]
             resu_dirs.sort(key=lambda p: p.stat().st_mtime, reverse=True)

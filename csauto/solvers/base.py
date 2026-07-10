@@ -330,7 +330,20 @@ class SolverAdapterBase(ABC):
         singularity_image: str | None = None,
         singularity_bin: str | None = None,
     ) -> list[DoctorItem]:
-        return []
+        """Solver-specific pre-run checks; the default verifies each case has a setup file."""
+        from ..maintenance import DoctorItem
+
+        missing: list[str] = []
+        for case_dir in case_dirs:
+            try:
+                self.find_setup_file(case_dir)
+            except (FileNotFoundError, ValueError):
+                missing.append(case_dir.name)
+        if missing:
+            sample = ", ".join(missing[:5])
+            suffix = " ..." if len(missing) > 5 else ""
+            return [DoctorItem(level="fail", message=f"solver setup file missing for: {sample}{suffix}")]
+        return [DoctorItem(level="ok", message="solver setup file present in every case")]
 
     def apply_control(
         self,

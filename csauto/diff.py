@@ -21,6 +21,7 @@ def compare_runs_diff(
     base_case: str,
     kind: str,
     filter_expr: str | None = None,
+    adapter=None,
 ) -> str:
     """Return a multi-run diff against a base case, optionally filtered by regex."""
     if not cases:
@@ -33,7 +34,7 @@ def compare_runs_diff(
     base_dir = runs_dir / base_case
     if not base_dir.is_dir():
         raise FileNotFoundError(f"Case not found: {base_case}")
-    base_text = read_case_file_text(base_dir, kind)
+    base_text = read_case_file_text(base_dir, kind, adapter=adapter)
     base_lines = _filter_text_lines(base_text, pattern)
     output: list[str] = []
     for case_id in cases:
@@ -42,7 +43,7 @@ def compare_runs_diff(
         case_dir = runs_dir / case_id
         if not case_dir.is_dir():
             raise FileNotFoundError(f"Case not found: {case_id}")
-        target_text = read_case_file_text(case_dir, kind)
+        target_text = read_case_file_text(case_dir, kind, adapter=adapter)
         target_lines = _filter_text_lines(target_text, pattern)
         diff = difflib.unified_diff(
             base_lines,

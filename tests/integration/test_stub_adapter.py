@@ -71,3 +71,38 @@ def test_run_cases_launches_stub_solver(runs_dir: Path) -> None:
     assert rows[0]["last_iter"] == 3
     registry = load_registry(runs_dir)
     assert registry["case0001"]["status"] == STATUS_DONE
+
+
+def test_generate_doctor_and_cleanup_with_stub_solver(tmp_path: Path) -> None:
+    from csauto.doe import generate_cases
+    from csauto.maintenance import cleanup_runs, run_doctor
+
+    adapter = get_solver_adapter("stub")
+    template_dir = tmp_path / "template"
+    template_dir.mkdir()
+    (template_dir / "stub.toml").write_text("velocity = {velocity}\n", encoding="utf-8")
+    output_dir = tmp_path / "RUNS"
+
+    generate_cases(
+        ["case_id", "velocity"],
+        [{"case_id": "case0001", "velocity": "1.5"}, {"case_id": "case0002", "velocity": "2.5"}],
+        template_dir,
+        output_dir,
+        adapter=adapter,
+    )
+
+    assert (output_dir / "case0001" / "stub.toml").read_text(encoding="utf-8") == "velocity = 1.5\n"
+    assert (output_dir / "case0002" / "stub.toml").read_text(encoding="utf-8") == "velocity = 2.5\n"
+    assert not (output_dir / "MESH").exists()
+
+    items = run_doctor(output_dir, check_display=False, adapter=adapter)
+    messages = [item.message for item in items]
+    assert "solver setup file present in every case" in messages
+    assert not any(item.level == "fail" for item in items)
+
+    run_dir = output_dir / "case0001" / "OUT" / "run_0001"
+    run_dir.mkdir(parents=True)
+    (run_dir / "stub.log").write_text("step 1\nSTUB CALCULATION COMPLETE\n", encoding="utf-8")
+    report = cleanup_runs(output_dir, prune_resu=True, keep_last=0, adapter=adapter)
+    assert report.resu_removed == 1
+    assert not run_dir.exists()

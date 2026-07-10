@@ -8,7 +8,6 @@ from typing import Any
 from ..control import VALID_ACTIONS as VALID_CONTROL_ACTIONS
 from ..control import control_case
 from ..execution import resolve_runtime
-from ..logs import locate_case_file
 from ..maintenance import cleanup_runs
 from ..registry import STATUS_DONE, STATUS_FAILED, STATUS_RUNNING, registry_transaction, update_case
 from ..runner import run_cases
@@ -115,7 +114,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         if not payload.kind or payload.content is None:
             raise ctx.http_exception_cls(status_code=400, detail="Missing case, kind, content parameters")
         case_id, case_dir = ctx.validated_case_dir(payload.case)
-        target = locate_case_file(case_dir, payload.kind)
+        target = ctx.adapter.locate_case_file(case_dir, payload.kind)
         if not target:
             raise ctx.http_exception_cls(status_code=404, detail=f"File {payload.kind} not found for {case_id}")
         try:
@@ -222,13 +221,14 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
             clear_pyc=bool(payload.clear_pyc),
             dry_run=bool(payload.dry_run),
             cases=case_ids,
+            adapter=ctx.adapter,
         )
         actor = request.client.host if request.client else None
         # Reset status to PREPARED for cases whose RESU dir is now empty
         if not payload.dry_run:
             with registry_transaction(ctx.runs_dir) as registry:
                 for case_id in case_ids:
-                    resu_dir = ctx.runs_dir / case_id / "RESU"
+                    resu_dir = ctx.adapter.results_root(ctx.runs_dir / case_id)
                     has_resu = resu_dir.is_dir() and any(resu_dir.iterdir())
                     if not has_resu:
                         current = registry.get(case_id, {}).get("status", "")

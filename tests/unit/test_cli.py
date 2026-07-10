@@ -31,7 +31,7 @@ def test_prepare_command_calls_generate_cases_with_mesh_mode(tmp_path: Path, mon
 
     calls: list[dict] = []
 
-    def fake_generate_cases(headers, rows, template_case, output_dir, mesh_mode="copy"):
+    def fake_generate_cases(headers, rows, template_case, output_dir, mesh_mode="copy", adapter=None):
         calls.append({"mesh_mode": mesh_mode})
 
     monkeypatch.setattr("csauto.cli.generate_cases", fake_generate_cases)

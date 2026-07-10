@@ -1,8 +1,8 @@
 import math
 from typing import Annotated, Any
 
-from ..logs import list_resu_files, locate_case_file, read_tail_lines
-from ..probes import list_probe_files, list_profile_files, probe_columns, probe_position, render_probe_svg
+from ..logs import read_tail_lines
+from ..probes import probe_columns, probe_position, render_probe_svg
 from ..web_support import log_case_action
 from .common import shared_models
 
@@ -61,7 +61,7 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
         ctx.require_auth(x_csauto_token, authorization)
         case_id = ctx.validate_case(query.case)
         case_dir = ctx.runs_dir / case_id
-        file_path = locate_case_file(case_dir, query.file) if case_dir.is_dir() else None
+        file_path = ctx.adapter.locate_case_file(case_dir, query.file) if case_dir.is_dir() else None
         if not file_path:
             raise ctx.http_exception_cls(status_code=404, detail=f"File {query.file} not found for {case_id}")
         log_case_action(
@@ -81,7 +81,7 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
     ) -> dict[str, Any]:
         ctx.require_auth(x_csauto_token, authorization)
         _case_id, case_dir = ctx.validated_case_dir(query.case)
-        return {"files": list_resu_files(case_dir, limit=query.limit, latest_subdir_only=True)}
+        return {"files": ctx.adapter.list_result_files(case_dir, limit=query.limit, latest_subdir_only=True)}
 
     @app.get("/api/resu_dirs", response_model=StringListResponse)
     def api_resu_dirs(
@@ -91,12 +91,7 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
     ) -> dict[str, Any]:
         ctx.require_auth(x_csauto_token, authorization)
         _case_id, case_dir = ctx.validated_case_dir(query.case)
-        dirs: list[str] = []
-        resu_root = case_dir / "RESU"
-        if resu_root.is_dir():
-            resu_dirs = [p for p in resu_root.iterdir() if p.is_dir()]
-            resu_dirs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-            dirs = [p.name for p in resu_dirs]
+        dirs = [p.name for p in ctx.adapter.list_run_dirs(case_dir)]
         return {"dirs": dirs}
 
     @app.get("/api/probes", response_model=StringListResponse)
@@ -117,9 +112,9 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
             if not case_dir.is_dir():
                 continue
             case_files = (
-                list_profile_files(case_dir, limit=query.limit)
+                ctx.adapter.list_profile_files(case_dir, limit=query.limit)
                 if scope_value == "profiles"
-                else list_probe_files(case_dir, limit=query.limit)
+                else ctx.adapter.list_probe_files(case_dir, limit=query.limit)
             )
             for f in case_files:
                 if f not in seen:
