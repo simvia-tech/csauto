@@ -86,6 +86,7 @@ def dispatch_serve_command(
         "host": host_value,
         "port": args.port,
         "api_token": api_token,
+        "solver": config.solver,
         "runtime": config.runtime,
         "docker_image": config.docker_image,
         "saturne_bin": config.saturne_bin,

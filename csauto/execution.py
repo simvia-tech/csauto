@@ -153,17 +153,17 @@ def resolve_runtime(
     )
 
 
-def check_shared_dir_symlinks(runs_dir: Path, runtime: str) -> None:
-    """Raise if a symlinked shared dir (MESH/POST) would be invisible inside a container.
+def check_shared_dir_symlinks(runs_dir: Path, runtime: str, shared_dirs: Sequence[str] = ("MESH", "POST")) -> None:
+    """Raise if a symlinked shared dir would be invisible inside a container.
 
-    Docker/Singularity only bind-mount `runs_dir` itself, so a MESH/POST symlink
+    Docker/Singularity only bind-mount `runs_dir` itself, so a shared-dir symlink
     pointing outside `runs_dir` (as produced by `mesh_mode = "symlink"`) resolves to a
     path that is not mounted inside the container.
     """
     if runtime not in (RUNTIME_DOCKER, RUNTIME_SINGULARITY):
         return
     resolved_runs_dir = runs_dir.resolve()
-    for name in ("MESH", "POST"):
+    for name in shared_dirs:
         shared_dir = runs_dir / name
         if not shared_dir.is_symlink():
             continue

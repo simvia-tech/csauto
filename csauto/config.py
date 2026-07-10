@@ -13,6 +13,7 @@ except ImportError:  # pragma: no cover - Python < 3.11
 
 @dataclass
 class Config:
+    solver: str = "code_saturne"
     runtime: str = "auto"
     docker_image: str = "simvia/code_saturne"
     saturne_bin: str | None = None
@@ -81,6 +82,16 @@ def _parse_optional_bool(value: Any, *, field: str, config_path: Path) -> bool |
     raise ValueError(f"Invalid {field} in {config_path}: expected boolean")
 
 
+def _parse_solver(value: Any, *, config_path: Path) -> str:
+    from .solvers import available_solvers
+
+    solver = _coerce_str(value, "code_saturne").strip().lower()
+    choices = available_solvers()
+    if solver not in choices:
+        raise ValueError(f"Invalid solver in {config_path}: {solver!r} (expected {', '.join(choices)})")
+    return solver
+
+
 def _parse_runtime(value: Any, *, config_path: Path) -> str:
     runtime = _coerce_str(value, "auto").strip().lower()
     if runtime not in {"auto", "docker", "singularity", "native"}:
@@ -141,6 +152,8 @@ def load_config(path: Path | None = None) -> Config:
     config.path = config_path
     if not isinstance(data, dict):
         raise ValueError(f"Invalid config file {config_path}: root TOML object must be a table")
+    if "solver" in data:
+        config.solver = _parse_solver(data.get("solver"), config_path=config_path)
     if "runtime" in data:
         config.runtime = _parse_runtime(data.get("runtime"), config_path=config_path)
     if "docker_image" in data:

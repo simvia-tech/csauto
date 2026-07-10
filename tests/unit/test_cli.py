@@ -133,6 +133,7 @@ def test_serve_command_invokes_fastapi_entrypoint(tmp_path: Path) -> None:
         host: str,
         port: int,
         api_token: str | None = None,
+        solver: str | None = None,
         runtime: str = "auto",
         docker_image: str = "simvia/code_saturne",
         saturne_bin: str | None = None,
@@ -146,6 +147,7 @@ def test_serve_command_invokes_fastapi_entrypoint(tmp_path: Path) -> None:
         call["host"] = host
         call["port"] = port
         call["api_token"] = api_token
+        call["solver"] = solver
         call["runtime"] = runtime
         call["docker_image"] = docker_image
         call["saturne_bin"] = saturne_bin
@@ -180,6 +182,7 @@ def test_serve_command_invokes_fastapi_entrypoint(tmp_path: Path) -> None:
     assert call["host"] == "127.0.0.1"
     assert call["port"] == 9000
     assert call["api_token"] == "secret-token"
+    assert call["solver"] == "code_saturne"
     assert call["runtime"] == "auto"
 
 

@@ -1,9 +1,15 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Lock
 from typing import Any
 
 from ..web_support import request_token, validate_case_id
+
+
+def _default_adapter() -> Any:
+    from ..solvers import get_solver_adapter
+
+    return get_solver_adapter(None)
 
 
 def expand_csv_query(values: list[str] | None) -> list[str]:
@@ -122,6 +128,7 @@ class FastAPIContext:
     status_cache: dict[str, Any]
     job_id_patterns: tuple[Any, ...]
     http_exception_cls: type
+    adapter: Any = field(default_factory=_default_adapter)
 
     def invalidate_status_cache(self) -> None:
         with self.status_cache_lock:

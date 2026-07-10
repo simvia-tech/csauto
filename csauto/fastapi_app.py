@@ -16,6 +16,7 @@ from .fastapi_routes import (
     register_settings_routes,
 )
 from .fastapi_routes.common import FastAPIContext, build_shared_models
+from .solvers import get_solver_adapter
 
 _DIST_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 
@@ -56,6 +57,7 @@ def create_fastapi_app(
     runs_dir: Path,
     *,
     api_token: str | None = None,
+    solver: str | None = None,
     runtime: str = "auto",
     docker_image: str = "simvia/code_saturne",
     saturne_bin: str | None = None,
@@ -92,6 +94,7 @@ def create_fastapi_app(
         status_cache=status_cache,
         job_id_patterns=JOB_ID_PATTERNS,
         http_exception_cls=HTTPException,
+        adapter=get_solver_adapter(solver),
     )
 
     build_shared_models(components)
@@ -152,6 +155,7 @@ def serve_fastapi(
     host: str = "127.0.0.1",
     port: int = 8000,
     api_token: str | None = None,
+    solver: str | None = None,
     runtime: str = "auto",
     docker_image: str = "simvia/code_saturne",
     saturne_bin: str | None = None,
@@ -169,6 +173,7 @@ def serve_fastapi(
     app = create_fastapi_app(
         runs_dir,
         api_token=api_token,
+        solver=solver,
         runtime=runtime,
         docker_image=docker_image,
         saturne_bin=saturne_bin,
