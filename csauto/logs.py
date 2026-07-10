@@ -19,6 +19,13 @@ from .registry import STATUS_DONE, STATUS_FAILED
 from .template import find_setup_file
 from .warn import warn
 
+
+def _default_adapter():
+    from .solvers import get_solver_adapter
+
+    return get_solver_adapter(None)
+
+
 ANOMALY_FILES_DEFAULT = ("csauto.stderr", "run_solver.log", "listing", "csauto.stdout")
 ANOMALY_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     (
@@ -245,11 +252,13 @@ def collect_recent_errors(
     context_after: int = ANOMALY_CONTEXT_DEFAULT,
     severity_filter: set[str] | None = None,
     query: str | None = None,
+    adapter=None,
 ) -> list[dict[str, str | int]]:
     """Scan log files for anomalies with context lines around each match."""
     if not cases:
         return []
-    files_to_scan = [f for f in (files or ANOMALY_FILES_DEFAULT) if f]
+    adapter = adapter or _default_adapter()
+    files_to_scan = [f for f in (files or adapter.anomaly_file_names) if f]
     max_hits = max(1, min(max_hits, 500))
     context_after = max(0, min(context_after, ANOMALY_CONTEXT_MAX))
     allowed = {s.lower() for s in severity_filter} if severity_filter else None
@@ -260,7 +269,7 @@ def collect_recent_errors(
         if not case_dir.is_dir():
             continue
         for name in files_to_scan:
-            path = locate_case_file(case_dir, name)
+            path = adapter.locate_case_file(case_dir, name)
             if not path or not path.is_file():
                 continue
             cache = _scan_anomaly_file(path)
@@ -786,11 +795,12 @@ def find_latest_performance_log(case_dir: Path) -> Path | None:
     return candidates[0]
 
 
-def read_performance_rows(runs_dir: Path, cases: Sequence[str]) -> list[dict[str, str | None]]:
+def read_performance_rows(runs_dir: Path, cases: Sequence[str], adapter=None) -> list[dict[str, str | None]]:
     """Read performance metrics for given cases."""
     if not cases:
         raise ValueError("At least one case must be specified via --case.")
 
+    adapter = adapter or _default_adapter()
     records: list[dict[str, str | None]] = []
 
     for case_id in cases:
@@ -798,12 +808,12 @@ def read_performance_rows(runs_dir: Path, cases: Sequence[str]) -> list[dict[str
         if not case_dir.is_dir():
             warn(f"case not found: {case_id}")
             continue
-        perf_path = find_latest_performance_log(case_dir)
+        perf_path = adapter.find_performance_log(case_dir)
         if not perf_path:
-            if (case_dir / "RESU").is_dir():
+            if adapter.results_root(case_dir).is_dir():
                 warn(f"performance.log not found for {case_id}")
             continue
-        metrics = parse_performance_log(perf_path)
+        metrics = adapter.parse_performance(perf_path)
         rec: dict[str, str | None] = {"case_id": case_id}
         rec.update(metrics)
         records.append(rec)
@@ -811,10 +821,11 @@ def read_performance_rows(runs_dir: Path, cases: Sequence[str]) -> list[dict[str
     return records
 
 
-def collect_performance(runs_dir: Path, cases: Sequence[str], output_path: Path | None = None) -> None:
+def collect_performance(runs_dir: Path, cases: Sequence[str], output_path: Path | None = None, adapter=None) -> None:
     """Collect performance metrics for specified cases into a CSV."""
-    records = read_performance_rows(runs_dir, cases)
-    header = ["case_id", *PERFORMANCE_FIELDS]
+    adapter = adapter or _default_adapter()
+    records = read_performance_rows(runs_dir, cases, adapter=adapter)
+    header = ["case_id", *adapter.performance_fields]
 
     if not records:
         raise ValueError("No performance data collected.")

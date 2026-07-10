@@ -157,7 +157,7 @@ def test_api_status_uses_short_cache_and_invalidates_on_note_update(
     registry_factory(runs_dir, "case0001", case_dir, status="PREPARED")
     calls = {"count": 0}
 
-    def fake_refresh_status(_runs_dir: Path, include_doe: bool = False):
+    def fake_refresh_status(_runs_dir: Path, include_doe: bool = False, **_kwargs):
         calls["count"] += 1
         payload = [{"case_id": "case0001", "status": "PREPARED", "note": "", "resu_size_mb": None}]
         if include_doe:
@@ -1150,3 +1150,37 @@ def test_api_control_case_bulk_partial_failure_returns_500(runs_dir: Path, case_
         thread.join(timeout=2)
 
     assert (case1 / "RESU" / "001" / "control_file").read_text(encoding="utf-8") == "flush\n"
+
+
+def test_api_status_with_stub_solver(runs_dir: Path) -> None:
+    case_dir = runs_dir / "case0001"
+    run_dir = case_dir / "OUT" / "run_0001"
+    run_dir.mkdir(parents=True)
+    (case_dir / "stub.toml").write_text("steps = 2\n", encoding="utf-8")
+    (run_dir / "stub.log").write_text("step 1\nstep 2\nSTUB CALCULATION COMPLETE\n", encoding="utf-8")
+    save_registry(
+        runs_dir,
+        {
+            "case0001": {
+                "case_id": "case0001",
+                "path": str(case_dir),
+                "status": "RUNNING",
+                "pid": None,
+                "job_id": None,
+                "start_time": "2020-01-01T00:00:00",
+            }
+        },
+    )
+
+    base_url, thread, httpd = _start_server(runs_dir, solver="stub")
+    try:
+        status, body = _http_get(f"{base_url}/api/status")
+        assert status == 200
+        rows = json.loads(body)["rows"]
+        assert rows[0]["case_id"] == "case0001"
+        assert rows[0]["status"] == "DONE"
+        assert rows[0]["last_iter"] == 2
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2)

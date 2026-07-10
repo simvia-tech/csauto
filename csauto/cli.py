@@ -408,6 +408,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     config_path = _preparse_config(argv_list)
     config = load_config(config_path)
     parser, args = parse_arguments(argv_list, config)
+    adapter = get_solver_adapter(config.solver)
 
     try:
         if args.command is None:
@@ -432,7 +433,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             write_doe_csv([p.name for p in spec_params], spec_rows, args.output_csv)
             print(f"Wrote {len(spec_rows)} rows to {args.output_csv}")
         elif args.command == "run":
-            adapter = get_solver_adapter(config.solver)
             runtime_selection = resolve_runtime(
                 runtime=args.runtime,
                 docker_image=args.docker_image,
@@ -474,14 +474,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 adapter=adapter,
             )
         elif args.command == "status":
-            rows = refresh_status(args.runs_dir)
+            rows = refresh_status(args.runs_dir, adapter=adapter)
             print_status_table(rows)
         elif args.command == "residuals":
-            collect_residuals(args.runs_dir, args.cases, args.output)
+            collect_residuals(args.runs_dir, args.cases, args.output, adapter=adapter)
             if args.plot:
-                plot_residuals(args.runs_dir, args.cases, args.columns, args.plot)
+                plot_residuals(args.runs_dir, args.cases, args.columns, args.plot, adapter=adapter)
         elif args.command == "perf":
-            collect_performance(args.runs_dir, args.cases, args.output)
+            collect_performance(args.runs_dir, args.cases, args.output, adapter=adapter)
         elif args.command == "tail":
             tail_log(
                 args.runs_dir,

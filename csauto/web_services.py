@@ -13,6 +13,7 @@ def get_status_payload(
     status_cache_lock: threading.Lock,
     status_refresh_lock: threading.Lock,
     status_cache: dict[str, Any],
+    adapter: Any = None,
 ) -> dict[str, Any]:
     now = time.monotonic()
     with status_cache_lock:
@@ -27,7 +28,7 @@ def get_status_payload(
             expires_at = float(status_cache.get("expires_at") or 0.0)
             if cached is not None and now < expires_at:
                 return cached
-        rows, doe_columns = refresh_status(runs_dir, include_doe=True)
+        rows, doe_columns = refresh_status(runs_dir, include_doe=True, adapter=adapter)
         payload = {"rows": rows, "doe_columns": doe_columns}
         with status_cache_lock:
             status_cache["payload"] = payload

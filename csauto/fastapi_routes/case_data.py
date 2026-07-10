@@ -1,7 +1,7 @@
 import math
 from typing import Annotated, Any
 
-from ..logs import extract_restart_origin, list_resu_files, locate_case_file, read_tail_lines
+from ..logs import list_resu_files, locate_case_file, read_tail_lines
 from ..probes import list_probe_files, list_profile_files, probe_columns, probe_position, render_probe_svg
 from ..web_support import log_case_action
 from .common import shared_models
@@ -185,7 +185,7 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
         for case_id in validated_cases:
             case_dir = ctx.runs_dir / case_id
             if case_dir.is_dir():
-                origin = extract_restart_origin(case_dir)
+                origin = ctx.adapter.read_restart_origin(case_dir)
                 val = origin.get(origin_key)
                 if val is not None:
                     restart_vals.append(float(val))

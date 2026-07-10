@@ -8,7 +8,6 @@ from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from .logs import locate_case_file
 from .registry import STATUS_PREPARED, STATUS_RUNNING, load_registry
 from .svg_utils import (
     COLOR_PALETTE,
@@ -25,6 +24,12 @@ from .svg_utils import (
 )
 from .viz import empty_svg
 from .warn import warn
+
+
+def _default_adapter():
+    from .solvers import get_solver_adapter
+
+    return get_solver_adapter(None)
 
 
 @dataclass(frozen=True)
@@ -122,6 +127,7 @@ def _iter_residual_case_contexts(
     runs_dir: Path,
     cases: Sequence[str],
     include_history: bool,
+    adapter,
 ) -> list[ResidualCaseContext]:
     try:
         registry = load_registry(runs_dir)
@@ -139,7 +145,7 @@ def _iter_residual_case_contexts(
             ResidualCaseContext(
                 case_id=case_id,
                 case_dir=case_dir,
-                residual_paths=tuple(find_residuals_files(case_dir, include_history=include_history)),
+                residual_paths=tuple(adapter.find_residuals_files(case_dir, include_history=include_history)),
                 is_running=status_value == STATUS_RUNNING,
                 is_launched=status_value not in ("", STATUS_PREPARED),
             )
@@ -157,6 +163,7 @@ def _merge_header_fields(header: list[str] | None, fields: Sequence[str]) -> lis
 
 def _collect_residual_header_from_contexts(
     contexts: Sequence[ResidualCaseContext],
+    adapter,
 ) -> list[str] | None:
     header: list[str] | None = None
     for context in contexts:
@@ -169,8 +176,7 @@ def _collect_residual_header_from_contexts(
             header = _merge_header_fields(header, fields)
             added_for_case += 1
         if added_for_case == 0 or context.is_running:
-            log_path = locate_case_file(context.case_dir, "run_solver.log")
-            fields, rows_local = parse_residuals_from_log(log_path) if log_path else ([], [])
+            fields, rows_local = adapter.parse_live_residuals(context.case_dir)
             if fields and rows_local:
                 header = _merge_header_fields(header, fields)
             elif added_for_case == 0 and context.is_launched:
@@ -180,6 +186,7 @@ def _collect_residual_header_from_contexts(
 
 def _iter_residual_records_from_contexts(
     contexts: Sequence[ResidualCaseContext],
+    adapter,
 ) -> Iterator[dict[str, str]]:
     for context in contexts:
         added_for_case = 0
@@ -196,8 +203,7 @@ def _iter_residual_records_from_contexts(
             if path_max_iter is not None and (max_csv_iter is None or path_max_iter > max_csv_iter):
                 max_csv_iter = path_max_iter
         if added_for_case == 0 or context.is_running:
-            log_path = locate_case_file(context.case_dir, "run_solver.log")
-            _fields, rows_local = parse_residuals_from_log(log_path) if log_path else ([], [])
+            _fields, rows_local = adapter.parse_live_residuals(context.case_dir)
             for row in rows_local:
                 iter_value = as_float(row.get("iteration"))
                 if (
@@ -216,11 +222,13 @@ def _prepare_residual_contexts(
     runs_dir: Path,
     cases: Sequence[str],
     include_history: bool = False,
+    adapter=None,
 ) -> tuple[list[ResidualCaseContext], list[str] | None]:
     if not cases:
         raise ValueError("At least one case must be specified via --case.")
-    contexts = _iter_residual_case_contexts(runs_dir, cases, include_history)
-    header = _collect_residual_header_from_contexts(contexts)
+    adapter = adapter or _default_adapter()
+    contexts = _iter_residual_case_contexts(runs_dir, cases, include_history, adapter)
+    header = _collect_residual_header_from_contexts(contexts, adapter)
     return contexts, header
 
 
@@ -289,16 +297,19 @@ def read_residual_rows(
     allow_empty: bool = False,
     include_history: bool = False,
     limit: int | None = None,
+    adapter=None,
 ) -> tuple[list[str], list[dict[str, str]]]:
     """Read residual rows for given cases, returning header and records."""
+    adapter = adapter or _default_adapter()
     contexts, header = _prepare_residual_contexts(
         runs_dir,
         cases,
         include_history=include_history,
+        adapter=adapter,
     )
     limit_value = limit if limit is not None and limit > 0 else None
     records: list[dict[str, str]] = []
-    for record in _iter_residual_records_from_contexts(contexts):
+    for record in _iter_residual_records_from_contexts(contexts, adapter):
         records.append(record)
         if limit_value is not None and len(records) >= limit_value:
             break
@@ -317,20 +328,21 @@ def read_residual_rows(
     return header, records
 
 
-def residual_columns(runs_dir: Path, cases: Sequence[str]) -> list[str]:
+def residual_columns(runs_dir: Path, cases: Sequence[str], adapter=None) -> list[str]:
     """Return residual column names (excluding case_id) for given cases."""
-    _contexts, header = _prepare_residual_contexts(runs_dir, cases)
+    _contexts, header = _prepare_residual_contexts(runs_dir, cases, adapter=adapter)
     if header is None:
         return []
     return [c for c in header if c != "case_id"]
 
 
-def collect_residuals(runs_dir: Path, cases: Sequence[str], output_path: Path | None = None) -> None:
+def collect_residuals(runs_dir: Path, cases: Sequence[str], output_path: Path | None = None, adapter=None) -> None:
     """Collect residuals for specified cases and emit a merged CSV."""
-    contexts, header = _prepare_residual_contexts(runs_dir, cases)
+    adapter = adapter or _default_adapter()
+    contexts, header = _prepare_residual_contexts(runs_dir, cases, adapter=adapter)
     if header is None:
         raise ValueError("No residual data collected.")
-    rows = _iter_residual_records_from_contexts(contexts)
+    rows = _iter_residual_records_from_contexts(contexts, adapter)
     try:
         first_row = next(rows)
     except StopIteration as exc:
@@ -356,6 +368,7 @@ def render_residuals_svg(
     x_from: float = 0.0,
     include_history: bool = False,
     restart_iterations: Sequence[float] | None = None,
+    adapter=None,
 ) -> str:
     """Generate an SVG string of residuals vs iteration for selected cases/columns."""
     header, rows = read_residual_rows(
@@ -363,6 +376,7 @@ def render_residuals_svg(
         cases,
         allow_empty=True,
         include_history=include_history,
+        adapter=adapter,
     )
     available_cols = [c for c in header if c != "case_id"]
     cols = list(columns) if columns else ["velocity"]
@@ -481,7 +495,8 @@ def plot_residuals(
     output_path: Path,
     width: int = 900,
     height: int = 500,
+    adapter=None,
 ) -> None:
     """Generate a simple SVG plot of residuals vs iteration for selected cases/columns."""
-    svg = render_residuals_svg(runs_dir, cases, columns, width=width, height=height)
+    svg = render_residuals_svg(runs_dir, cases, columns, width=width, height=height, adapter=adapter)
     output_path.write_text(svg, encoding="utf-8")

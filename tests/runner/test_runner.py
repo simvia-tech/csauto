@@ -599,7 +599,7 @@ def test_refresh_status_skips_stale_merge_when_case_relaunched(
         return changed
 
     monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid: False)
-    monkeypatch.setattr("csauto.runner.detect_run_outcome", lambda *_args, **_kwargs: STATUS_DONE)
+    monkeypatch.setattr("csauto.solvers.code_saturne.detect_run_outcome", lambda *_args, **_kwargs: STATUS_DONE)
     monkeypatch.setattr("csauto.runner.mutate_registry", mutate_with_relaunch)
 
     rows = refresh_status(runs_dir)

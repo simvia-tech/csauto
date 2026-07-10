@@ -8,10 +8,16 @@ from pathlib import Path
 from typing import Any
 
 from .docker import find_container_id_for_case, read_container_id, terminate_container
-from .logs import detect_run_outcome, locate_case_file, read_tail_lines
+from .logs import read_tail_lines
 from .pathutil import is_within_root
 from .registry import STATUS_FAILED, append_history, load_registry, registry_transaction, timestamp_now, update_case
 from .runner import is_process_alive, terminate_pid
+
+
+def _default_adapter() -> Any:
+    from .solvers import get_solver_adapter
+
+    return get_solver_adapter(None)
 
 
 def request_token(headers: Mapping[str, str]) -> str | None:
@@ -158,7 +164,8 @@ def extract_job_id_from_text(text: str, job_id_patterns: Sequence[re.Pattern[str
     return None
 
 
-def discover_job_id(case_dir: Path, job_id_patterns: Sequence[re.Pattern[str]]) -> str | None:
+def discover_job_id(case_dir: Path, job_id_patterns: Sequence[re.Pattern[str]], adapter: Any = None) -> str | None:
+    adapter = adapter or _default_adapter()
     raw_file = case_dir / ".csauto.jobid"
     if raw_file.is_file():
         try:
@@ -179,7 +186,7 @@ def discover_job_id(case_dir: Path, job_id_patterns: Sequence[re.Pattern[str]]) 
     seen: set[str] = set()
     candidates: list[Path] = []
     for name in ("csauto.stdout", "csauto.stderr", "run_solver.log", "listing"):
-        file_path = locate_case_file(case_dir, name)
+        file_path = adapter.locate_case_file(case_dir, name)
         if not file_path or not file_path.is_file():
             continue
         key = str(file_path.resolve())
@@ -278,7 +285,9 @@ def kill_case(
     *,
     actor: str | None,
     job_id_patterns: Sequence[re.Pattern[str]],
+    adapter: Any = None,
 ) -> None:
+    adapter = adapter or _default_adapter()
     with registry_transaction(runs_dir) as registry:
         record = registry.get(case_id)
         if not record:
@@ -298,7 +307,7 @@ def kill_case(
 
         job_id = normalize_job_id(record.get("job_id"))
         if not job_id:
-            job_id = discover_job_id(case_dir, job_id_patterns)
+            job_id = discover_job_id(case_dir, job_id_patterns, adapter=adapter)
             if job_id:
                 record["job_id"] = job_id
 
@@ -348,7 +357,7 @@ def kill_case(
     if job_error and pid_raw is None and not container_id:
         raise job_error
 
-    outcome = detect_run_outcome(case_dir, start_time) or STATUS_FAILED
+    outcome = adapter.detect_outcome(case_dir, start_time) or STATUS_FAILED
     with registry_transaction(runs_dir) as registry:
         update_case(
             registry,

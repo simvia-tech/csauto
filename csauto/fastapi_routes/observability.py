@@ -5,7 +5,6 @@ from ..logs import (
     ANOMALY_CONTEXT_DEFAULT,
     ANOMALY_SEVERITY,
     collect_recent_errors,
-    extract_restart_origin,
     read_performance_rows,
 )
 from ..residuals import render_residuals_svg, residual_columns
@@ -95,6 +94,7 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
             status_cache_lock=ctx.status_cache_lock,
             status_refresh_lock=ctx.status_refresh_lock,
             status_cache=ctx.status_cache,
+            adapter=ctx.adapter,
         )
         if log:
             actor = request.client.host if request.client else None
@@ -111,7 +111,7 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
         authorization: str | None = Header(default=None),
     ) -> dict[str, Any]:
         ctx.require_auth(x_csauto_token, authorization)
-        return {"records": read_performance_rows(ctx.runs_dir, ctx.validate_cases(query.case))}
+        return {"records": read_performance_rows(ctx.runs_dir, ctx.validate_cases(query.case), adapter=ctx.adapter)}
 
     @app.get("/api/restart_origin", response_model=RestartOriginResponse)
     def api_restart_origin(
@@ -123,7 +123,7 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
         origins: dict[str, dict[str, int | float]] = {}
         for case_id in ctx.validate_cases(query.case):
             case_dir = ctx.runs_dir / case_id
-            origins[case_id] = extract_restart_origin(case_dir) if case_dir.is_dir() else {}
+            origins[case_id] = ctx.adapter.read_restart_origin(case_dir) if case_dir.is_dir() else {}
         return {"origins": origins}
 
     @app.get("/api/recent_errors", response_model=RecentErrorsPayloadModel)
@@ -148,6 +148,7 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
             context_after=query.context,
             severity_filter=severity_filter,
             query=query.q,
+            adapter=ctx.adapter,
         )
         return {"items": items}
 
@@ -158,7 +159,7 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
         authorization: str | None = Header(default=None),
     ) -> dict[str, Any]:
         ctx.require_auth(x_csauto_token, authorization)
-        return {"columns": residual_columns(ctx.runs_dir, ctx.validate_cases(query.case))}
+        return {"columns": residual_columns(ctx.runs_dir, ctx.validate_cases(query.case), adapter=ctx.adapter)}
 
     @app.get("/api/residuals_svg", response_model=None)
     def api_residuals_svg(
@@ -174,7 +175,7 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
         for case_id in validated_cases:
             case_dir = ctx.runs_dir / case_id
             if case_dir.is_dir():
-                origin = extract_restart_origin(case_dir)
+                origin = ctx.adapter.read_restart_origin(case_dir)
                 it = origin.get("iteration")
                 if it is not None:
                     restart_iters.append(float(it))
@@ -187,5 +188,6 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
             x_from=x_value,
             include_history=query.include_history,
             restart_iterations=restart_iters if restart_iters else None,
+            adapter=ctx.adapter,
         )
         return Response(content=svg, media_type="image/svg+xml")

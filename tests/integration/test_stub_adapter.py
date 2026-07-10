@@ -10,8 +10,8 @@ import sys
 import time
 from pathlib import Path
 
-from csauto.registry import STATUS_RUNNING, load_registry
-from csauto.runner import run_cases
+from csauto.registry import STATUS_DONE, STATUS_RUNNING, load_registry
+from csauto.runner import refresh_status, run_cases
 from csauto.solvers import get_solver_adapter
 
 
@@ -58,6 +58,16 @@ def test_run_cases_launches_stub_solver(runs_dir: Path) -> None:
     assert _wait_for(stub_log.is_file), "stub solver never wrote its log"
     assert _wait_for(lambda: "STUB CALCULATION COMPLETE" in stub_log.read_text(encoding="utf-8"))
     assert "step 3" in stub_log.read_text(encoding="utf-8")
-    assert adapter.detect_outcome(case_dir) == "DONE"
+    assert adapter.detect_outcome(case_dir) == STATUS_DONE
     assert adapter.read_progress(case_dir) == 3
     assert not (case_dir / "RESU").exists()
+
+    def _status_done() -> bool:
+        rows = refresh_status(runs_dir, adapter=adapter)
+        return bool(rows) and rows[0]["status"] == STATUS_DONE
+
+    assert _wait_for(_status_done), "refresh_status never reported the stub run as DONE"
+    rows = refresh_status(runs_dir, adapter=adapter)
+    assert rows[0]["last_iter"] == 3
+    registry = load_registry(runs_dir)
+    assert registry["case0001"]["status"] == STATUS_DONE

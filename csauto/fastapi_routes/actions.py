@@ -282,7 +282,9 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         errors: list[str] = []
         if len(case_ids) == 1:
             try:
-                kill_case(ctx.runs_dir, case_ids[0], actor=actor, job_id_patterns=ctx.job_id_patterns)
+                kill_case(
+                    ctx.runs_dir, case_ids[0], actor=actor, job_id_patterns=ctx.job_id_patterns, adapter=ctx.adapter
+                )
             except Exception as exc:
                 errors.append(f"{case_ids[0]}: {exc}")
         else:
@@ -290,7 +292,12 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
             with ThreadPoolExecutor(max_workers=workers) as pool:
                 futures = {
                     pool.submit(
-                        kill_case, ctx.runs_dir, case_id, actor=actor, job_id_patterns=ctx.job_id_patterns
+                        kill_case,
+                        ctx.runs_dir,
+                        case_id,
+                        actor=actor,
+                        job_id_patterns=ctx.job_id_patterns,
+                        adapter=ctx.adapter,
                     ): case_id
                     for case_id in case_ids
                 }

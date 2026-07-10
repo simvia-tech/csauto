@@ -25,13 +25,6 @@ from .execution import (
     RuntimeSelection,
     resolve_runtime,
 )
-from .logs import (
-    detect_run_outcome,
-    extract_last_iteration,
-    extract_run_status_iteration,
-    locate_log_file,
-    locate_run_status_file,
-)
 from .registry import (
     STATUS_DONE,
     STATUS_FAILED,
@@ -623,12 +616,12 @@ def run_cases(
             ):
                 launched += 1
 
-        _start_case_with_launch_slot(runs_dir, max_parallel, _do_start)
+        _start_case_with_launch_slot(runs_dir, max_parallel, _do_start, adapter)
     if launched == 0:
         print("No cases launched.", file=sys.stderr)
 
 
-def _count_running_cases(runs_dir: Path) -> int:
+def _count_running_cases(runs_dir: Path, adapter: SolverAdapter) -> int:
     # Phase 1: snapshot running cases under a brief lock — no slow I/O while locked.
     with registry_transaction(runs_dir) as registry:
         snapshot: dict[str, dict[str, Any]] = {
@@ -657,7 +650,7 @@ def _count_running_cases(runs_dir: Path) -> int:
                 still_running.add(case_id)
                 continue
         case_dir = _resolve_case_dir(runs_dir, record.get("path"), case_id)
-        outcome = detect_run_outcome(case_dir, record.get("start_time")) or STATUS_FAILED
+        outcome = adapter.detect_outcome(case_dir, record.get("start_time")) or STATUS_FAILED
         to_finalize[case_id] = {
             "status": outcome,
             "pid": None,
@@ -678,8 +671,8 @@ def _count_running_cases(runs_dir: Path) -> int:
     return len(still_running)
 
 
-def _wait_for_launch_slot(runs_dir: Path, max_parallel: int) -> None:
-    while _count_running_cases(runs_dir) >= max_parallel:
+def _wait_for_launch_slot(runs_dir: Path, max_parallel: int, adapter: SolverAdapter) -> None:
+    while _count_running_cases(runs_dir, adapter) >= max_parallel:
         time.sleep(1.0)
 
 
@@ -687,13 +680,14 @@ def _start_case_with_launch_slot(
     runs_dir: Path,
     max_parallel: int,
     start_case: Callable[[], None],
+    adapter: SolverAdapter,
 ) -> None:
     # Wait for a slot without holding the launch lock to avoid blocking
     # other threads from finishing cases and freeing slots.
-    _wait_for_launch_slot(runs_dir, max_parallel)
+    _wait_for_launch_slot(runs_dir, max_parallel, adapter)
     with launch_lock(runs_dir):
         # Re-check after acquiring the lock in case another thread took the slot.
-        _wait_for_launch_slot(runs_dir, max_parallel)
+        _wait_for_launch_slot(runs_dir, max_parallel, adapter)
         start_case()
 
 
@@ -738,10 +732,12 @@ def terminate_pid(pid: int, grace: float = 1.0) -> None:
 def refresh_status(
     runs_dir: Path,
     include_doe: bool = False,
+    adapter: SolverAdapter | None = None,
 ) -> list[dict[str, Any]] | tuple[list[dict[str, Any]], list[str]]:
     """Refresh registry status and return ordered case info."""
     if not runs_dir.is_dir():
         return ([], []) if include_doe else []
+    adapter = adapter or _default_adapter()
     registry = load_registry(runs_dir)
     if not registry:
         return ([], []) if include_doe else []
@@ -757,6 +753,7 @@ def refresh_status(
             registry[case_id],
             include_doe=include_doe,
             job_states=job_states,
+            adapter=adapter,
         )
         results.append(result)
         for col in result.doe_columns:
@@ -778,6 +775,7 @@ def _compute_refresh_result(
     *,
     include_doe: bool,
     job_states: Mapping[str, bool | None],
+    adapter: SolverAdapter,
 ) -> RefreshResult:
     case_dir = _resolve_case_dir(runs_dir, record.get("path"), case_id)
     status = str(record.get("status") or STATUS_PREPARED).upper()
@@ -799,14 +797,14 @@ def _compute_refresh_result(
             job_active = job_states.get(job_id)
         should_finalize = not pid_alive and ((job_id and job_active is False) or (not job_id))
         if should_finalize:
-            outcome = detect_run_outcome(case_dir, start_time) or STATUS_FAILED
+            outcome = adapter.detect_outcome(case_dir, start_time) or STATUS_FAILED
             status = outcome
             end_time = end_time or timestamp_now()
             pid = None
             job_id = None
     if status == STATUS_RUNNING and has_started:
         # Even if the PID is stale, trust the log end markers.
-        outcome = detect_run_outcome(case_dir, start_time)
+        outcome = adapter.detect_outcome(case_dir, start_time)
         if outcome:
             status = outcome
             if outcome == STATUS_DONE and not end_time:
@@ -815,7 +813,7 @@ def _compute_refresh_result(
             job_id = None
     elif status != STATUS_DONE and has_started:
         # Only check for completion if a run was actually started.
-        outcome = detect_run_outcome(case_dir, start_time)
+        outcome = adapter.detect_outcome(case_dir, start_time)
         if outcome:
             status = outcome
             if outcome == STATUS_DONE and not end_time:
@@ -823,19 +821,14 @@ def _compute_refresh_result(
             pid = None
             job_id = None
 
-    run_status_path = locate_run_status_file(case_dir, start_time)
-    if run_status_path:
-        last_iter = extract_run_status_iteration(run_status_path)
-    else:
-        log_path = locate_log_file(case_dir, start_time)
-        last_iter = extract_last_iteration(log_path) if log_path else None
+    last_iter = adapter.read_progress(case_dir, start_time)
 
     duration_record = dict(record)
     duration_record["end_time"] = end_time
     duration_s, duration = _compute_duration(duration_record, status)
     convergence = _normalize_convergence(record.get("convergence"))
-    last_mod = _format_ts(_case_last_mod(case_dir))
-    _resu_mtime, resu_size_mb = _cached_resu_size_mb(case_dir)
+    last_mod = _format_ts(_case_last_mod(case_dir, adapter))
+    _resu_mtime, resu_size_mb = _cached_resu_size_mb(case_dir, adapter)
 
     row: dict[str, Any] = {
         "case_id": case_id,
@@ -970,8 +963,8 @@ def _query_slurm_job_activity(job_ids: Sequence[str | None]) -> dict[str, bool |
     return states
 
 
-def _cached_resu_size_mb(case_dir: Path) -> tuple[float | None, float | None]:
-    resu_root = case_dir / "RESU"
+def _cached_resu_size_mb(case_dir: Path, adapter: SolverAdapter) -> tuple[float | None, float | None]:
+    resu_root = adapter.results_root(case_dir)
     cache_key = str(case_dir.resolve())
     resu_mtime = None
     if resu_root.is_dir():
@@ -987,7 +980,7 @@ def _cached_resu_size_mb(case_dir: Path) -> tuple[float | None, float | None]:
         cached = RESU_SIZE_CACHE.get(cache_key)
         if cached and cached.get("mtime") == resu_mtime:
             return resu_mtime, cached.get("size")
-    size = _resu_size_mb(case_dir)
+    size = _resu_size_mb(case_dir, adapter)
     with RESU_SIZE_CACHE_LOCK:
         RESU_SIZE_CACHE[cache_key] = {"mtime": resu_mtime, "size": size}
     return resu_mtime, size
@@ -1054,12 +1047,12 @@ def _normalize_convergence(value: object) -> str:
     return ""
 
 
-def _case_last_mod(case_dir: Path) -> float | None:
+def _case_last_mod(case_dir: Path, adapter: SolverAdapter) -> float | None:
     try:
         base = case_dir.stat().st_mtime
     except OSError:
         base = None
-    resu_root = case_dir / "RESU"
+    resu_root = adapter.results_root(case_dir)
     if resu_root.is_dir():
         try:
             resu_mtime = resu_root.stat().st_mtime
@@ -1072,8 +1065,8 @@ def _case_last_mod(case_dir: Path) -> float | None:
     return base
 
 
-def _resu_size_mb(case_dir: Path, limit_files: int = 200000) -> float | None:
-    resu_root = case_dir / "RESU"
+def _resu_size_mb(case_dir: Path, adapter: SolverAdapter, limit_files: int = 200000) -> float | None:
+    resu_root = adapter.results_root(case_dir)
     if not resu_root.is_dir():
         return None
     total = 0
