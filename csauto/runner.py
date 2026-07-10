@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import contextlib
-import math
 import os
 import re
 import shlex
@@ -11,13 +10,12 @@ import subprocess
 import sys
 import threading
 import time
-from collections import deque
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .docker import read_container_id
 from .doe import read_doe_row
@@ -25,9 +23,6 @@ from .execution import (
     RUNTIME_DOCKER,
     RUNTIME_SINGULARITY,
     RuntimeSelection,
-    build_runtime_run_command,
-    build_singularity_slurm_script,
-    check_shared_dir_symlinks,
     resolve_runtime,
 )
 from .logs import (
@@ -51,7 +46,9 @@ from .registry import (
     update_case,
 )
 
-CHECKPOINT_STATE_RE = re.compile(r"Checkpoint at iteration\s+(?P<iter>\d+),\s+physical time\s+(?P<time>[-+0-9.eE]+)")
+if TYPE_CHECKING:
+    from .solvers.base import SolverAdapter
+
 SLURM_JOB_ID_RE = re.compile(r"^[A-Za-z0-9_.:\-\[\]]+$")
 SLURM_HPC_ENV_HINTS = (
     "SLURM_CLUSTER_NAME",
@@ -71,6 +68,12 @@ try:
     import fcntl
 except ImportError:  # pragma: no cover - fallback for non-POSIX platforms
     fcntl = None
+
+
+def _default_adapter() -> SolverAdapter:
+    from .solvers import get_solver_adapter
+
+    return get_solver_adapter(None)
 
 
 @contextmanager
@@ -163,15 +166,15 @@ def _submit_slurm_job(
     command: Sequence[object],
     stdout_path: Path,
     stderr_path: Path,
-    mpi_exec_options: str | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> str:
     launch_parts = _strip_nohup_prefix(command)
     if not launch_parts:
         raise ValueError("Empty launch command for Slurm submission.")
     wrapped = " ".join(shlex.quote(part) for part in launch_parts)
-    mpi_opts = str(mpi_exec_options or "").strip()
-    if mpi_opts:
-        wrapped = f"CS_MPIEXEC_OPTIONS={shlex.quote(mpi_opts)} {wrapped}"
+    env_prefix = " ".join(f"{key}={shlex.quote(value)}" for key, value in sorted((env or {}).items()))
+    if env_prefix:
+        wrapped = f"{env_prefix} {wrapped}"
     submit_cmd = [
         "sbatch",
         "--parsable",
@@ -202,28 +205,14 @@ def _submit_slurm_job(
     return job_id
 
 
-def _submit_slurm_singularity_job(
+def _submit_slurm_script_job(
     case_dir: Path,
+    script_content: str,
     nprocs: int,
     nt: int,
-    selection: RuntimeSelection,
     stdout_path: Path,
     stderr_path: Path,
-    run_args: Sequence[str] | None = None,
-    mpi_exec_options: str | None = None,
 ) -> str:
-    env_vars: dict[str, str] = {"OMP_NUM_THREADS": str(nt)}
-    mpi_opts = str(mpi_exec_options or "").strip()
-    if mpi_opts:
-        env_vars["CS_MPIEXEC_OPTIONS"] = mpi_opts
-    script_content = build_singularity_slurm_script(
-        case_dir,
-        nprocs,
-        nt,
-        selection,
-        run_args=run_args,
-        env_vars=env_vars,
-    )
     script_path = case_dir / ".csauto.slurm.singularity.sh"
     script_path.write_text(script_content, encoding="utf-8")
     script_path.chmod(0o755)
@@ -296,133 +285,6 @@ def _resolve_case_dir(runs_dir: Path, record_path: str | None, case_id: str) -> 
     return (runs_dir / case_id).resolve()
 
 
-def _require_positive_restart_value(
-    restart_value: int | float | None,
-    mode_label: str,
-    *,
-    integer: bool = False,
-) -> float:
-    """Validate and return a positive restart value, raising ValueError on failure."""
-    if restart_value is None:
-        raise ValueError(f"restart_value required for restart_mode={mode_label}")
-    v = float(restart_value)
-    if not math.isfinite(v) or v <= 0:
-        raise ValueError(f"restart_value must be > 0 for restart_mode={mode_label}")
-    if integer and not v.is_integer():
-        raise ValueError(f"restart_value must be an integer > 0 for restart_mode={mode_label}")
-    return v
-
-
-def _build_restart_run_args(
-    case_dir: Path,
-    restart: bool,
-    restart_mode: str | None,
-    restart_value: int | float | None,
-    restart_path: str | None,
-) -> tuple[list[str], dict[str, Any]]:
-    if not restart:
-        return [], {}
-    details: dict[str, Any] = {"restart": True}
-    path_value = (restart_path or "").strip()
-    restart_run_id: str | None = None
-    if path_value:
-        details["restart_path"] = path_value
-        norm = path_value.replace("\\", "/")
-        if "/" not in norm:
-            restart_run_id = norm
-        else:
-            parts = [part for part in norm.split("/") if part]
-            if parts:
-                if parts[-1].lower() == "checkpoint" and len(parts) >= 2:
-                    restart_run_id = parts[-2]
-                elif "RESU" in parts:
-                    idx = parts.index("RESU")
-                    if idx + 1 < len(parts):
-                        restart_run_id = parts[idx + 1]
-            if not restart_run_id:
-                raise ValueError(
-                    "restart_path must be a run id (e.g. 20260308-0923) or a RESU/<run_id>/checkpoint path"
-                )
-    else:
-        resu_root = case_dir / "RESU"
-        if resu_root.is_dir():
-            try:
-                resu_dirs = [p for p in resu_root.iterdir() if p.is_dir()]
-                resu_dirs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-            except OSError:
-                resu_dirs = []
-            for run_dir in resu_dirs:
-                checkpoint_dir = run_dir / "checkpoint"
-                if not checkpoint_dir.is_dir():
-                    continue
-                try:
-                    has_checkpoint = any(
-                        child.is_file() and (child.name.endswith(".csc") or ".csc." in child.name)
-                        for child in checkpoint_dir.iterdir()
-                    )
-                except OSError:
-                    has_checkpoint = False
-                if has_checkpoint:
-                    restart_run_id = run_dir.name
-                    break
-    if not restart_run_id:
-        raise ValueError(f"No checkpoint found for {case_dir.name}")
-    details["restart_run_id"] = restart_run_id
-    base_iter, base_time = _extract_restart_checkpoint_state(case_dir, restart_run_id)
-    if base_iter is not None:
-        details["restart_base_iteration"] = base_iter
-    if base_time is not None:
-        details["restart_base_time"] = base_time
-    parametric_filters: list[str] = [f"--restart={restart_run_id}"]
-    mode_raw = (restart_mode or "").strip().lower()
-    if mode_raw in {"iteration", "iterations", "iter"}:
-        increment = _require_positive_restart_value(restart_value, "iterations", integer=True)
-        target = int(increment) + base_iter if base_iter is not None else int(increment)
-        parametric_filters.append(f"--iter-num={target}")
-        details.update(restart_mode="iterations", restart_increment=int(increment), restart_value=target)
-    elif mode_raw in {"physical_time", "time", "tmax"}:
-        increment = _require_positive_restart_value(restart_value, "physical_time")
-        target = increment + base_time if base_time is not None else increment
-        parametric_filters.append(f"--tmax={format(target, '.12g')}")
-        details.update(restart_mode="physical_time", restart_increment=increment, restart_value=target)
-    elif mode_raw:
-        raise ValueError("Invalid restart_mode (must be iterations or physical_time)")
-    else:
-        if restart_value is not None:
-            raise ValueError("restart_mode required when restart_value is set")
-        details["restart_mode"] = "auto"
-    return [f"--parametric-args={' '.join(parametric_filters)}"], details
-
-
-def _extract_restart_checkpoint_state(case_dir: Path, run_id: str) -> tuple[int | None, float | None]:
-    run_dir = case_dir / "RESU" / run_id
-    if not run_dir.is_dir():
-        return None, None
-    candidates = [run_dir / "run_solver.log", run_dir / "listing", run_dir / "setup.log"]
-    for path in candidates:
-        if not path.is_file():
-            continue
-        try:
-            with path.open("r", encoding="utf-8", errors="ignore") as handle:
-                lines = deque(handle, maxlen=12000)
-        except OSError:
-            continue
-        for raw in reversed(lines):
-            match = CHECKPOINT_STATE_RE.search(raw)
-            if not match:
-                continue
-            try:
-                it_val = int(match.group("iter"))
-            except (ValueError, OverflowError):
-                it_val = None
-            try:
-                t_val = float(match.group("time"))
-            except (ValueError, OverflowError):
-                t_val = None
-            return it_val, t_val
-    return None, None
-
-
 def _start_case(
     case_dir: Path,
     *,
@@ -430,6 +292,7 @@ def _start_case(
     nprocs: int,
     nt: int,
     selection: RuntimeSelection,
+    adapter: SolverAdapter,
     use_slurm_scheduler: bool,
     restart: bool,
     restart_mode: str | None,
@@ -443,12 +306,11 @@ def _start_case(
     restart_args: list[str] = []
     restart_details: dict[str, Any] = {}
     if restart:
-        restart_args, restart_details = _build_restart_run_args(
-            case_dir=case_dir,
-            restart=restart,
-            restart_mode=restart_mode,
-            restart_value=restart_value,
-            restart_path=restart_path,
+        restart_args, restart_details = adapter.build_restart_args(
+            case_dir,
+            restart_mode,
+            restart_value,
+            restart_path,
         )
     with registry_transaction(runs_dir) as registry:
         record = registry.get(case_id, {})
@@ -482,9 +344,9 @@ def _start_case(
         if use_slurm_scheduler and selection.runtime in {RUNTIME_DOCKER, RUNTIME_SINGULARITY}:
             command_cleanenv = selection.runtime == RUNTIME_SINGULARITY
             if mpi_exec_options:
-                container_env = {"CS_MPIEXEC_OPTIONS": mpi_exec_options}
+                container_env = adapter.mpi_env(mpi_exec_options) or None
                 submit_mpi_exec_options = None
-        cmd = build_runtime_run_command(
+        cmd = adapter.build_run_command(
             case_dir,
             nprocs,
             nt,
@@ -502,6 +364,7 @@ def _start_case(
                 nprocs,
                 nt,
                 selection,
+                adapter,
                 cmd,
                 restart_args,
                 mpi_exec_options,
@@ -537,6 +400,7 @@ def _launch_slurm(
     nprocs: int,
     nt: int,
     selection: RuntimeSelection,
+    adapter: SolverAdapter,
     cmd: list[str],
     restart_args: list[str],
     mpi_exec_options: str | None,
@@ -547,19 +411,25 @@ def _launch_slurm(
 ) -> None:
     stdout_path = case_dir / "csauto.stdout"
     stderr_path = case_dir / "csauto.stderr"
-    use_singularity_script = selection.runtime == RUNTIME_SINGULARITY
+    script_env = {"OMP_NUM_THREADS": str(nt), **adapter.mpi_env(mpi_exec_options)}
     try:
         print(f"Launching {case_id} via Slurm.")
-        if use_singularity_script:
-            job_id = _submit_slurm_singularity_job(
+        script_content = adapter.build_slurm_script(
+            case_dir,
+            nprocs,
+            nt,
+            selection,
+            run_args=restart_args,
+            env_vars=script_env,
+        )
+        if script_content is not None:
+            job_id = _submit_slurm_script_job(
                 case_dir,
+                script_content,
                 nprocs,
                 nt,
-                selection,
                 stdout_path,
                 stderr_path,
-                run_args=restart_args,
-                mpi_exec_options=mpi_exec_options,
             )
         else:
             job_id = _submit_slurm_job(
@@ -567,7 +437,7 @@ def _launch_slurm(
                 cmd,
                 stdout_path,
                 stderr_path,
-                mpi_exec_options=submit_mpi_exec_options,
+                env=adapter.mpi_env(submit_mpi_exec_options),
             )
     except (OSError, ValueError, RuntimeError) as exc:
         update_case(
@@ -664,7 +534,7 @@ def run_cases(
     nt: int,
     max_parallel: int,
     case_filter: Sequence[str] | None = None,
-    docker_image: str = "simvia/code_saturne",
+    docker_image: str | None = None,
     runtime: str = "auto",
     saturne_bin: str | None = None,
     singularity_image: str | None = None,
@@ -677,22 +547,27 @@ def run_cases(
     use_slurm: bool | None = None,
     mpi_exec_options: str | None = None,
     source: str = "cli",
+    adapter: SolverAdapter | None = None,
 ) -> None:
-    """Launch Code_Saturne runs for each case directory."""
+    """Launch solver runs for each case directory."""
     if nprocs <= 0 or nt <= 0:
         raise ValueError("nprocs and nt must be > 0")
     if max_parallel <= 0:
         raise ValueError("max_parallel must be > 0")
     mpi_exec_options = str(mpi_exec_options or "").strip() or None
 
+    adapter = adapter or _default_adapter()
+    if docker_image is None:
+        docker_image = adapter.default_docker_image
     selection = resolve_runtime(
         runtime=runtime,
         docker_image=docker_image,
         saturne_bin=saturne_bin,
         singularity_image=singularity_image,
         singularity_bin=singularity_bin,
+        adapter=adapter,
     )
-    check_shared_dir_symlinks(runs_dir, selection.runtime)
+    adapter.preflight(runs_dir, selection.runtime)
     use_slurm_scheduler = _should_use_slurm_scheduler(selection.runtime, use_slurm=use_slurm)
 
     allowed_list: list[str] | None = None
@@ -737,6 +612,7 @@ def run_cases(
                 nprocs=nprocs,
                 nt=nt,
                 selection=selection,
+                adapter=adapter,
                 use_slurm_scheduler=use_slurm_scheduler,
                 restart=restart,
                 restart_mode=restart_mode,

@@ -26,6 +26,7 @@ from .residuals import (
 )
 from .runner import refresh_status, run_cases
 from .serve_commands import add_serve_subcommands, dispatch_serve_command
+from .solvers import get_solver_adapter
 from .warn import error, flush_warnings
 
 
@@ -89,7 +90,7 @@ def parse_arguments(
     """Parse CLI arguments, supporting prepare/run/status commands."""
     config = config or Config()
     parser = argparse.ArgumentParser(
-        description="Prepare and run Code_Saturne cases from a DOE CSV and a template case directory.",
+        description="Prepare and run solver cases from a DOE CSV and a template case directory.",
     )
     parser.add_argument(
         "--version",
@@ -153,7 +154,7 @@ def parse_arguments(
         action="store_true",
         help="Overwrite output_csv if it already exists.",
     )
-    run_parser = subparsers.add_parser("run", help="Launch code_saturne on all cases.")
+    run_parser = subparsers.add_parser("run", help="Launch the configured solver on all cases.")
     run_parser.add_argument("runs_dir", type=Path, help="Directory containing generated cases")
     run_parser.add_argument("--n", dest="nprocs", type=int, required=True, help="Number of MPI processes")
     run_parser.add_argument("--nt", dest="nt", type=int, required=True, help="Number of OpenMP threads")
@@ -182,13 +183,13 @@ def parse_arguments(
         "--docker-image",
         dest="docker_image",
         default=config.docker_image,
-        help="Docker image to use (default: simvia/code_saturne).",
+        help="Docker image to use (default from csauto.toml).",
     )
     run_parser.add_argument(
         "--saturne-bin",
         dest="saturne_bin",
         default=config.saturne_bin,
-        help="Path to the code_saturne executable (native runtime).",
+        help="Path to the native solver executable (native runtime).",
     )
     run_parser.add_argument(
         "--singularity-image",
@@ -431,12 +432,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             write_doe_csv([p.name for p in spec_params], spec_rows, args.output_csv)
             print(f"Wrote {len(spec_rows)} rows to {args.output_csv}")
         elif args.command == "run":
+            adapter = get_solver_adapter(config.solver)
             runtime_selection = resolve_runtime(
                 runtime=args.runtime,
                 docker_image=args.docker_image,
                 saturne_bin=args.saturne_bin,
                 singularity_image=args.singularity_image,
                 singularity_bin=args.singularity_bin,
+                adapter=adapter,
             )
             if not args.no_doctor:
                 items = run_doctor(
@@ -468,6 +471,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 use_slurm=config.use_slurm,
                 mpi_exec_options=config.mpi_exec_options,
                 source="cli",
+                adapter=adapter,
             )
         elif args.command == "status":
             rows = refresh_status(args.runs_dir)

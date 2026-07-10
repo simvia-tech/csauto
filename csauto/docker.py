@@ -6,8 +6,16 @@ import subprocess
 import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from .template import find_setup_file
+if TYPE_CHECKING:
+    from .solvers.base import SolverAdapter
+
+
+def _default_adapter() -> SolverAdapter:
+    from .solvers import get_solver_adapter
+
+    return get_solver_adapter(None)
 
 
 def build_run_command(
@@ -18,11 +26,13 @@ def build_run_command(
     cidfile: Path | None = None,
     run_args: Sequence[str] | None = None,
     env_vars: Mapping[str, str] | None = None,
+    adapter: SolverAdapter | None = None,
 ) -> list[str]:
     """Build the docker command to launch a case."""
+    adapter = adapter or _default_adapter()
     display = os.environ.get("DISPLAY")
     runs_root = case_dir.parent.resolve()
-    container_root = "/home/code_saturne"
+    container_root = adapter.container_root
     container_case = f"{container_root}/{case_dir.name}"
     cmd: list[str] = ["nohup", "docker", "run", "-v", f"{runs_root}:{container_root}"]
     if display:
@@ -40,29 +50,23 @@ def build_run_command(
     if cidfile:
         cmd.extend(["--cidfile", str(cidfile)])
     cmd.extend(["-w", container_case, docker_image])
-    cmd.extend(
-        [
-            "run",
-            "--case",
-            container_case,
-            "-n",
-            str(nprocs),
-            "--nt",
-            str(nt),
-        ]
-    )
-    if run_args:
-        cmd.extend(str(arg) for arg in run_args if str(arg))
+    cmd.extend(adapter.run_argv(container_case, nprocs, nt, run_args))
     return cmd
 
 
-def build_gui_command(case_dir: Path, docker_image: str = "simvia/code_saturne") -> list[str]:
-    """Build the docker command to launch the Code_Saturne GUI for a case."""
+def build_gui_command(
+    case_dir: Path,
+    docker_image: str | None = None,
+    adapter: SolverAdapter | None = None,
+) -> list[str]:
+    """Build the docker command to launch the solver GUI for a case."""
+    adapter = adapter or _default_adapter()
+    docker_image = docker_image or adapter.default_docker_image
     display = os.environ.get("DISPLAY")
     runs_root = case_dir.parent.resolve()
-    container_root = "/home/code_saturne"
+    container_root = adapter.container_root
     container_case = f"{container_root}/{case_dir.name}"
-    setup_path = find_setup_file(case_dir)
+    setup_path = adapter.find_setup_file(case_dir)
     try:
         setup_rel = setup_path.relative_to(case_dir)
     except ValueError:
@@ -78,7 +82,8 @@ def build_gui_command(case_dir: Path, docker_image: str = "simvia/code_saturne")
                 "/tmp/.X11-unix:/tmp/.X11-unix",
             ]
         )
-    cmd.extend(["-w", container_case, docker_image, "gui", container_setup])
+    cmd.extend(["-w", container_case, docker_image])
+    cmd.extend(adapter.gui_argv(container_setup))
     return cmd
 
 
@@ -125,7 +130,7 @@ def terminate_container(container_id: str, timeout: int = 10) -> None:
         )
 
 
-def find_container_id_for_case(case_id: str) -> str | None:
+def find_container_id_for_case(case_id: str, container_root: str | None = None) -> str | None:
     """Best-effort lookup of a running container for a case via docker ps."""
     if not shutil.which("docker"):
         return None
@@ -141,7 +146,9 @@ def find_container_id_for_case(case_id: str) -> str | None:
             cid = line.strip()
             if cid:
                 return cid
-    container_case = f"/home/code_saturne/{case_id}"
+    if container_root is None:
+        container_root = _default_adapter().container_root
+    container_case = f"{container_root}/{case_id}"
     ps_result = subprocess.run(
         ["docker", "ps", "-q"],
         stdout=subprocess.PIPE,

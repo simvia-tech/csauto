@@ -11,10 +11,10 @@ from csauto.execution import (
     RuntimeSelection,
     build_runtime_gui_command,
     build_runtime_run_command,
-    build_singularity_slurm_script,
     check_shared_dir_symlinks,
     resolve_runtime,
 )
+from csauto.solvers.code_saturne import CodeSaturneAdapter
 
 
 def test_resolve_runtime_auto_prefers_saturne_bin(tmp_path: Path, monkeypatch) -> None:
@@ -168,7 +168,7 @@ def test_build_singularity_slurm_script_uses_stage_solver_finalize(tmp_path: Pat
         singularity_image="/images/code_saturne.sif",
     )
 
-    script = build_singularity_slurm_script(
+    script = CodeSaturneAdapter().build_slurm_script(
         case_dir,
         nprocs=4,
         nt=2,

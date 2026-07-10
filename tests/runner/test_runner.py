@@ -18,12 +18,13 @@ from csauto.registry import (
     update_case,
 )
 from csauto.runner import (
-    _build_restart_run_args,
-    _extract_restart_checkpoint_state,
     refresh_status,
     run_cases,
     terminate_pid,
 )
+from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+CS_ADAPTER = CodeSaturneAdapter()
 
 
 def test_run_cases_updates_registry(monkeypatch, runs_dir: Path, case_factory) -> None:
@@ -443,7 +444,7 @@ def test_run_cases_serializes_concurrent_launchers(
         except BaseException as exc:
             errors.append(exc)
 
-    monkeypatch.setattr("csauto.runner._build_restart_run_args", restart_stub)
+    monkeypatch.setattr("csauto.solvers.code_saturne.CodeSaturneAdapter.build_restart_args", restart_stub)
     monkeypatch.setattr("subprocess.Popen", popen_stub)
     monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid: True)
     monkeypatch.setattr("csauto.runner.time.sleep", sleep_stub)
@@ -778,9 +779,8 @@ def test_build_restart_args_physical_time(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    args, details = _build_restart_run_args(
+    args, details = CS_ADAPTER.build_restart_args(
         case_dir,
-        restart=True,
         restart_mode="physical_time",
         restart_value=10.0,
         restart_path=None,
@@ -800,9 +800,8 @@ def test_build_restart_args_physical_time_invalid_value(tmp_path: Path) -> None:
     (checkpoint_dir / "main.csc").touch()
 
     with pytest.raises(ValueError, match="restart_value must be > 0"):
-        _build_restart_run_args(
+        CS_ADAPTER.build_restart_args(
             case_dir,
-            restart=True,
             restart_mode="physical_time",
             restart_value=-5.0,
             restart_path=None,
@@ -817,9 +816,8 @@ def test_build_restart_args_physical_time_missing_value(tmp_path: Path) -> None:
     (checkpoint_dir / "main.csc").touch()
 
     with pytest.raises(ValueError, match="restart_value required"):
-        _build_restart_run_args(
+        CS_ADAPTER.build_restart_args(
             case_dir,
-            restart=True,
             restart_mode="physical_time",
             restart_value=None,
             restart_path=None,
@@ -836,9 +834,8 @@ def test_build_restart_args_explicit_path(tmp_path: Path) -> None:
     resu_dir = case_dir / "RESU" / "my_run"
     resu_dir.mkdir(parents=True)
 
-    args, details = _build_restart_run_args(
+    args, details = CS_ADAPTER.build_restart_args(
         case_dir,
-        restart=True,
         restart_mode=None,
         restart_value=None,
         restart_path="my_run",
@@ -854,9 +851,8 @@ def test_build_restart_args_explicit_resu_checkpoint_path(tmp_path: Path) -> Non
     resu_dir = case_dir / "RESU" / "002"
     resu_dir.mkdir(parents=True)
 
-    args, details = _build_restart_run_args(
+    args, details = CS_ADAPTER.build_restart_args(
         case_dir,
-        restart=True,
         restart_mode=None,
         restart_value=None,
         restart_path="RESU/002/checkpoint",
@@ -871,9 +867,8 @@ def test_build_restart_args_invalid_path_raises(tmp_path: Path) -> None:
     case_dir.mkdir(parents=True)
 
     with pytest.raises(ValueError, match="restart_path must be"):
-        _build_restart_run_args(
+        CS_ADAPTER.build_restart_args(
             case_dir,
-            restart=True,
             restart_mode=None,
             restart_value=None,
             restart_path="/some/random/path/without/resu",
@@ -888,9 +883,8 @@ def test_build_restart_args_invalid_mode_raises(tmp_path: Path) -> None:
     (checkpoint_dir / "main.csc").touch()
 
     with pytest.raises(ValueError, match="Invalid restart_mode"):
-        _build_restart_run_args(
+        CS_ADAPTER.build_restart_args(
             case_dir,
-            restart=True,
             restart_mode="bogus",
             restart_value=None,
             restart_path=None,
@@ -902,9 +896,8 @@ def test_build_restart_args_no_checkpoint_raises(tmp_path: Path) -> None:
     case_dir.mkdir(parents=True)
 
     with pytest.raises(ValueError, match="No checkpoint found"):
-        _build_restart_run_args(
+        CS_ADAPTER.build_restart_args(
             case_dir,
-            restart=True,
             restart_mode=None,
             restart_value=None,
             restart_path=None,
@@ -925,7 +918,7 @@ def test_extract_checkpoint_state_from_log(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    it_val, t_val = _extract_restart_checkpoint_state(case_dir, "001")
+    it_val, t_val = CS_ADAPTER._extract_restart_checkpoint_state(case_dir, "001")
     assert it_val == 500
     assert t_val == 12.5
 
@@ -934,7 +927,7 @@ def test_extract_checkpoint_state_missing_dir(tmp_path: Path) -> None:
     case_dir = tmp_path / "case0001"
     case_dir.mkdir(parents=True)
 
-    it_val, t_val = _extract_restart_checkpoint_state(case_dir, "nonexistent")
+    it_val, t_val = CS_ADAPTER._extract_restart_checkpoint_state(case_dir, "nonexistent")
     assert it_val is None
     assert t_val is None
 

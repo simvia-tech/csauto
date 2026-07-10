@@ -1,21 +1,22 @@
 from __future__ import annotations
 
 import os
-import shlex
 import shutil
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .docker import build_gui_command, build_run_command
-from .template import find_setup_file
+
+if TYPE_CHECKING:
+    from .solvers.base import SolverAdapter
 
 RUNTIME_AUTO = "auto"
 RUNTIME_DOCKER = "docker"
 RUNTIME_SINGULARITY = "singularity"
 RUNTIME_NATIVE = "native"
 RUNTIME_CHOICES = {RUNTIME_AUTO, RUNTIME_DOCKER, RUNTIME_SINGULARITY, RUNTIME_NATIVE}
-CONTAINER_ROOT = "/home/code_saturne"
 
 
 @dataclass(frozen=True)
@@ -25,6 +26,12 @@ class RuntimeSelection:
     saturne_bin: str | None = None
     singularity_image: str | None = None
     singularity_bin: str | None = None
+
+
+def _default_adapter() -> SolverAdapter:
+    from .solvers import get_solver_adapter
+
+    return get_solver_adapter(None)
 
 
 def normalize_runtime(runtime: str | None) -> str:
@@ -48,14 +55,14 @@ def _resolve_executable(name_or_path: str) -> str | None:
     return shutil.which(name_or_path)
 
 
-def resolve_saturne_bin(saturne_bin: str | None) -> str | None:
-    """Resolve the code_saturne binary, falling back to PATH lookup."""
+def resolve_saturne_bin(saturne_bin: str | None, bin_name: str = "code_saturne") -> str | None:
+    """Resolve the native solver binary, falling back to a PATH lookup of `bin_name`."""
     if saturne_bin:
         resolved = _resolve_executable(saturne_bin)
         if resolved:
             return resolved
-        raise FileNotFoundError(f"code_saturne executable not found: {saturne_bin}")
-    return shutil.which("code_saturne")
+        raise FileNotFoundError(f"{bin_name} executable not found: {saturne_bin}")
+    return shutil.which(bin_name)
 
 
 def resolve_singularity_bin(singularity_bin: str | None) -> str | None:
@@ -93,14 +100,17 @@ def resolve_runtime(
     saturne_bin: str | None = None,
     singularity_image: str | None = None,
     singularity_bin: str | None = None,
+    adapter: SolverAdapter | None = None,
 ) -> RuntimeSelection:
     """Select and validate an execution backend (docker/native/singularity/auto)."""
+    adapter = adapter or _default_adapter()
     selected = normalize_runtime(runtime)
+    bin_name = adapter.native_bin_name
 
     def native_selection(bin_hint: str | None) -> RuntimeSelection:
-        resolved = resolve_saturne_bin(bin_hint)
+        resolved = resolve_saturne_bin(bin_hint, bin_name=bin_name)
         if not resolved:
-            raise FileNotFoundError("code_saturne executable not found in PATH.")
+            raise FileNotFoundError(f"{bin_name} executable not found in PATH.")
         return RuntimeSelection(
             runtime=RUNTIME_NATIVE,
             docker_image=docker_image,
@@ -140,7 +150,7 @@ def resolve_runtime(
         return singularity_selection()
     if shutil.which("docker"):
         return RuntimeSelection(runtime=RUNTIME_DOCKER, docker_image=docker_image)
-    resolved_native = resolve_saturne_bin(None)
+    resolved_native = resolve_saturne_bin(None, bin_name=bin_name)
     if resolved_native:
         return RuntimeSelection(
             runtime=RUNTIME_NATIVE,
@@ -148,7 +158,7 @@ def resolve_runtime(
             saturne_bin=resolved_native,
         )
     raise FileNotFoundError(
-        "No execution backend available (docker/code_saturne/apptainer). "
+        f"No execution backend available (docker/{bin_name}/apptainer). "
         "Configure runtime/saturne_bin/singularity_image in csauto.toml."
     )
 
@@ -178,14 +188,14 @@ def check_shared_dir_symlinks(runs_dir: Path, runtime: str, shared_dirs: Sequenc
         )
 
 
-def _singularity_paths(case_dir: Path) -> tuple[Path, str, str]:
+def singularity_paths(case_dir: Path, container_root: str) -> tuple[Path, str, str]:
     """Return (runs_root, container_root, container_case) for singularity mounts."""
     runs_root = case_dir.parent.resolve()
-    container_case = f"{CONTAINER_ROOT}/{case_dir.name}"
-    return runs_root, CONTAINER_ROOT, container_case
+    container_case = f"{container_root}/{case_dir.name}"
+    return runs_root, container_root, container_case
 
 
-def _singularity_shell_exec_prefix(pwd_var: str, env_flags_str: str) -> list[str]:
+def singularity_shell_exec_prefix(pwd_var: str, env_flags_str: str) -> list[str]:
     """Build the shell-variable apptainer exec prefix used in Slurm scripts."""
     parts = [
         '"$APPTAINER_BIN"',
@@ -211,8 +221,10 @@ def build_runtime_run_command(
     run_args: Sequence[str] | None = None,
     cleanenv: bool = False,
     env_vars: Mapping[str, str] | None = None,
+    adapter: SolverAdapter | None = None,
 ) -> list[str]:
-    """Build the command list to launch a code_saturne run for the given runtime."""
+    """Build the command list to launch a solver run for the given runtime."""
+    adapter = adapter or _default_adapter()
     if selection.runtime == RUNTIME_DOCKER:
         return build_run_command(
             case_dir,
@@ -222,28 +234,16 @@ def build_runtime_run_command(
             cidfile=cidfile,
             run_args=run_args,
             env_vars=env_vars,
+            adapter=adapter,
         )
     if selection.runtime == RUNTIME_NATIVE:
         if not selection.saturne_bin:
             raise ValueError("saturne_bin required for native runtime.")
-        cmd = [
-            "nohup",
-            selection.saturne_bin,
-            "run",
-            "--case",
-            str(case_dir),
-            "-n",
-            str(nprocs),
-            "--nt",
-            str(nt),
-        ]
-        if run_args:
-            cmd.extend(str(arg) for arg in run_args if str(arg) != "")
-        return cmd
+        return ["nohup", selection.saturne_bin, *adapter.run_argv(case_dir, nprocs, nt, run_args)]
     if selection.runtime == RUNTIME_SINGULARITY:
         if not selection.singularity_bin or not selection.singularity_image:
             raise ValueError("Incomplete singularity configuration.")
-        runs_root, container_root, container_case = _singularity_paths(case_dir)
+        runs_root, container_root, container_case = singularity_paths(case_dir, adapter.container_root)
         cmd = [
             "nohup",
             selection.singularity_bin,
@@ -257,30 +257,23 @@ def build_runtime_run_command(
             cmd.append("--cleanenv")
         for key, value in sorted((env_vars or {}).items()):
             cmd.extend(["--env", f"{key}={value}"])
-        cmd.extend(
-            [
-                selection.singularity_image,
-                "code_saturne",
-                "run",
-                "--case",
-                container_case,
-                "-n",
-                str(nprocs),
-                "--nt",
-                str(nt),
-            ]
-        )
-        if run_args:
-            cmd.extend(str(arg) for arg in run_args if str(arg) != "")
+        cmd.append(selection.singularity_image)
+        cmd.append(adapter.container_bin_name)
+        cmd.extend(adapter.run_argv(container_case, nprocs, nt, run_args))
         return cmd
     raise ValueError(f"Unsupported runtime: {selection.runtime}")
 
 
-def build_runtime_gui_command(case_dir: Path, selection: RuntimeSelection) -> list[str]:
-    """Build the command list to open the code_saturne GUI for the given runtime."""
+def build_runtime_gui_command(
+    case_dir: Path,
+    selection: RuntimeSelection,
+    adapter: SolverAdapter | None = None,
+) -> list[str]:
+    """Build the command list to open the solver GUI for the given runtime."""
+    adapter = adapter or _default_adapter()
     if selection.runtime == RUNTIME_DOCKER:
-        return build_gui_command(case_dir, docker_image=selection.docker_image)
-    setup_path = find_setup_file(case_dir)
+        return build_gui_command(case_dir, docker_image=selection.docker_image, adapter=adapter)
+    setup_path = adapter.find_setup_file(case_dir)
     try:
         setup_rel = setup_path.relative_to(case_dir)
     except ValueError:
@@ -288,11 +281,11 @@ def build_runtime_gui_command(case_dir: Path, selection: RuntimeSelection) -> li
     if selection.runtime == RUNTIME_NATIVE:
         if not selection.saturne_bin:
             raise ValueError("saturne_bin required for native runtime.")
-        return [selection.saturne_bin, "gui", str(setup_path)]
+        return [selection.saturne_bin, *adapter.gui_argv(setup_path)]
     if selection.runtime == RUNTIME_SINGULARITY:
         if not selection.singularity_bin or not selection.singularity_image:
             raise ValueError("Incomplete singularity configuration.")
-        runs_root, container_root, container_case = _singularity_paths(case_dir)
+        runs_root, container_root, container_case = singularity_paths(case_dir, adapter.container_root)
         container_setup = f"{container_case}/{setup_rel.as_posix()}"
         cmd: list[str] = [
             selection.singularity_bin,
@@ -304,114 +297,8 @@ def build_runtime_gui_command(case_dir: Path, selection: RuntimeSelection) -> li
         ]
         if os.environ.get("DISPLAY") and Path("/tmp/.X11-unix").exists():
             cmd.extend(["--bind", "/tmp/.X11-unix:/tmp/.X11-unix"])
-        cmd.extend([selection.singularity_image, "code_saturne", "gui", container_setup])
+        cmd.append(selection.singularity_image)
+        cmd.append(adapter.container_bin_name)
+        cmd.extend(adapter.gui_argv(container_setup))
         return cmd
     raise ValueError(f"open_gui not available for runtime {selection.runtime}")
-
-
-def build_singularity_slurm_script(
-    case_dir: Path,
-    nprocs: int,
-    nt: int,
-    selection: RuntimeSelection,
-    run_args: Sequence[str] | None = None,
-    env_vars: Mapping[str, str] | None = None,
-) -> str:
-    """Generate a Slurm batch script for a singularity-based code_saturne run."""
-    if selection.runtime != RUNTIME_SINGULARITY:
-        raise ValueError(f"Unsupported runtime for singularity Slurm script: {selection.runtime}")
-    if not selection.singularity_bin or not selection.singularity_image:
-        raise ValueError("Incomplete singularity configuration.")
-
-    setup_path = find_setup_file(case_dir)
-    try:
-        setup_rel = setup_path.relative_to(case_dir)
-    except ValueError:
-        setup_rel = Path(setup_path.name)
-
-    runs_root, container_root, container_case = _singularity_paths(case_dir)
-    container_setup = f"{container_case}/{setup_rel.as_posix()}"
-    env_flags: list[str] = []
-    for key, value in sorted((env_vars or {}).items()):
-        env_flags.extend(["--env", f"{key}={value}"])
-    env_flags_str = " ".join(shlex.quote(part) for part in env_flags)
-    stage_args = " ".join(shlex.quote(str(arg)) for arg in (run_args or []) if str(arg) != "")
-
-    stage_command = _singularity_shell_exec_prefix("$CONTAINER_CASE", env_flags_str)
-    stage_command.extend(
-        [
-            "code_saturne",
-            "run",
-            "-p",
-            '"$CONTAINER_SETUP"',
-            '--id="$RUN_ID"',
-            "--stage",
-            "--initialize",
-            "-n",
-            str(nprocs),
-            "--nt",
-            str(nt),
-        ]
-    )
-    if stage_args:
-        stage_command.append(stage_args)
-
-    finalize_command = _singularity_shell_exec_prefix("$CONTAINER_CASE", env_flags_str)
-    finalize_command.extend(
-        [
-            "code_saturne",
-            "run",
-            "-p",
-            '"$CONTAINER_SETUP"',
-            '--id="$RUN_ID"',
-            "--finalize",
-        ]
-    )
-
-    solver_command = [
-        "srun",
-        f"--ntasks={nprocs}",
-        f"--cpus-per-task={nt}",
-        '--output="$EXEC_DIR/solver_%j.out"',
-        '--error="$EXEC_DIR/solver_%j.err"',
-    ]
-    solver_command.extend(_singularity_shell_exec_prefix("$EXEC_DIR_CONTAINER", env_flags_str))
-    solver_command.extend(
-        [
-            "bash",
-            "-lc",
-            shlex.quote("exec ./cs_solver --mpi"),
-        ]
-    )
-
-    return "\n".join(
-        [
-            "#!/bin/bash",
-            "set -euo pipefail",
-            f"APPTAINER_BIN={shlex.quote(selection.singularity_bin)}",
-            f"IMAGE={shlex.quote(selection.singularity_image)}",
-            f"RUNS_ROOT={shlex.quote(str(runs_root))}",
-            f"CASE_DIR={shlex.quote(str(case_dir.resolve()))}",
-            f"CONTAINER_ROOT={shlex.quote(container_root)}",
-            f"CASE_ID={shlex.quote(case_dir.name)}",
-            'CONTAINER_CASE="$CONTAINER_ROOT/$CASE_ID"',
-            f"CONTAINER_SETUP={shlex.quote(container_setup)}",
-            'RUN_ID="csauto_${SLURM_JOB_ID:-$(date +%Y%m%d_%H%M%S)}"',
-            'EXEC_DIR="$CASE_DIR/RESU/$RUN_ID"',
-            'EXEC_DIR_CONTAINER="$CONTAINER_CASE/RESU/$RUN_ID"',
-            "unset SLURM_NPROCS SLURM_NNODES SLURM_TASKS_PER_NODE SLURM_JOBID SLURM_CPUS_PER_TASK",
-            'cd "$CASE_DIR"',
-            'echo "=== Step 1/3: Case preparation ==="',
-            " ".join(stage_command),
-            'if [ ! -d "$EXEC_DIR" ]; then',
-            '  echo "Missing execution directory after preparation: $EXEC_DIR" >&2',
-            "  exit 1",
-            "fi",
-            'echo "=== Step 2/3: Solver execution ==="',
-            " ".join(solver_command),
-            'echo "=== Step 3/3: Finalization ==="',
-            " ".join(finalize_command),
-            'echo "=== Simulation completed successfully ==="',
-            "",
-        ]
-    )

@@ -172,10 +172,26 @@ class SolverAdapterBase(ABC):
         cleanenv: bool = False,
         env_vars: Mapping[str, str] | None = None,
     ) -> list[str]:
-        raise NotImplementedError(f"run command construction not available for solver {self.name!r}")
+        """Compose generic runtime wrapping (docker/native/singularity) around `run_argv`."""
+        from ..execution import build_runtime_run_command
+
+        return build_runtime_run_command(
+            case_dir,
+            nprocs,
+            nt,
+            selection,
+            cidfile=cidfile,
+            run_args=run_args,
+            cleanenv=cleanenv,
+            env_vars=env_vars,
+            adapter=self,
+        )
 
     def build_gui_command(self, case_dir: Path, selection: RuntimeSelection) -> list[str]:
-        raise ValueError(f"GUI not supported for solver {self.name!r}")
+        """Compose generic runtime wrapping around `gui_argv` and the solver setup file."""
+        from ..execution import build_runtime_gui_command
+
+        return build_runtime_gui_command(case_dir, selection, adapter=self)
 
     def build_slurm_script(
         self,

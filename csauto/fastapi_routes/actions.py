@@ -7,7 +7,7 @@ from typing import Any
 
 from ..control import VALID_ACTIONS as VALID_CONTROL_ACTIONS
 from ..control import control_case
-from ..execution import build_runtime_gui_command, resolve_runtime
+from ..execution import resolve_runtime
 from ..logs import locate_case_file
 from ..maintenance import cleanup_runs
 from ..registry import STATUS_DONE, STATUS_FAILED, STATUS_RUNNING, registry_transaction, update_case
@@ -375,11 +375,12 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
                 saturne_bin=ctx.saturne_bin,
                 singularity_image=ctx.singularity_image,
                 singularity_bin=ctx.singularity_bin,
+                adapter=ctx.adapter,
             )
         except Exception as exc:
             raise ctx.http_exception_cls(status_code=500, detail=f"Runtime error: {exc}") from exc
         try:
-            cmd = build_runtime_gui_command(case_dir, runtime_selection)
+            cmd = ctx.adapter.build_gui_command(case_dir, runtime_selection)
         except FileNotFoundError as exc:
             raise ctx.http_exception_cls(status_code=404, detail="setup.xml not found for case") from exc
         except ValueError as exc:
@@ -440,6 +441,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
                 saturne_bin=ctx.saturne_bin,
                 singularity_image=ctx.singularity_image,
                 singularity_bin=ctx.singularity_bin,
+                adapter=ctx.adapter,
             )
         except Exception as exc:
             raise ctx.http_exception_cls(status_code=500, detail=f"Launch error: {exc}") from exc
@@ -464,6 +466,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
                 use_slurm=ctx.use_slurm,
                 mpi_exec_options=ctx.mpi_exec_options,
                 source="web",
+                adapter=ctx.adapter,
             )
         except ctx.http_exception_cls:
             raise
