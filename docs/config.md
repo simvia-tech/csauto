@@ -109,6 +109,7 @@ token = "your-secret-token"
 
 | Key | Default | Description |
 |---|---|---|
+| `solver` | `code_saturne` | Solver adapter used for command building, output parsing, and file conventions (`code_saturne`, or `stub` for testing; see [architecture.md](./architecture.md#solver-adapter-boundary)) |
 | `runtime` | `auto` | Execution backend: `auto`, `native`, `docker`, or `singularity` |
 | `saturne_bin` | (auto-detected) | Path to the `code_saturne` binary for `native` runtime |
 | `docker_image` | `simvia/code_saturne` | Docker image name for `docker` runtime |

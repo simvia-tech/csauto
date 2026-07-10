@@ -5,7 +5,6 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
-from ..control import VALID_ACTIONS as VALID_CONTROL_ACTIONS
 from ..control import control_case
 from ..execution import resolve_runtime
 from ..maintenance import cleanup_runs
@@ -224,7 +223,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
             adapter=ctx.adapter,
         )
         actor = request.client.host if request.client else None
-        # Reset status to PREPARED for cases whose RESU dir is now empty
+        # Reset status to PREPARED for cases whose results dir is now empty
         if not payload.dry_run:
             with registry_transaction(ctx.runs_dir) as registry:
                 for case_id in case_ids:
@@ -320,9 +319,9 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         authorization: str | None = Header(default=None),
     ) -> dict[str, str]:
         ctx.require_auth(x_csauto_token, authorization)
-        if payload.action not in VALID_CONTROL_ACTIONS:
+        if payload.action not in ctx.adapter.control_actions:
             raise ctx.http_exception_cls(
-                status_code=400, detail=f"Invalid action (expected one of {sorted(VALID_CONTROL_ACTIONS)})"
+                status_code=400, detail=f"Invalid action (expected one of {sorted(ctx.adapter.control_actions)})"
             )
         cases = normalize_cases(payload.cases)
         if not cases:
@@ -335,7 +334,15 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         errors: list[str] = []
         if len(case_ids) == 1:
             try:
-                control_case(ctx.runs_dir, case_ids[0], payload.action, value=payload.value, source="web", actor=actor)
+                control_case(
+                    ctx.runs_dir,
+                    case_ids[0],
+                    payload.action,
+                    value=payload.value,
+                    source="web",
+                    actor=actor,
+                    adapter=ctx.adapter,
+                )
             except Exception as exc:
                 errors.append(f"{case_ids[0]}: {exc}")
         else:
@@ -350,6 +357,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
                         value=payload.value,
                         source="web",
                         actor=actor,
+                        adapter=ctx.adapter,
                     ): case_id
                     for case_id in case_ids
                 }
@@ -389,7 +397,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         try:
             cmd = ctx.adapter.build_gui_command(case_dir, runtime_selection)
         except FileNotFoundError as exc:
-            raise ctx.http_exception_cls(status_code=404, detail="setup.xml not found for case") from exc
+            raise ctx.http_exception_cls(status_code=404, detail="Solver setup file not found for case") from exc
         except ValueError as exc:
             raise ctx.http_exception_cls(status_code=400, detail=str(exc)) from exc
         cmd_str = " ".join(shlex.quote(part) for part in cmd)

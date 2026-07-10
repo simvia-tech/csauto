@@ -106,3 +106,26 @@ def test_generate_doctor_and_cleanup_with_stub_solver(tmp_path: Path) -> None:
     report = cleanup_runs(output_dir, prune_resu=True, keep_last=0, adapter=adapter)
     assert report.resu_removed == 1
     assert not run_dir.exists()
+
+
+def test_control_stop_with_stub_solver(tmp_path: Path) -> None:
+    from csauto.control import control_case
+    from csauto.registry import save_registry
+
+    adapter = get_solver_adapter("stub")
+    runs_dir = tmp_path / "RUNS"
+    case_dir = runs_dir / "case0001"
+    run_dir = case_dir / "OUT" / "run_0001"
+    run_dir.mkdir(parents=True)
+    (case_dir / "stub.toml").write_text("steps = 3\n", encoding="utf-8")
+    save_registry(runs_dir, {"case0001": {"case_id": "case0001", "path": str(case_dir), "status": "RUNNING"}})
+
+    details = control_case(runs_dir, "case0001", "stop", adapter=adapter)
+
+    assert details == {"action": "stop"}
+    assert (run_dir / "stub_control").read_text(encoding="utf-8") == "stop\n"
+
+    import pytest
+
+    with pytest.raises(ValueError, match="Invalid control action"):
+        control_case(runs_dir, "case0001", "extend", value=10, adapter=adapter)

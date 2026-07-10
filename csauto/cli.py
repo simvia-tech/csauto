@@ -114,8 +114,8 @@ def parse_arguments(
         dest="mesh_mode",
         choices=["copy", "symlink"],
         default=config.mesh_mode,
-        help="How to place the shared MESH/POST dirs into output_root: 'copy' (default) or 'symlink'. "
-        "'symlink' avoids duplicating large meshes but is not supported with the docker/singularity "
+        help="How to place the solver's shared dirs (meshes, postprocessing) into output_root: 'copy' (default) "
+        "or 'symlink'. 'symlink' avoids duplicating large meshes but is not supported with the docker/singularity "
         "runtimes unless the mesh lives inside output_root already.",
     )
 
@@ -312,18 +312,18 @@ def parse_arguments(
     doctor_parser = subparsers.add_parser("doctor", help="Check configuration and cases.")
     doctor_parser.add_argument("runs_dir", type=Path, help="Directory containing generated cases")
 
-    cleanup_parser = subparsers.add_parser("cleanup", help="Clean up runs (RESU/logs/cache).")
+    cleanup_parser = subparsers.add_parser("cleanup", help="Clean up runs (results/logs/cache).")
     cleanup_parser.add_argument("runs_dir", type=Path, help="Directory containing generated cases")
     cleanup_parser.add_argument(
         "--prune-resu",
         action="store_true",
-        help="Delete old RESU directories (keep the most recent ones).",
+        help="Delete old result directories (keep the most recent ones).",
     )
     cleanup_parser.add_argument(
         "--keep-last",
         type=int,
         default=1,
-        help="Number of RESU directories to keep per case (default 1, 0 to delete all).",
+        help="Number of result directories to keep per case (default 1, 0 to delete all).",
     )
     cleanup_parser.add_argument(
         "--max-log-mb",
@@ -503,7 +503,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 control_action, control_value = "checkpoint", None
             else:
                 control_action, control_value = "flush", None
-            details = control_case(args.runs_dir, args.case, control_action, value=control_value, source="cli")
+            details = control_case(
+                args.runs_dir, args.case, control_action, value=control_value, source="cli", adapter=adapter
+            )
             print(f"control: {control_action} -> {details}")
         elif dispatch_serve_command(
             args,
@@ -542,7 +544,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 adapter=adapter,
             )
             prefix = "DRY-RUN " if args.dry_run else ""
-            print(f"{prefix}RESU removed: {report.resu_removed}")
+            print(f"{prefix}Result dirs removed: {report.resu_removed}")
             print(f"{prefix}Logs truncated: {report.logs_truncated}")
             if report.bytes_freed:
                 print(f"{prefix}Bytes freed: {report.bytes_freed}")

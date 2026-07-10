@@ -179,7 +179,9 @@ class TestStubAdapter:
             adapter.gui_argv("x")
         with pytest.raises(ValueError, match="Restart not supported"):
             adapter.build_restart_args(tmp_path, None, None, None)
-        with pytest.raises(ValueError, match="Control actions not supported"):
+        with pytest.raises(ValueError, match="Invalid control action"):
+            adapter.apply_control(tmp_path, "extend", value=5)
+        with pytest.raises(FileNotFoundError):
             adapter.apply_control(tmp_path, "stop")
 
     def test_list_result_files(self, adapter, tmp_path):

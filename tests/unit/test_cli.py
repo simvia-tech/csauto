@@ -224,7 +224,7 @@ def test_control_command_invokes_control_case(tmp_path: Path) -> None:
 
     call: dict[str, object] = {}
 
-    def control_case_stub(runs_dir_arg, case_id, action, *, value=None, source="cli"):
+    def control_case_stub(runs_dir_arg, case_id, action, *, value=None, source="cli", adapter=None):
         call.update(runs_dir=runs_dir_arg, case_id=case_id, action=action, value=value, source=source)
         return {"action": action}
 

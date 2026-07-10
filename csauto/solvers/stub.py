@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from ..registry import STATUS_DONE, STATUS_FAILED
 from .base import SolverAdapterBase
@@ -82,6 +82,22 @@ class StubAdapter(SolverAdapterBase):
             if STUB_DONE_MARKER in text:
                 return STATUS_DONE
         return None
+
+    def apply_control(
+        self,
+        case_dir: Path,
+        action: str,
+        *,
+        value: int | None = None,
+        start_time: str | None = None,
+    ) -> dict[str, Any]:
+        if action != "stop":
+            raise ValueError(f"Invalid control action: {action!r} (expected one of {sorted(self.control_actions)})")
+        run_dir = self.latest_run_dir(case_dir)
+        if run_dir is None:
+            raise FileNotFoundError(f"No OUT run directory found for {case_dir.name}")
+        (run_dir / "stub_control").write_text("stop\n", encoding="utf-8")
+        return {"action": "stop"}
 
     def read_progress(self, case_dir: Path, start_time: str | None = None) -> int | None:
         log_path = self.locate_case_file(case_dir, STUB_LOG_FILENAME)

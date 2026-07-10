@@ -6,8 +6,14 @@ from pathlib import Path
 
 import pytest
 
-from csauto.control import configured_max_time_step, control_case, current_iteration, write_control_directive
+from csauto.control import control_case
 from csauto.registry import save_registry
+from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+CS_ADAPTER = CodeSaturneAdapter()
+configured_max_time_step = CS_ADAPTER.configured_max_time_step
+current_iteration = CS_ADAPTER.current_iteration
+write_control_directive = CS_ADAPTER.write_control_directive
 
 
 def _resu_dir(case_dir: Path, run_id: str = "20260101-0000") -> Path:
