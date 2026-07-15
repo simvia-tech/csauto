@@ -1,0 +1,130 @@
+{
+  "name": "csauto",
+  "displayName": "csauto",
+  "version": "0.4.0",
+  "description": "Automate and monitor Code_Saturne CFD simulation campaigns from VS Code",
+  "publisher": "simvia",
+  "license": "GPL-3.0",
+  "author": {
+    "name": "Simvia SAS",
+    "url": "https://simvia.tech"
+  },
+  "repository": "https://github.com/simvia-tech/csauto",
+  "engines": {
+    "vscode": "^1.125.0"
+  },
+  "icon": "assets/simvia.png",
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "workspaceContains:csauto.toml",
+    "workspaceContains:RUNS/registry.json"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "csauto.openDashboard",
+        "title": "Open Dashboard",
+        "category": "csauto",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "csauto.startServer",
+        "title": "Start Server",
+        "category": "csauto"
+      },
+      {
+        "command": "csauto.stopServer",
+        "title": "Stop Server",
+        "category": "csauto"
+      },
+      {
+        "command": "csauto.restartServer",
+        "title": "Restart Server",
+        "category": "csauto"
+      },
+      {
+        "command": "csauto.showLogs",
+        "title": "Show Server Logs",
+        "category": "csauto"
+      },
+      {
+        "command": "csauto.installCli",
+        "title": "Install/Update csauto CLI",
+        "category": "csauto"
+      },
+      {
+        "command": "csauto.runDoctor",
+        "title": "Run Doctor",
+        "category": "csauto"
+      },
+      {
+        "command": "csauto.selectRunsDir",
+        "title": "Pin Runs Directory…",
+        "category": "csauto"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "csauto",
+          "title": "csauto",
+          "icon": "assets/csauto-activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "csauto": [
+        {
+          "id": "csauto.actions",
+          "name": "csauto",
+          "icon": "assets/csauto-activity.svg"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "csauto",
+      "properties": {
+        "csauto.pythonPath": {
+          "type": "string",
+          "default": "",
+          "description": "Python interpreter with csauto installed, used instead of the extension's managed runtime. Leave empty to let the extension manage its own environment."
+        },
+        "csauto.runsDir": {
+          "type": "string",
+          "default": "RUNS",
+          "description": "Directory containing generated cases. Relative paths are resolved against the workspace root."
+        },
+        "csauto.port": {
+          "type": "number",
+          "default": 0,
+          "description": "Port for the csauto server. 0 picks a free port automatically."
+        },
+        "csauto.serveArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Extra arguments appended to `csauto serve` (e.g. --show-api-logs)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "npm run check-types && node esbuild.js",
+    "check-types": "tsc --noEmit",
+    "watch": "node esbuild.js --watch",
+    "package": "npm run check-types && node esbuild.js --production",
+    "bundle": "bash scripts/bundle-wheel.sh",
+    "vscode:prepublish": "npm run package && npm run bundle"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@types/vscode": "^1.125.0",
+    "esbuild": "^0.28.1",
+    "typescript": "^7.0.2"
+  }
+}
