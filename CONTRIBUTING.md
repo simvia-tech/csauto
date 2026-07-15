@@ -52,7 +52,7 @@ After cloning, install the git hooks:
 sh scripts/setup-hooks.sh
 ```
 
-This installs a pre-commit hook that automatically rebuilds `frontend/dist/` when frontend source files are staged. The build requires `pnpm` and `node_modules` to be installed (`cd frontend && pnpm install`).
+This installs a pre-commit hook that automatically rebuilds `csauto/_frontend/` (the packaged dashboard) when frontend source files are staged. The build requires `pnpm` and `node_modules` to be installed (`cd frontend && pnpm install`).
 
 ### Pull Request Guidelines
 

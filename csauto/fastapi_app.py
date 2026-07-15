@@ -1,6 +1,5 @@
 import asyncio
 import contextlib
-import re
 import threading
 import time as _time
 from collections.abc import AsyncIterator
@@ -17,15 +16,9 @@ from .fastapi_routes import (
 )
 from .fastapi_routes.common import FastAPIContext, build_shared_models
 from .solvers import get_solver_adapter
+from .web_support import DEFAULT_JOB_ID_PATTERNS as JOB_ID_PATTERNS
 
-_DIST_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
-
-JOB_ID_PATTERNS = (
-    re.compile(r"submitted\s+batch\s+job\s+(?P<id>[A-Za-z0-9_.:\-\[\]]+)", re.IGNORECASE),
-    re.compile(r"your\s+job(?:-array)?\s+(?P<id>[A-Za-z0-9_.:\-\[\]]+)\s+", re.IGNORECASE),
-    re.compile(r"job\s*<(?P<id>[A-Za-z0-9_.:\-\[\]]+)>\s+is\s+submitted", re.IGNORECASE),
-    re.compile(r"\bjob[_\s-]*id\b\s*[:=]\s*(?P<id>[A-Za-z0-9_.:\-\[\]]+)", re.IGNORECASE),
-)
+_DIST_DIR = Path(__file__).resolve().parent / "_frontend"
 
 
 def _import_fastapi_components() -> dict[str, Any]:

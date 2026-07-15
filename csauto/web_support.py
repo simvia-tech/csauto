@@ -13,6 +13,13 @@ from .pathutil import is_within_root
 from .registry import STATUS_FAILED, append_history, load_registry, registry_transaction, timestamp_now, update_case
 from .runner import is_process_alive, terminate_pid
 
+DEFAULT_JOB_ID_PATTERNS = (
+    re.compile(r"submitted\s+batch\s+job\s+(?P<id>[A-Za-z0-9_.:\-\[\]]+)", re.IGNORECASE),
+    re.compile(r"your\s+job(?:-array)?\s+(?P<id>[A-Za-z0-9_.:\-\[\]]+)\s+", re.IGNORECASE),
+    re.compile(r"job\s*<(?P<id>[A-Za-z0-9_.:\-\[\]]+)>\s+is\s+submitted", re.IGNORECASE),
+    re.compile(r"\bjob[_\s-]*id\b\s*[:=]\s*(?P<id>[A-Za-z0-9_.:\-\[\]]+)", re.IGNORECASE),
+)
+
 
 def _default_adapter() -> Any:
     from .solvers import get_solver_adapter

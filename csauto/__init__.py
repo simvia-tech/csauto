@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-__version__ = (Path(__file__).resolve().parent.parent / "VERSION").read_text().strip()
+_version_file = Path(__file__).resolve().parent.parent / "VERSION"
+if _version_file.is_file():
+    __version__ = _version_file.read_text().strip()
+else:
+    from importlib.metadata import version as _pkg_version
+
+    __version__ = _pkg_version("csauto")
 
 
 def main(argv: list[str] | None = None) -> int:

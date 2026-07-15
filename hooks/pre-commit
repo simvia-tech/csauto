@@ -25,13 +25,18 @@ STAGED_FRONTEND=$(git diff --cached --name-only --diff-filter=ACMR "$against" --
     'frontend/package.json' \
     'frontend/pnpm-lock.yaml')
 
-# --- Sync VERSION → package.json ---
+# --- Sync VERSION → package.json (extension + frontend) ---
 if [ -n "$STAGED_VERSION" ]; then
     VERSION=$(cat VERSION | tr -d '[:space:]')
     if [ -f frontend/package.json ]; then
         sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" frontend/package.json
         git add frontend/package.json
         echo "[pre-commit] Synced VERSION ($VERSION) → frontend/package.json."
+    fi
+    if [ -f package.json ]; then
+        sed -i "0,/\"version\": \".*\"/s//\"version\": \"$VERSION\"/" package.json
+        git add package.json
+        echo "[pre-commit] Synced VERSION ($VERSION) → package.json."
     fi
 fi
 
@@ -50,7 +55,7 @@ fi
 # --- Frontend formatting + rebuild ---
 if [ -n "$STAGED_FRONTEND" ]; then
     if ! command -v pnpm >/dev/null 2>&1; then
-        echo "[pre-commit] ERROR: pnpm not found. Install it or build frontend/dist/ manually."
+        echo "[pre-commit] ERROR: pnpm not found. Install it or build csauto/_frontend/ manually."
         exit 1
     fi
 
@@ -59,15 +64,15 @@ if [ -n "$STAGED_FRONTEND" ]; then
     echo "$STAGED_FRONTEND" | xargs git add
     echo "[pre-commit] Formatted $(echo "$STAGED_FRONTEND" | wc -l | tr -d ' ') frontend file(s)."
 
-    # Rebuild dist
-    echo "[pre-commit] Rebuilding frontend/dist/..."
+    # Rebuild the packaged dashboard
+    echo "[pre-commit] Rebuilding csauto/_frontend/..."
     (cd frontend && pnpm build)
     if [ $? -ne 0 ]; then
         echo "[pre-commit] ERROR: frontend build failed. Commit aborted."
         exit 1
     fi
-    git add frontend/dist/
-    echo "[pre-commit] frontend/dist/ rebuilt and staged."
+    git add csauto/_frontend/
+    echo "[pre-commit] csauto/_frontend/ rebuilt and staged."
 fi
 
 exit 0

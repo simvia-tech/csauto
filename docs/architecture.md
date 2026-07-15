@@ -37,7 +37,7 @@ The web UI is the primary interface for daily operations. After `prepare` and op
 - `csauto/viz.py` - empty SVG placeholder helper
 - `csauto/pathutil.py` - path validation utilities
 - `csauto/warn.py` - warning/error printing
-- `frontend/` - SvelteKit app, pre-built output in `frontend/dist/`
+- `frontend/` - SvelteKit app, pre-built output committed in `csauto/_frontend/` (shipped inside the Python package)
 
 ## Solver adapter boundary
 
