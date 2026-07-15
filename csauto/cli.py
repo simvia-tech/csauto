@@ -307,6 +307,20 @@ def parse_arguments(
         help="Flush logs and time plots at the next time step.",
     )
 
+    kill_parser = subparsers.add_parser("kill", help="Kill running cases immediately.")
+    kill_parser.add_argument("runs_dir", type=Path, help="Directory containing generated cases")
+    kill_parser.add_argument("cases", nargs="+", help="Case IDs to kill")
+
+    note_parser = subparsers.add_parser("note", help="Set or clear a case note.")
+    note_parser.add_argument("runs_dir", type=Path, help="Directory containing generated cases")
+    note_parser.add_argument("case", help="Case ID")
+    note_parser.add_argument("note", help="Note text (empty string clears the note)")
+
+    convergence_parser = subparsers.add_parser("convergence", help="Mark a finished case as converged or not.")
+    convergence_parser.add_argument("runs_dir", type=Path, help="Directory containing generated cases")
+    convergence_parser.add_argument("case", help="Case ID")
+    convergence_parser.add_argument("value", choices=["converged", "not_converged", "clear"])
+
     add_serve_subcommands(subparsers, config)
 
     doctor_parser = subparsers.add_parser("doctor", help="Check configuration and cases.")
@@ -359,6 +373,7 @@ def parse_arguments(
     ping_parser = subparsers.add_parser("_telemetry-ping")
     ping_parser.add_argument("event_type", type=int)
     ping_parser.add_argument("id_docker")
+    ping_parser.add_argument("--failed", action="store_true", help="Mark the event as unsuccessful.")
 
     # Backward compatibility: allow legacy call without subcommand.
     commands = {
@@ -370,6 +385,9 @@ def parse_arguments(
         "perf",
         "tail",
         "control",
+        "kill",
+        "note",
+        "convergence",
         "serve",
         "doctor",
         "cleanup",
@@ -507,6 +525,46 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.runs_dir, args.case, control_action, value=control_value, source="cli", adapter=adapter
             )
             print(f"control: {control_action} -> {details}")
+        elif args.command == "kill":
+            from .web_support import DEFAULT_JOB_ID_PATTERNS, kill_case
+
+            kill_errors: list[str] = []
+            for case_id in args.cases:
+                try:
+                    kill_case(
+                        args.runs_dir, case_id, actor="cli", job_id_patterns=DEFAULT_JOB_ID_PATTERNS, adapter=adapter
+                    )
+                    print(f"Killed {case_id}.")
+                except Exception as exc:
+                    kill_errors.append(f"{case_id}: {exc}")
+            if kill_errors:
+                raise ValueError("; ".join(kill_errors))
+        elif args.command == "note":
+            from .registry import registry_transaction, update_case
+            from .web_support import log_case_action
+
+            note = " ".join(args.note.splitlines()).strip()
+            with registry_transaction(args.runs_dir) as registry:
+                if args.case not in registry:
+                    raise ValueError(f"Case not found: {args.case}")
+                update_case(registry, args.case, note=note)
+            log_case_action(args.runs_dir, args.case, "note", {"note": note}, actor="cli")
+            print(f"Note {'cleared' if not note else 'set'} for {args.case}.")
+        elif args.command == "convergence":
+            from .registry import STATUS_DONE, STATUS_FAILED, registry_transaction, update_case
+            from .web_support import log_case_action
+
+            convergence = "" if args.value == "clear" else args.value
+            with registry_transaction(args.runs_dir) as registry:
+                record = registry.get(args.case)
+                if record is None:
+                    raise ValueError(f"Case not found: {args.case}")
+                status = str(record.get("status") or "").upper()
+                if status not in {STATUS_DONE, STATUS_FAILED}:
+                    raise ValueError("Convergence can only be set for finished cases (DONE or FAILED).")
+                update_case(registry, args.case, convergence=convergence)
+            log_case_action(args.runs_dir, args.case, "convergence", {"value": convergence}, actor="cli")
+            print(f"Convergence {'cleared' if not convergence else f'set to {convergence}'} for {args.case}.")
         elif dispatch_serve_command(
             args,
             config,
@@ -572,7 +630,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "_telemetry-ping":
             from .telemetry import send_event
 
-            send_event(args.event_type, block=True, id_docker=args.id_docker)
+            send_event(args.event_type, block=True, id_docker=args.id_docker, valid_result=not args.failed)
         else:
             raise ValueError("Unknown command.")
     except Exception as exc:

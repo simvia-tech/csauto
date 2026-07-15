@@ -243,3 +243,105 @@ def test_control_command_invokes_control_case(tmp_path: Path) -> None:
         "value": 500,
         "source": "cli",
     }
+
+
+def _write_registry_entry(runs_dir: Path, case_id: str, status: str) -> None:
+    import json
+
+    registry = {case_id: {"case_id": case_id, "path": str(runs_dir / case_id), "status": status}}
+    (runs_dir / "registry.json").write_text(json.dumps(registry), encoding="utf-8")
+
+
+def _read_registry_entry(runs_dir: Path, case_id: str) -> dict:
+    import json
+
+    return json.loads((runs_dir / "registry.json").read_text(encoding="utf-8"))[case_id]
+
+
+def test_note_command_sets_and_clears_note(tmp_path: Path) -> None:
+    runs_dir = tmp_path / "RUNS"
+    runs_dir.mkdir()
+    _write_registry_entry(runs_dir, "case0001", "DONE")
+
+    assert main(["note", str(runs_dir), "case0001", "first\nline"]) == 0
+    assert _read_registry_entry(runs_dir, "case0001")["note"] == "first line"
+
+    assert main(["note", str(runs_dir), "case0001", ""]) == 0
+    assert _read_registry_entry(runs_dir, "case0001")["note"] == ""
+
+
+def test_note_command_rejects_unknown_case(tmp_path: Path, capsys) -> None:
+    runs_dir = tmp_path / "RUNS"
+    runs_dir.mkdir()
+    _write_registry_entry(runs_dir, "case0001", "DONE")
+
+    assert main(["note", str(runs_dir), "nope", "text"]) == 1
+    assert "Case not found" in capsys.readouterr().err
+
+
+def test_convergence_command_sets_value_for_finished_case(tmp_path: Path) -> None:
+    runs_dir = tmp_path / "RUNS"
+    runs_dir.mkdir()
+    _write_registry_entry(runs_dir, "case0001", "DONE")
+
+    assert main(["convergence", str(runs_dir), "case0001", "converged"]) == 0
+    assert _read_registry_entry(runs_dir, "case0001")["convergence"] == "converged"
+
+    assert main(["convergence", str(runs_dir), "case0001", "clear"]) == 0
+    assert _read_registry_entry(runs_dir, "case0001")["convergence"] == ""
+
+
+def test_convergence_command_rejects_unfinished_case(tmp_path: Path, capsys) -> None:
+    runs_dir = tmp_path / "RUNS"
+    runs_dir.mkdir()
+    _write_registry_entry(runs_dir, "case0001", "RUNNING")
+
+    assert main(["convergence", str(runs_dir), "case0001", "converged"]) == 1
+    assert "finished cases" in capsys.readouterr().err
+
+
+def test_kill_command_reports_error_for_idle_case(tmp_path: Path, capsys) -> None:
+    runs_dir = tmp_path / "RUNS"
+    runs_dir.mkdir()
+    _write_registry_entry(runs_dir, "case0001", "PREPARED")
+
+    assert main(["kill", str(runs_dir), "case0001"]) == 1
+    assert "case0001" in capsys.readouterr().err
+
+
+def test_serve_command_reads_token_from_environment(tmp_path: Path, monkeypatch) -> None:
+    runs_dir = tmp_path / "RUNS"
+    runs_dir.mkdir()
+
+    from csauto import cli as cli_module
+
+    call: dict[str, object] = {}
+
+    def serve_fastapi_stub(runs_dir_arg: Path, **kwargs) -> None:
+        call["api_token"] = kwargs.get("api_token")
+
+    monkeypatch.setenv("CSAUTO_API_TOKEN", "env-secret")
+    monkeypatch.setattr(cli_module, "run_doctor", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(cli_module, "serve_fastapi", serve_fastapi_stub)
+
+    assert main(["serve", str(runs_dir), "--no-doctor"]) == 0
+    assert call["api_token"] == "env-secret"
+
+
+def test_serve_command_flag_overrides_environment_token(tmp_path: Path, monkeypatch) -> None:
+    runs_dir = tmp_path / "RUNS"
+    runs_dir.mkdir()
+
+    from csauto import cli as cli_module
+
+    call: dict[str, object] = {}
+
+    def serve_fastapi_stub(runs_dir_arg: Path, **kwargs) -> None:
+        call["api_token"] = kwargs.get("api_token")
+
+    monkeypatch.setenv("CSAUTO_API_TOKEN", "env-secret")
+    monkeypatch.setattr(cli_module, "run_doctor", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(cli_module, "serve_fastapi", serve_fastapi_stub)
+
+    assert main(["serve", str(runs_dir), "--token", "flag-secret", "--no-doctor"]) == 0
+    assert call["api_token"] == "flag-secret"

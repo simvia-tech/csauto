@@ -21,6 +21,11 @@ TELEMETRY_TIMEOUT_S = 5
 
 EVENT_INSTALL = 3
 EVENT_SERVE = 4
+# 5 is reserved (unused). VS Code extension events; id_docker carries the
+# remote kind ("local", "ssh-remote", "wsl", ...) instead of the runtime.
+EVENT_EXT_SERVE = 6
+EVENT_EXT_DASHBOARD_OPEN = 7
+EVENT_EXT_CLI_INSTALL = 8
 
 _lock = threading.Lock()
 
