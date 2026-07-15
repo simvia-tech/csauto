@@ -27,7 +27,17 @@ No manual case duplication. No directory juggling. Just simulations.
 
 ## Installation
 
-csauto requires **Python 3.11+** and has **no external dependencies** for core features (pure standard library). The web dashboard requires a few extra packages.
+### VS Code extension (recommended)
+
+csauto ships as a VS Code extension that embeds the dashboard directly in the editor — including over [Remote-SSH](https://code.visualstudio.com/docs/remote/ssh) sessions on HPC clusters. It manages its own Python environment: no manual csauto install needed (Python 3.11+ must be available on the machine).
+
+1. Download the `.vsix` from the [releases page](https://github.com/simvia-tech/csauto/releases) and install it via **Extensions: Install from VSIX** (marketplace publication is planned).
+2. Open your campaign folder, click the **csauto** icon in the activity bar, and hit **Open Dashboard**. The first run sets up the private runtime.
+3. Optional: use **Install csauto CLI** in the sidebar to also get the `csauto` command in your terminal.
+
+### Headless / HPC without VS Code (CLI + browser)
+
+For machines where VS Code isn't an option, install the CLI directly; the same dashboard is then available in your browser via `csauto serve`. Requires **Python 3.11+**; core features have **no external dependencies** (pure standard library), the web dashboard needs a few extra packages (installed by the script).
 
 ```bash
 # One-line install (clones to ~/.local/share/csauto, creates venv, adds alias)
@@ -131,11 +141,30 @@ The web UI (`csauto serve`) is the primary interface for runtime monitoring and 
 | `status`    | Show case status in the terminal                  | Status panel               |
 | `tail`      | Stream a case log file (like `tail -f`)           | Log Tail panel             |
 | `control`   | Steer a running case: stop/extend/checkpoint/flush | Status → Stop / More ▾ menu |
+| `kill`      | Kill running cases immediately                    | Status → per-case kill action |
+| `note`      | Set or clear a case note                          | Status → note field         |
+| `convergence` | Mark a finished case converged / not converged  | Status → convergence toggle |
 | `residuals` | Export residuals data and/or SVG plot             | Residuals Plot panel       |
 | `perf`      | Extract performance metrics from logs             | Timing Snapshot panel      |
 | `cleanup`   | Remove old RESU dirs, logs (`--prune-resu`, etc.) | Status → Clean Selected    |
 
 The web UI also provides features beyond the CLI: kill running cases, edit case files, add notes, mark convergence, compare runs side-by-side, plot probes/profiles, and scan logs for recent errors.
+
+## VS Code extension
+
+The extension is the primary way to use csauto. It runs the csauto server in the background on a free port and embeds the dashboard in an editor panel — over Remote-SSH sessions, VS Code forwards the port automatically.
+
+Everything is reachable from the **csauto activity bar icon** (or the command palette):
+
+- **Runs Directory** — pins the campaign directory for this workspace (auto-detects campaigns via their `registry.json`); useful when the campaign lives in a subfolder of the workspace.
+- **Open Dashboard** — starts the server if needed and opens the dashboard panel (also on the status bar).
+- **Start/Stop/Restart Server**, **Show Server Logs** — server lifecycle and diagnostics.
+- **Run Doctor** — validates the environment and reports problems.
+- **Install csauto CLI** — writes a `csauto` shim to `~/.local/bin` backed by the extension's managed runtime, so the same csauto works in your terminal.
+
+On first use the extension creates a private Python environment (in extension storage) and installs its bundled csauto into it, so extension and engine versions never drift. Settings under `csauto.*`: `pythonPath` (bring your own interpreter instead of the managed runtime), `runsDir` (default `RUNS`, resolved against the workspace root), `port` (0 = auto), and `serveArgs`.
+
+To develop the extension: `npm install`, then `npm run watch` (or press F5 in VS Code to launch an Extension Development Host). `npm run package` produces the production bundle; `npm run bundle` builds the wheel shipped in the `.vsix`; `npx @vscode/vsce package` builds the `.vsix` itself.
 
 ## Troubleshooting
 
