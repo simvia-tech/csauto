@@ -95,7 +95,8 @@ Python script writing `OUT/run_0001/stub.log` and lets integration tests cover
 prepare -> run -> status -> control end to end without a real solver installed.
 
 Adding a solver means writing one adapter class and registering it in
-`csauto/solvers/__init__.py`; the core does not change.
+`csauto/solvers/__init__.py`; the core does not change. See
+[Adding a new solver](./adding-a-solver.md) for the step-by-step guide.
 
 ## Persistent data model
 

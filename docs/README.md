@@ -29,5 +29,6 @@ The web UI is the recommended interface for all daily operations.
 ## Contributing
 
 - [Architecture](./architecture.md)
+- [Adding a new solver](./adding-a-solver.md) — implement a `SolverAdapter` for another solver
 - [Contributing guide](./contributing.md)
 - [Test suite](../tests/README.md)
