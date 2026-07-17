@@ -4,26 +4,35 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.0.0] - 2026-07-15
 
 csauto becomes extension-first: the repository now ships a VS Code extension that is the primary interface, with the CLI as a companion for headless/HPC use.
 
 ### Added
-- VS Code extension (TypeScript, repo root): activity-bar sidebar with actions (Pin Runs Directory, Open Dashboard, Start/Stop/Restart Server, Run Doctor, Install csauto CLI, Show Server Logs), status bar item, and the dashboard embedded in a webview (works over Remote-SSH via automatic port forwarding)
-- Managed extension runtime: on first use the extension creates a private venv in extension storage and installs its bundled, version-matched csauto wheel; `csauto.pythonPath` overrides it
-- "Install csauto CLI" writes a `csauto` shim to `~/.local/bin` backed by the managed runtime
+- VS Code extension (TypeScript, repo root): activity-bar sidebar with sections (Campaign: pin runs directory with campaign auto-detection, open dashboard, doctor; Server: status and lifecycle; Setup: runtime state and CLI install with alias-shadowing detection; Settings: live values with click-through), status bar item, and the dashboard embedded in a webview (works over Remote-SSH via automatic port forwarding)
+- Native VS Code theming for the embedded dashboard: the webview forwards `--vscode-*` theme variables into the dashboard iframe (postMessage handshake, live theme switching), and the dashboard remaps its design tokens onto them — colors, fonts, radii, scrollbars, selection and input colors all follow the editor theme, with dark-theme readability fixes; the browser look is unchanged
+- Run-completion notifications: the extension polls the server and notifies when cases finish or fail (`csauto.notifyOnRunCompletion`)
+- Managed extension runtime: on first use the extension creates a private venv in extension storage and installs its bundled, version-matched csauto wheel; `csauto.pythonPath` overrides it; dev checkouts (F5) use an editable install so repo changes are live
+- "Install csauto CLI" writes a `csauto` shim to `~/.local/bin` backed by the managed runtime, and warns when a shell alias would shadow it
+- "Reload Dashboard" command and a dev watch pipeline (`npm run watch`: esbuild + tsc + frontend rebuild)
 - New CLI verbs for web-UI action parity: `csauto kill`, `csauto note`, `csauto convergence`
 - `CSAUTO_API_TOKEN` environment variable as a token source for `csauto serve` (flag > env > csauto.toml)
 - The dashboard accepts a `?token=` query parameter (stored, then stripped from the URL) so the extension can authenticate the embedded dashboard automatically
 - Extension telemetry events (extension serve, dashboard open, CLI install) routed through `csauto _telemetry-ping`, sharing the CLI's anonymous user id and opt-out, additionally gated on VS Code's telemetry setting
 - `_telemetry-ping --failed` flag to mark unsuccessful events
+- CI: extension workflow building and uploading the `.vsix`; releases now attach the `.vsix` and the wheel
 
 ### Changed
 - The built dashboard moved from `frontend/dist/` into the Python package (`csauto/_frontend/`), making wheels self-contained: `pip install` from any location now serves the dashboard
 - The extension starts its server with a random per-session API token, so the local port is no longer open to other local users
+- The `.vsix` ships only the bundled wheel, extension bundle, and assets (the Python source tree is no longer duplicated inside it)
 - `csauto/__init__.py` version detection works in wheel installs (falls back to package metadata)
 - README restructured extension-first; install.sh remains the headless/HPC path
 - Frontend and extension toolchains upgraded (Vite 8, Svelte 5.56, TypeScript 7 for the extension)
+- Dialog backdrops use a neutral scrim instead of the EDF blue tint
+
+### Fixed
+- Sticky status-table columns no longer let scrolled content bleed through on hover with translucent theme colors
 
 ## [0.4.0] - 2026-07-15
 

@@ -2,14 +2,12 @@
 
 <p align="center">
   <a href="https://simvia-tech.github.io/csauto/"><img src="https://img.shields.io/badge/website-landing%20page-1057C8" alt="Website" /></a>
-  <a href="/"><img src="https://img.shields.io/badge/version-0.4.0-blue" alt="Version" /></a>
+  <a href="/"><img src="https://img.shields.io/badge/version-1.0.0-blue" alt="Version" /></a>
   <a href="https://github.com/simvia-tech/csauto/actions/workflows/pr.yml"><img src="https://github.com/simvia-tech/csauto/actions/workflows/pr.yml/badge.svg" alt="CI-CD" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-GPL%203.0-green" alt="License" /></a>
 </p>
 
 # csauto
-
-This project is in early development. Expect breaking changes until v1.0.
 
 ## Description
 
@@ -161,10 +159,11 @@ Everything is reachable from the **csauto activity bar icon** (or the command pa
 - **Start/Stop/Restart Server**, **Show Server Logs** — server lifecycle and diagnostics.
 - **Run Doctor** — validates the environment and reports problems.
 - **Install csauto CLI** — writes a `csauto` shim to `~/.local/bin` backed by the extension's managed runtime, so the same csauto works in your terminal.
+- **Run notifications** — a notification fires when a running case finishes (DONE or FAILED), with a shortcut back to the dashboard (disable via `csauto.notifyOnRunCompletion`).
 
 On first use the extension creates a private Python environment (in extension storage) and installs its bundled csauto into it, so extension and engine versions never drift. Settings under `csauto.*`: `pythonPath` (bring your own interpreter instead of the managed runtime), `runsDir` (default `RUNS`, resolved against the workspace root), `port` (0 = auto), and `serveArgs`.
 
-To develop the extension: `npm install`, then `npm run watch` (or press F5 in VS Code to launch an Extension Development Host). `npm run package` produces the production bundle; `npm run bundle` builds the wheel shipped in the `.vsix`; `npx @vscode/vsce package` builds the `.vsix` itself.
+To develop the extension: `npm install`, `npm run watch` (esbuild + tsc + frontend rebuild in parallel), then press F5 to launch an Extension Development Host. In dev mode the managed runtime uses an **editable install** of the checkout, so Python changes are live after "Restart Server" and dashboard changes after "Reload Dashboard" (the watch task rebuilds `csauto/_frontend` automatically). `npm run package` produces the production bundle; `npm run bundle` builds the wheel shipped in the `.vsix`; `npx @vscode/vsce package` builds the `.vsix` itself.
 
 ## Troubleshooting
 

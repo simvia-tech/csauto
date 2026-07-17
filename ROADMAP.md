@@ -4,9 +4,9 @@
 
 This roadmap is a declaration of intent, not a contractual engagement. It is updated at each minor or major release.
 
-*Last updated: v0.4.0 — 2026-07-15*
+*Last updated: v1.0.0 — 2026-07-15*
 
-## Current Capabilities (v0.4.0)
+## Current Capabilities (v1.0.0)
 
 - Case generation from DOE CSV + template directory, or a generated parameter spec
 - Local and Slurm job execution
