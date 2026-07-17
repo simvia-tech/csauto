@@ -136,17 +136,15 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
       doctorItem.description = `${doctor.fails.length} problem(s)`;
       doctorItem.tooltip = `${doctor.fails[0]}\nClick to re-check.`;
     } else {
-      doctorItem.iconPath = new vscode.ThemeIcon("check");
+      doctorItem.iconPath = new vscode.ThemeIcon("pass-filled", new vscode.ThemeColor("testing.iconPassed"));
       const runtimes = doctorRuntimeSummary(doctor.lines) ?? "all checks passed";
-      doctorItem.description =
-        doctor.warns.length > 0 ? `${runtimes} · ${doctor.warns.length} warning(s)` : `${runtimes} · ready`;
+      doctorItem.description = doctor.warns.length > 0 ? `${runtimes} · ${doctor.warns.length} warning(s)` : runtimes;
       doctorItem.tooltip = `Runtimes available to run ${solver}. Click to re-check.`;
     }
 
     item.children = [
       actionItem("Open Dashboard", "dashboard", "csauto.openCampaignDashboardFor", undefined, [runsDir]),
       doctorItem,
-      actionItem("Server Logs", "output", "csauto.showLogsFor", undefined, [runsDir]),
     ];
     if (state) {
       item.children.push(
@@ -154,6 +152,7 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
         actionItem("Restart Server", "debug-restart", "csauto.restartServerFor", undefined, [runsDir]),
       );
     }
+    item.children.push(actionItem("Server Logs", "output", "csauto.showLogsFor", undefined, [runsDir]));
     return item;
   }
 
