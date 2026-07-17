@@ -15,7 +15,7 @@
   import Icon from "$lib/components/shared/Icon.svelte";
   import { fetchPerf } from "$lib/api/endpoints";
   import { saveCsvBlob, buildPlotFilename } from "$lib/actions/export";
-  import type { PerfRecord } from "$lib/api/types";
+  import type { PerfColumn, PerfRecord } from "$lib/api/types";
   import { RefreshCw, Download } from "lucide-svelte";
   import {
     startTimer,
@@ -42,11 +42,9 @@
 
   const PERF_REFRESH_MS = 5000;
 
-  const COLUMNS: {
-    key: keyof PerfRecord;
-    label: string;
-    kind: "time" | "int";
-  }[] = [
+  /* Columns come from the solver adapter via /api/perf; this hardcoded set
+     is only the fallback for older backends whose payload has no metadata. */
+  const FALLBACK_COLUMNS: PerfColumn[] = [
     { key: "elapsed_time", label: "Elapsed (s)", kind: "time" },
     { key: "io_time", label: "I/O (s)", kind: "time" },
     { key: "linear_solver_time", label: "Linear Solver (s)", kind: "time" },
@@ -55,6 +53,7 @@
     { key: "mpi_ranks", label: "MPI Ranks", kind: "int" },
     { key: "threads", label: "Threads", kind: "int" },
   ];
+  let columns = $state<PerfColumn[]>(FALLBACK_COLUMNS);
 
   let caseOptions = $derived(allCases.map((c) => ({ value: c, label: c })));
   let hasData = $derived(records.length > 0);
@@ -64,6 +63,7 @@
     loading = true;
     try {
       const data = await fetchPerf(selectedCases);
+      if (data.columns?.length) columns = data.columns;
       records = data.records;
       if (records.length > 0) hasAvailableData = true;
     } catch (err) {
@@ -81,18 +81,20 @@
     load();
   }
 
-  function formatCell(kind: "time" | "int", value: string | null): string {
-    if (value === null || value === "") return "-";
+  function formatCell(kind: PerfColumn["kind"], value: string | null): string {
+    if (value === null || value === undefined || value === "") return "-";
+    if (kind === "text") return value;
     const n = Number(value);
     if (!Number.isFinite(n)) return value;
-    return kind === "time" ? n.toFixed(3) : String(Math.round(n));
+    if (kind === "int") return String(Math.round(n));
+    return n.toFixed(3);
   }
 
   async function saveCsv() {
     if (!records.length) return;
-    const header = ["case_id", ...COLUMNS.map((c) => c.key)];
+    const header = ["case_id", ...columns.map((c) => c.key)];
     const rows = records.map((r) =>
-      [r.case_id, ...COLUMNS.map((c) => r[c.key] ?? "")].join(","),
+      [r.case_id, ...columns.map((c) => r[c.key] ?? "")].join(","),
     );
     const csv = [header.join(","), ...rows].join("\n");
     const filename = buildPlotFilename("timing_snapshot", selectedCases, "csv");
@@ -107,6 +109,7 @@
       selectedCases = [...allCases];
       fetchPerf(allCases)
         .then((data) => {
+          if (data.columns?.length) columns = data.columns;
           hasAvailableData = data.records.length > 0;
           records = data.records;
         })
@@ -183,7 +186,7 @@
               style="position: sticky; left: 0; z-index: 4; background: var(--color-table-head); border-right: 1px solid var(--color-border);"
               >Case</th
             >
-            {#each COLUMNS as col (col.key)}
+            {#each columns as col (col.key)}
               <th>{col.label}</th>
             {/each}
           </tr>
@@ -196,7 +199,7 @@
                 style="position: sticky; left: 0; z-index: 3; background: var(--color-table-row); border-right: 1px solid var(--color-border);"
                 >{rec.case_id}</td
               >
-              {#each COLUMNS as col (col.key)}
+              {#each columns as col (col.key)}
                 <td class="whitespace-nowrap"
                   >{formatCell(col.kind, rec[col.key])}</td
                 >

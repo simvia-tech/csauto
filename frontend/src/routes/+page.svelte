@@ -20,7 +20,7 @@
   import CompareCard from "$lib/components/compare/CompareCard.svelte";
   import RecentErrorsCard from "$lib/components/errors/RecentErrorsCard.svelte";
 
-  import { fetchStatus } from "$lib/api/endpoints";
+  import { fetchAppConfig, fetchStatus } from "$lib/api/endpoints";
   import {
     setRows,
     setDoeColumns,
@@ -42,6 +42,11 @@
   /** All case IDs, updated on each status load */
   let allCaseIds = $state<string[]>([]);
 
+  /* Dashboard panels declared by the solver adapter; null (config not loaded
+     or older backend) renders everything. */
+  let panels = $state<string[] | null>(null);
+  const showPanel = (name: string) => panels === null || panels.includes(name);
+
   async function loadStatus() {
     try {
       const data = await fetchStatus();
@@ -56,6 +61,11 @@
 
   onMount(() => {
     loadStatus();
+    fetchAppConfig()
+      .then((config) => {
+        panels = config.panels;
+      })
+      .catch(() => {});
   });
 </script>
 
@@ -72,13 +82,27 @@
 />
 
 <main class="grid grid-cols-12 gap-4 w-[min(1200px,94vw)] mx-auto pt-5 pb-12">
-  <StatusCard onRefresh={loadStatus} />
-  <ResidualPlotCard allCases={allCaseIds} />
-  <ProbesCard allCases={allCaseIds} />
-  <PerformanceCard allCases={allCaseIds} />
-  <CompareCard allCases={allCaseIds} />
-  <LogTailCard allCases={allCaseIds} />
-  <RecentErrorsCard allCases={allCaseIds} />
+  {#if showPanel("status")}
+    <StatusCard onRefresh={loadStatus} />
+  {/if}
+  {#if showPanel("residuals")}
+    <ResidualPlotCard allCases={allCaseIds} />
+  {/if}
+  {#if showPanel("probes")}
+    <ProbesCard allCases={allCaseIds} />
+  {/if}
+  {#if showPanel("performance")}
+    <PerformanceCard allCases={allCaseIds} />
+  {/if}
+  {#if showPanel("compare")}
+    <CompareCard allCases={allCaseIds} />
+  {/if}
+  {#if showPanel("tail")}
+    <LogTailCard allCases={allCaseIds} />
+  {/if}
+  {#if showPanel("errors")}
+    <RecentErrorsCard allCases={allCaseIds} />
+  {/if}
 </main>
 
 <footer

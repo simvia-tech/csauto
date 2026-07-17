@@ -1184,3 +1184,39 @@ def test_api_status_with_stub_solver(runs_dir: Path) -> None:
         httpd.shutdown()
         httpd.server_close()
         thread.join(timeout=2)
+
+
+# ---------------------------------------------------------------------------
+# adapter-driven perf columns and app config
+# ---------------------------------------------------------------------------
+
+
+def test_api_perf_includes_adapter_column_metadata(web_env) -> None:
+    base_url, _case_dir = web_env
+    status, body = _http_get(f"{base_url}/api/perf?case=case0001")
+    assert status == 200
+    data = json.loads(body)
+    columns = data["columns"]
+    assert [c["key"] for c in columns] == [
+        "elapsed_time",
+        "io_time",
+        "linear_solver_time",
+        "gradients_time",
+        "balances_time",
+        "mpi_ranks",
+        "threads",
+    ]
+    by_key = {c["key"]: c for c in columns}
+    assert by_key["elapsed_time"]["label"] == "Elapsed (s)"
+    assert by_key["elapsed_time"]["kind"] == "time"
+    assert by_key["mpi_ranks"]["kind"] == "int"
+
+
+def test_api_app_config_exposes_solver_and_panels(web_env) -> None:
+    base_url, _case_dir = web_env
+    status, body = _http_get(f"{base_url}/api/app_config")
+    assert status == 200
+    data = json.loads(body)
+    assert data["solver"] == "code_saturne"
+    assert "residuals" in data["panels"]
+    assert "performance" in data["panels"]
