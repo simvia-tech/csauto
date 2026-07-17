@@ -22,7 +22,7 @@ class Config:
     use_slurm: bool | None = None
     mpi_exec_options: str | None = None
     max_parallel: int = 1
-    mesh_mode: str = "copy"
+    mesh_mode: str = "symlink"
     host: str = "127.0.0.1"
     port: int = 8000
     api_token: str | None = None
@@ -102,7 +102,7 @@ def _parse_runtime(value: Any, *, config_path: Path) -> str:
 
 
 def _parse_mesh_mode(value: Any, *, config_path: Path) -> str:
-    mesh_mode = _coerce_str(value, "copy").strip().lower()
+    mesh_mode = _coerce_str(value, "symlink").strip().lower()
     if mesh_mode not in {"copy", "symlink"}:
         raise ValueError(f"Invalid mesh_mode in {config_path}: {mesh_mode!r} (expected copy or symlink)")
     return mesh_mode

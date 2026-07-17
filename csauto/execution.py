@@ -163,15 +163,18 @@ def resolve_runtime(
     )
 
 
-def check_shared_dir_symlinks(runs_dir: Path, runtime: str, shared_dirs: Sequence[str] = ("MESH", "POST")) -> None:
-    """Raise if a symlinked shared dir would be invisible inside a container.
+def shared_dir_symlink_mounts(
+    runs_dir: Path,
+    shared_dirs: Sequence[str] = ("MESH", "POST"),
+    readonly_dirs: Sequence[str] = ("MESH",),
+) -> list[tuple[Path, bool]]:
+    """(target, readonly) pairs for shared dirs that are symlinks out of `runs_dir`.
 
-    Docker/Singularity only bind-mount `runs_dir` itself, so a shared-dir symlink
-    pointing outside `runs_dir` (as produced by `mesh_mode = "symlink"`) resolves to a
-    path that is not mounted inside the container.
+    Container runtimes only bind-mount `runs_dir`; these targets must be
+    bind-mounted additionally, at the same absolute path, so the symlinks
+    stored inside `runs_dir` resolve identically inside the container.
     """
-    if runtime not in (RUNTIME_DOCKER, RUNTIME_SINGULARITY):
-        return
+    mounts: list[tuple[Path, bool]] = []
     resolved_runs_dir = runs_dir.resolve()
     for name in shared_dirs:
         shared_dir = runs_dir / name
@@ -180,12 +183,26 @@ def check_shared_dir_symlinks(runs_dir: Path, runtime: str, shared_dirs: Sequenc
         target = shared_dir.resolve()
         if target == resolved_runs_dir or resolved_runs_dir in target.parents:
             continue
-        raise RuntimeError(
-            f"{shared_dir} is a symlink to {target}, which is outside {runs_dir}. "
-            f"The {runtime} runtime only mounts {runs_dir} into the container, so this mesh would "
-            "not be visible at run time. Re-run `csauto prepare` with mesh_mode=copy, or use "
-            "runtime=native for this campaign."
-        )
+        mounts.append((target, name in readonly_dirs))
+    return mounts
+
+
+def check_shared_dir_symlinks(runs_dir: Path, runtime: str, shared_dirs: Sequence[str] = ("MESH", "POST")) -> None:
+    """Raise if a symlinked shared dir cannot be made visible inside a container.
+
+    Symlink targets outside `runs_dir` are bind-mounted into containers at the
+    same absolute path (see `shared_dir_symlink_mounts`), so they are fine as
+    long as the target exists; only a broken symlink is unrecoverable.
+    """
+    if runtime not in (RUNTIME_DOCKER, RUNTIME_SINGULARITY):
+        return
+    for target, _readonly in shared_dir_symlink_mounts(runs_dir, shared_dirs):
+        if not target.is_dir():
+            raise RuntimeError(
+                f"{runs_dir} contains a shared-dir symlink to {target}, which does not exist, "
+                f"so it cannot be mounted into the {runtime} container. Fix the symlink target "
+                "or re-run `csauto prepare` with mesh_mode=copy."
+            )
 
 
 def singularity_paths(case_dir: Path, container_root: str) -> tuple[Path, str, str]:
@@ -195,7 +212,7 @@ def singularity_paths(case_dir: Path, container_root: str) -> tuple[Path, str, s
     return runs_root, container_root, container_case
 
 
-def singularity_shell_exec_prefix(pwd_var: str, env_flags_str: str) -> list[str]:
+def singularity_shell_exec_prefix(pwd_var: str, env_flags_str: str, extra_binds: Sequence[str] = ()) -> list[str]:
     """Build the shell-variable apptainer exec prefix used in Slurm scripts."""
     parts = [
         '"$APPTAINER_BIN"',
@@ -203,6 +220,7 @@ def singularity_shell_exec_prefix(pwd_var: str, env_flags_str: str) -> list[str]
         "--cleanenv",
         "--bind",
         '"$RUNS_ROOT:$CONTAINER_ROOT"',
+        *(part for bind in extra_binds for part in ("--bind", bind)),
         "--pwd",
         f'"{pwd_var}"',
     ]
@@ -253,6 +271,8 @@ def build_runtime_run_command(
             "--pwd",
             container_case,
         ]
+        for target, readonly in shared_dir_symlink_mounts(runs_root, adapter.shared_dir_names):
+            cmd.extend(["--bind", f"{target}:{target}:ro" if readonly else f"{target}:{target}"])
         if cleanenv:
             cmd.append("--cleanenv")
         for key, value in sorted((env_vars or {}).items()):

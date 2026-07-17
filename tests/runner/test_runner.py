@@ -58,15 +58,13 @@ def test_run_cases_updates_registry(monkeypatch, runs_dir: Path, case_factory) -
     assert (case_dir / ".csauto.history.jsonl").is_file()
 
 
-def test_run_cases_docker_rejects_mesh_symlinked_outside_runs_dir(monkeypatch, runs_dir: Path, case_factory) -> None:
+def test_run_cases_docker_rejects_broken_mesh_symlink(monkeypatch, runs_dir: Path, case_factory) -> None:
     case_factory(runs_dir, "case0001")
-    outside_mesh = runs_dir.parent / "study" / "MESH"
-    outside_mesh.mkdir(parents=True)
-    (runs_dir / "MESH").symlink_to(outside_mesh, target_is_directory=True)
+    (runs_dir / "MESH").symlink_to(runs_dir.parent / "gone", target_is_directory=True)
 
     monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
 
-    with pytest.raises(RuntimeError, match="symlink"):
+    with pytest.raises(RuntimeError, match="does not exist"):
         run_cases(
             runs_dir,
             nprocs=2,

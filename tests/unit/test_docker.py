@@ -109,3 +109,23 @@ def test_build_gui_command_injects_extra_env(tmp_path, monkeypatch) -> None:
     assert "-e QT_SCALE_FACTOR=2.00" in joined
     image_index = joined.index("QT_SCALE_FACTOR")
     assert image_index < joined.index("gui ")
+
+
+def test_build_run_command_mounts_symlinked_shared_dirs(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("DISPLAY", raising=False)
+    runs_dir = tmp_path / "RUNS"
+    case_dir = runs_dir / "case0001"
+    case_dir.mkdir(parents=True)
+    mesh = tmp_path / "study" / "MESH"
+    post = tmp_path / "study" / "POST"
+    mesh.mkdir(parents=True)
+    post.mkdir(parents=True)
+    (runs_dir / "MESH").symlink_to(mesh, target_is_directory=True)
+    (runs_dir / "POST").symlink_to(post, target_is_directory=True)
+
+    cmd = build_run_command(case_dir, 4, 2, "my_image")
+
+    joined = " ".join(cmd)
+    assert f"-v {mesh.resolve()}:{mesh.resolve()}:ro" in joined
+    assert f"-v {post.resolve()}:{post.resolve()}" in joined
+    assert f"{post.resolve()}:ro" not in joined

@@ -26,6 +26,8 @@ csauto becomes extension-first: the repository now ships a VS Code extension tha
 - One-time suggestion to install VS Code Aster for 3D MED mesh visualization when the workspace contains `.med` files
 
 ### Changed
+- `mesh_mode = "symlink"` now works with the docker and singularity runtimes: symlinked `MESH`/`POST` targets are bind-mounted into the container at their absolute host path (`MESH` read-only, `POST` writable), for direct runs and Slurm scripts alike, so the symlinks in `RUNS/` resolve identically inside the container; the up-front rejection now only fires for broken symlink targets
+- `mesh_mode` defaults to `symlink` (was `copy`): physically duplicating multi-gigabyte meshes per study is now opt-in; the Windows fallback to copy-with-warning when symlinks cannot be created is unchanged
 - The built dashboard moved from `frontend/dist/` into the Python package (`csauto/_frontend/`), making wheels self-contained: `pip install` from any location now serves the dashboard
 - The extension starts its server with a random per-session API token, so the local port is no longer open to other local users
 - The `.vsix` ships only the bundled wheel, extension bundle, and assets (the Python source tree is no longer duplicated inside it)

@@ -63,12 +63,12 @@ def test_load_config_missing_explicit_path_raises(tmp_path: Path) -> None:
         load_config(missing)
 
 
-def test_load_config_defaults_mesh_mode_to_copy(tmp_path: Path) -> None:
+def test_load_config_defaults_mesh_mode_to_symlink(tmp_path: Path) -> None:
     cfg = tmp_path / "csauto.toml"
     cfg.write_text("", encoding="utf-8")
 
     config = load_config(cfg)
-    assert config.mesh_mode == "copy"
+    assert config.mesh_mode == "symlink"
 
 
 def test_load_config_reads_mesh_mode(tmp_path: Path) -> None:
