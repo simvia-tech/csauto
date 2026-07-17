@@ -25,6 +25,10 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
 - Describe the feature, its use case, and why it would be beneficial.
 - Include examples or references if possible.
 
+### Adding a New Solver
+
+Merge requests adding support for new solvers are gladly welcome! csauto's solver-specific logic (commands, log parsing, file conventions, dashboard columns and panels) lives behind a single `SolverAdapter` class, so supporting a new solver means writing one adapter — no changes to the orchestration core or the frontend. Follow the step-by-step guide in [docs/adding-a-solver.md](docs/adding-a-solver.md), and use the built-in `stub` adapter and `tests/unit/test_solver_boundary.py` as references for the expected shape.
+
 ### Improving Documentation
 
 - Fix typos, clarify instructions, or add missing details.
