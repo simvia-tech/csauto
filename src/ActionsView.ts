@@ -143,7 +143,7 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
       runtimeItem.description = "created at next server start";
     }
 
-    const solverItem = new Item("Code_Saturne");
+    const solverItem = new Item("code_saturne");
     const doctor = lastDoctorResult();
     const runtimeLine = doctor?.lines.find((line) => line.includes("available runtimes:"));
     const noRuntimeLine = doctor?.lines.find((line) => line.includes("no runtime found"));
