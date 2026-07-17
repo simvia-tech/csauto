@@ -105,8 +105,30 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     item.tooltip = workspaceRoot ? path.relative(workspaceRoot, runsDir) || runsDir : runsDir;
 
+    const runtimeCheck = new Item("Solver runtime");
+    const doctor = lastDoctorResult(runsDir);
+    const runtimeLine = doctor?.lines.find((line) => line.includes("available runtimes:"));
+    const noRuntimeLine = doctor?.lines.find((line) => line.includes("no runtime found"));
+    if (runtimeLine) {
+      runtimeCheck.iconPath = new vscode.ThemeIcon("pass-filled", new vscode.ThemeColor("testing.iconPassed"));
+      runtimeCheck.description = runtimeLine.split("available runtimes:")[1].trim();
+      runtimeCheck.tooltip = `Runtimes available to run ${solver}. Click to re-run the checks.`;
+    } else if (noRuntimeLine) {
+      runtimeCheck.iconPath = new vscode.ThemeIcon("warning", new vscode.ThemeColor("list.warningForeground"));
+      runtimeCheck.description = "no runtime found";
+      runtimeCheck.tooltip =
+        `No runtime detected to run ${solver}: install Docker (with the solver image), a native solver ` +
+        "binary, or Apptainer/Singularity. Click to re-run the checks.";
+    } else {
+      runtimeCheck.iconPath = new vscode.ThemeIcon("question");
+      runtimeCheck.description = "click to check";
+      runtimeCheck.tooltip = `Run doctor to check for a runtime able to run ${solver}.`;
+    }
+    runtimeCheck.command = { command: "csauto.runDoctorFor", title: "Run Doctor", arguments: [runsDir] };
+
     item.children = [
       actionItem("Open Dashboard", "dashboard", "csauto.openCampaignDashboardFor", undefined, [runsDir]),
+      runtimeCheck,
       actionItem("Run Doctor", "checklist", "csauto.runDoctorFor", undefined, [runsDir]),
       actionItem("Server Logs", "output", "csauto.showLogsFor", undefined, [runsDir]),
     ];
@@ -153,27 +175,6 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
       runtimeItem.description = "created at next server start";
     }
 
-    const solverItem = new Item("code_saturne");
-    const doctor = lastDoctorResult();
-    const runtimeLine = doctor?.lines.find((line) => line.includes("available runtimes:"));
-    const noRuntimeLine = doctor?.lines.find((line) => line.includes("no runtime found"));
-    if (runtimeLine) {
-      solverItem.iconPath = new vscode.ThemeIcon("pass-filled", new vscode.ThemeColor("testing.iconPassed"));
-      solverItem.description = runtimeLine.split("available runtimes:")[1].trim();
-      solverItem.tooltip = "Solver runtimes detected. Click to re-run the checks.";
-    } else if (noRuntimeLine) {
-      solverItem.iconPath = new vscode.ThemeIcon("warning", new vscode.ThemeColor("list.warningForeground"));
-      solverItem.description = "no runtime found";
-      solverItem.tooltip =
-        "No Code_Saturne runtime detected: install Docker (with the solver image), a native code_saturne " +
-        "binary, or Apptainer/Singularity. Click to re-run the checks.";
-    } else {
-      solverItem.iconPath = new vscode.ThemeIcon("question");
-      solverItem.description = "click to check";
-      solverItem.tooltip = "Run doctor to check for a Code_Saturne runtime (docker, native binary, or Singularity).";
-    }
-    solverItem.command = { command: "csauto.runDoctor", title: "Run Doctor" };
-
     let cliItem: Item;
     if (cliInstalled && shadowed) {
       cliItem = new Item("csauto CLI");
@@ -197,7 +198,7 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
 
     const logsItem = actionItem("Extension Logs", "output", "csauto.showLogs");
 
-    item.children = [versionItem, runtimeItem, solverItem, cliItem, logsItem];
+    item.children = [versionItem, runtimeItem, cliItem, logsItem];
     return item;
   }
 

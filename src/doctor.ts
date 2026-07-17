@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import * as path from "path";
 import { execFile } from "child_process";
 
 export interface DoctorResult {
@@ -7,14 +8,15 @@ export interface DoctorResult {
   lines: string[];
 }
 
-let lastResult: DoctorResult | undefined;
+const results = new Map<string, DoctorResult>();
 const resultEmitter = new vscode.EventEmitter<DoctorResult>();
 
 /** Fires whenever a doctor run completes (server start or explicit command). */
 export const onDidRunDoctor = resultEmitter.event;
 
-export function lastDoctorResult(): DoctorResult | undefined {
-  return lastResult;
+/** The latest doctor result for a campaign's runs directory, if any ran. */
+export function lastDoctorResult(runsDir: string): DoctorResult | undefined {
+  return results.get(path.resolve(runsDir));
 }
 
 export function runDoctor(
@@ -36,7 +38,7 @@ export function runDoctor(
         warns: lines.filter((line) => line.startsWith("[WARN]")),
         lines,
       };
-      lastResult = result;
+      results.set(path.resolve(runsDir), result);
       resultEmitter.fire(result);
       resolve(result);
     });
