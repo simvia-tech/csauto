@@ -102,9 +102,12 @@
     if (!caseId) return;
     try {
       const files = await fetchResuFiles(caseId);
-      const logFiles = files.filter(
-        (f) => f.endsWith(".log") || f.endsWith("/summary"),
-      );
+      const logFiles = files.filter((f) => {
+        const base = f.split("/").pop() ?? f;
+        return (
+          f.endsWith(".log") || f.endsWith("/summary") || base in FILE_PRIORITY
+        );
+      });
       const sorted = logFiles.sort((a, b) => filePriority(a) - filePriority(b));
       availableFiles = sorted;
       if (sorted.length > 0) {

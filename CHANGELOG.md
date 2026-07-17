@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - `mesh_mode` defaults to `symlink` (was `copy`): physically duplicating multi-gigabyte meshes per study is now opt-in; the Windows fallback to copy-with-warning when symlinks cannot be created is unchanged
 
 ### Fixed
+- The Log Tail panel now offers every file its priority table declares (`csauto.stdout`, `csauto.stderr`, `listing`, `run_status.running`) instead of only `*.log`/`summary` names, so solvers whose console log is `csauto.stdout` (e.g. su2) get a working tail instead of "No log data available"
 - Recent-errors scanning deduplicates resolved file paths, so adapters aliasing several conventional names onto one file can no longer report the same error twice
 
 ### Added
