@@ -300,10 +300,13 @@ def test_convergence_command_rejects_unfinished_case(tmp_path: Path, capsys) -> 
     assert "finished cases" in capsys.readouterr().err
 
 
-def test_kill_command_reports_error_for_idle_case(tmp_path: Path, capsys) -> None:
+def test_kill_command_reports_error_for_idle_case(tmp_path: Path, capsys, monkeypatch) -> None:
     runs_dir = tmp_path / "RUNS"
     runs_dir.mkdir()
     _write_registry_entry(runs_dir, "case0001", "PREPARED")
+    # Isolate from the host docker daemon: a real container matching the case
+    # id (e.g. a GUI session) would otherwise be found — and killed.
+    monkeypatch.setattr("csauto.web_support.find_container_id_for_case", lambda _case_id: None)
 
     assert main(["kill", str(runs_dir), "case0001"]) == 1
     assert "case0001" in capsys.readouterr().err

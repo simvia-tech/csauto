@@ -58,6 +58,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
 
     class OpenGuiPayload(BaseModel):
         case: str | None = None
+        scale: float | None = None
 
     class RunCasePayload(BaseModel):
         cases: list[str] | str | None = None
@@ -395,8 +396,13 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
             )
         except Exception as exc:
             raise ctx.http_exception_cls(status_code=500, detail=f"Runtime error: {exc}") from exc
+        # The client reports its devicePixelRatio so the GUI matches the
+        # user's display scaling (WSLg/X11 default to 96dpi otherwise).
+        gui_env: dict[str, str] = {}
+        if payload.scale is not None and 1.0 < payload.scale <= 4.0:
+            gui_env["QT_SCALE_FACTOR"] = f"{payload.scale:.2f}"
         try:
-            cmd = ctx.adapter.build_gui_command(case_dir, runtime_selection)
+            cmd = ctx.adapter.build_gui_command(case_dir, runtime_selection, gui_env=gui_env)
         except FileNotFoundError as exc:
             raise ctx.http_exception_cls(status_code=404, detail="Solver setup file not found for case") from exc
         except ValueError as exc:
@@ -411,6 +417,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
                     stdout=log_handle,
                     stderr=subprocess.STDOUT,
                     start_new_session=True,
+                    env={**os.environ, **gui_env},
                 )
         except Exception as exc:
             raise ctx.http_exception_cls(status_code=500, detail=f"Launch error: {exc}") from exc

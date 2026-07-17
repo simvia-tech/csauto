@@ -79,6 +79,7 @@ def build_gui_command(
     case_dir: Path,
     docker_image: str | None = None,
     adapter: SolverAdapter | None = None,
+    extra_env: Mapping[str, str] | None = None,
 ) -> list[str]:
     """Build the docker command to launch the solver GUI for a case."""
     adapter = adapter or _default_adapter()
@@ -99,6 +100,8 @@ def build_gui_command(
         cmd.extend(["-e", f"DISPLAY={display}"])
         if socket_dir:
             cmd.extend(["-v", f"{socket_dir}:/tmp/.X11-unix"])
+    for key, value in (extra_env or {}).items():
+        cmd.extend(["-e", f"{key}={value}"])
     cmd.extend(["-w", container_case, docker_image])
     cmd.extend(adapter.gui_argv(container_setup))
     return cmd

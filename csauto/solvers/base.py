@@ -57,7 +57,9 @@ class SolverAdapter(Protocol):
         env_vars: Mapping[str, str] | None = None,
     ) -> list[str]: ...
 
-    def build_gui_command(self, case_dir: Path, selection: RuntimeSelection) -> list[str]: ...
+    def build_gui_command(
+        self, case_dir: Path, selection: RuntimeSelection, gui_env: Mapping[str, str] | None = None
+    ) -> list[str]: ...
 
     def build_slurm_script(
         self,
@@ -187,11 +189,13 @@ class SolverAdapterBase(ABC):
             adapter=self,
         )
 
-    def build_gui_command(self, case_dir: Path, selection: RuntimeSelection) -> list[str]:
+    def build_gui_command(
+        self, case_dir: Path, selection: RuntimeSelection, gui_env: Mapping[str, str] | None = None
+    ) -> list[str]:
         """Compose generic runtime wrapping around `gui_argv` and the solver setup file."""
         from ..execution import build_runtime_gui_command
 
-        return build_runtime_gui_command(case_dir, selection, adapter=self)
+        return build_runtime_gui_command(case_dir, selection, adapter=self, gui_env=gui_env)
 
     def build_slurm_script(
         self,

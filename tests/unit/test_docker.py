@@ -93,3 +93,19 @@ def test_build_gui_command_passes_display_unprefixed(tmp_path, monkeypatch) -> N
     display_index = cmd.index("-e") + 1
     assert cmd[display_index] == "DISPLAY=:0"
     assert not any(part.startswith("DISPLAY=unix") for part in cmd)
+
+
+def test_build_gui_command_injects_extra_env(tmp_path, monkeypatch) -> None:
+    from csauto.docker import build_gui_command
+
+    case_dir = tmp_path / "RUNS" / "case0001"
+    (case_dir / "DATA").mkdir(parents=True)
+    (case_dir / "DATA" / "setup.xml").write_text("<root/>", encoding="utf-8")
+    monkeypatch.setenv("DISPLAY", ":0")
+
+    cmd = build_gui_command(case_dir, extra_env={"QT_SCALE_FACTOR": "2.00"})
+
+    joined = " ".join(cmd)
+    assert "-e QT_SCALE_FACTOR=2.00" in joined
+    image_index = joined.index("QT_SCALE_FACTOR")
+    assert image_index < joined.index("gui ")

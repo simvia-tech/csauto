@@ -268,11 +268,17 @@ def build_runtime_gui_command(
     case_dir: Path,
     selection: RuntimeSelection,
     adapter: SolverAdapter | None = None,
+    gui_env: Mapping[str, str] | None = None,
 ) -> list[str]:
-    """Build the command list to open the solver GUI for the given runtime."""
+    """Build the command list to open the solver GUI for the given runtime.
+
+    `gui_env` entries are injected into the GUI process environment; for the
+    docker runtime they must travel via `-e` flags, other runtimes inherit
+    them from the spawned process environment.
+    """
     adapter = adapter or _default_adapter()
     if selection.runtime == RUNTIME_DOCKER:
-        return build_gui_command(case_dir, docker_image=selection.docker_image, adapter=adapter)
+        return build_gui_command(case_dir, docker_image=selection.docker_image, adapter=adapter, extra_env=gui_env)
     setup_path = adapter.find_setup_file(case_dir)
     try:
         setup_rel = setup_path.relative_to(case_dir)
