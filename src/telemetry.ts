@@ -13,7 +13,8 @@ export const EVENT_EXT_CLI_INSTALL = 8;
  * string carries the remote kind — never workspace-identifying data.
  */
 export function sendTelemetry(python: string | undefined, eventType: number, ok = true): void {
-  if (!python || !vscode.env.isTelemetryEnabled) {
+  const enabled = vscode.workspace.getConfiguration("csauto").get<boolean>("enableTelemetry", true);
+  if (!python || !enabled || !vscode.env.isTelemetryEnabled) {
     return;
   }
   const context = vscode.env.remoteName ?? "local";

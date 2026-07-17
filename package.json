@@ -118,6 +118,11 @@
           "default": 0,
           "description": "Port for the csauto server. 0 picks a free port automatically."
         },
+        "csauto.enableTelemetry": {
+          "type": "boolean",
+          "default": true,
+          "description": "Send anonymous usage statistics. Also requires VS Code's own telemetry to be enabled; csauto's CLI-level opt-out (csauto disable-telemetry) is honored too."
+        },
         "csauto.notifyOnRunCompletion": {
           "type": "boolean",
           "default": true,
