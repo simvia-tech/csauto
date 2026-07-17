@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { ActionsViewProvider } from "./ActionsView";
 import { DashboardPanel } from "./DashboardPanel";
+import { RunWatcher } from "./RunWatcher";
 import { RuntimeManager } from "./RuntimeManager";
 import { ServerManager, ServerState } from "./ServerManager";
 import { installCli } from "./InstallCli";
@@ -10,8 +11,11 @@ import { EVENT_EXT_DASHBOARD_OPEN, EVENT_EXT_SERVE, sendTelemetry } from "./tele
 
 export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel("csauto");
+  DashboardPanel.output = output;
+  DashboardPanel.extensionUri = context.extensionUri;
   const runtime = new RuntimeManager(context, output);
   const server = new ServerManager(runtime, output);
+  context.subscriptions.push(new RunWatcher(server, output));
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
   statusBar.command = "csauto.openDashboard";
   context.subscriptions.push(output, server, statusBar);
@@ -87,6 +91,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("csauto.showLogs", () => {
       output.show(true);
     }),
+    vscode.commands.registerCommand("csauto.reloadDashboard", () => DashboardPanel.reload()),
     vscode.commands.registerCommand("csauto.runDoctor", async () => {
       const python = await runtime.ensurePython();
       if (!python) {

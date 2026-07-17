@@ -1,7 +1,7 @@
 {
   "name": "csauto",
   "displayName": "csauto",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "description": "Automate and monitor Code_Saturne CFD simulation campaigns from VS Code",
   "publisher": "simvia",
   "license": "GPL-3.0",
@@ -64,6 +64,11 @@
         "command": "csauto.selectRunsDir",
         "title": "Pin Runs Directory…",
         "category": "csauto"
+      },
+      {
+        "command": "csauto.reloadDashboard",
+        "title": "Reload Dashboard",
+        "category": "csauto"
       }
     ],
     "viewsContainers": {
@@ -102,6 +107,11 @@
           "default": 0,
           "description": "Port for the csauto server. 0 picks a free port automatically."
         },
+        "csauto.notifyOnRunCompletion": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a notification when a running case finishes (DONE or FAILED)."
+        },
         "csauto.serveArgs": {
           "type": "array",
           "items": {
@@ -116,7 +126,10 @@
   "scripts": {
     "compile": "npm run check-types && node esbuild.js",
     "check-types": "tsc --noEmit",
-    "watch": "node esbuild.js --watch",
+    "watch": "npm-run-all -p watch:esbuild watch:tsc watch:frontend",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch",
+    "watch:frontend": "pnpm --dir frontend build --watch",
     "package": "npm run check-types && node esbuild.js --production",
     "bundle": "bash scripts/bundle-wheel.sh",
     "vscode:prepublish": "npm run package && npm run bundle"
@@ -125,6 +138,7 @@
     "@types/node": "^26.1.1",
     "@types/vscode": "^1.125.0",
     "esbuild": "^0.28.1",
+    "npm-run-all2": "^8.0.4",
     "typescript": "^7.0.2"
   }
 }

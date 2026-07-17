@@ -6,6 +6,11 @@ import { execFile } from "child_process";
 const CONSENT_KEY = "csauto.runtimeConsent";
 const MIN_PYTHON = [3, 11] as const;
 
+interface InstallSource {
+  kind: "wheel" | "editable";
+  path: string;
+}
+
 function run(command: string, args: string[], output: vscode.OutputChannel): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(command, args, { maxBuffer: 16 * 1024 * 1024 }, (error, stdout, stderr) => {
@@ -64,19 +69,29 @@ export class RuntimeManager {
   /**
    * Returns the python executable to run csauto with, creating the managed
    * venv on first use (with user consent). Undefined if the user declined.
+   * The runtime is recreated when the install source changes — e.g. when a
+   * dev checkout switches from the bundled wheel to an editable install.
    */
   async ensurePython(): Promise<string | undefined> {
     const override = vscode.workspace.getConfiguration("csauto").get<string>("pythonPath", "").trim();
     if (override) {
       return override;
     }
-    if (fs.existsSync(this.readyMarker)) {
+    const source = this.findInstallSource();
+    const expected = this.markerFor(source);
+    let existing: string | undefined;
+    try {
+      existing = fs.readFileSync(this.readyMarker, "utf-8");
+    } catch {
+      // No runtime yet.
+    }
+    if (existing === expected) {
       return this.venvPython;
     }
     if (!(await this.askConsent())) {
       return undefined;
     }
-    await this.createRuntime();
+    await this.createRuntime(source, expected);
     void this.cleanupStaleRuntimes();
     return this.venvPython;
   }
@@ -118,38 +133,51 @@ export class RuntimeManager {
     );
   }
 
-  private findInstallSource(): string {
+  /**
+   * In a dev checkout (F5 Extension Development Host) prefer an editable
+   * install so Python and dashboard changes in the repo are live; a packaged
+   * extension installs its bundled wheel.
+   */
+  private findInstallSource(): InstallSource {
+    const devMode = this.context.extensionMode === vscode.ExtensionMode.Development;
+    const hasPyproject = fs.existsSync(path.join(this.context.extensionPath, "pyproject.toml"));
+    if (devMode && hasPyproject) {
+      return { kind: "editable", path: this.context.extensionPath };
+    }
     const bundledDir = path.join(this.context.extensionPath, "bundled");
     if (fs.existsSync(bundledDir)) {
       const wheel = fs.readdirSync(bundledDir).find((f) => f.startsWith("csauto-") && f.endsWith(".whl"));
       if (wheel) {
-        return path.join(bundledDir, wheel);
+        return { kind: "wheel", path: path.join(bundledDir, wheel) };
       }
     }
-    if (fs.existsSync(path.join(this.context.extensionPath, "pyproject.toml"))) {
-      return this.context.extensionPath;
+    if (hasPyproject) {
+      return { kind: "editable", path: this.context.extensionPath };
     }
     throw new Error("No bundled csauto wheel found in the extension (and no source checkout to install from).");
   }
 
-  private async createRuntime(): Promise<void> {
-    const source = this.findInstallSource();
+  private markerFor(source: InstallSource): string {
+    return JSON.stringify({ version: this.version, kind: source.kind, source: source.path });
+  }
+
+  private async createRuntime(source: InstallSource, marker: string): Promise<void> {
     const basePython = await this.findBasePython();
     await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Notification, title: "Setting up the csauto runtime…" },
       async (progress) => {
-        this.output.appendLine(`[csauto] Creating runtime venv at ${this.venvDir}`);
+        this.output.appendLine(`[csauto] Creating runtime venv at ${this.venvDir} (${source.kind} install)`);
         await fs.promises.rm(this.venvDir, { recursive: true, force: true });
         await fs.promises.mkdir(this.runtimesRoot, { recursive: true });
         await run(basePython, ["-m", "venv", this.venvDir], this.output);
         progress.report({ message: "installing csauto…" });
-        const spec = source.endsWith(".whl") ? `${source}[web]` : undefined;
-        const installArgs = spec
-          ? ["-m", "pip", "install", "--upgrade", spec]
-          : ["-m", "pip", "install", "--upgrade", "-e", `${source}[web]`];
+        const installArgs =
+          source.kind === "editable"
+            ? ["-m", "pip", "install", "--upgrade", "-e", `${source.path}[web]`]
+            : ["-m", "pip", "install", "--upgrade", `${source.path}[web]`];
         await run(this.venvPython, installArgs, this.output);
-        await fs.promises.writeFile(this.readyMarker, this.version, "utf-8");
-        this.output.appendLine(`[csauto] Runtime ready (csauto ${this.version}).`);
+        await fs.promises.writeFile(this.readyMarker, marker, "utf-8");
+        this.output.appendLine(`[csauto] Runtime ready (csauto ${this.version}, ${source.kind}).`);
       },
     );
   }
