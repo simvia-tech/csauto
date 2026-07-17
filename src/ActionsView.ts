@@ -81,7 +81,6 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
       actionItem("Prepare Campaign…", "new-folder", "csauto.prepare"),
       actionItem("Runs Directory", "pinned", "csauto.selectRunsDir", this.pinnedRunsDir() ?? "not set"),
       actionItem("Open Dashboard", "dashboard", "csauto.openDashboard"),
-      actionItem("Open Campaign Dashboard…", "multiple-windows", "csauto.openCampaignDashboard"),
       actionItem("Run Doctor", "checklist", "csauto.runDoctor"),
     ];
     return item;

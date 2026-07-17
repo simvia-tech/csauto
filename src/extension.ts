@@ -122,18 +122,26 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("csauto.openDashboard", () => openDashboardFor()),
-    vscode.commands.registerCommand("csauto.openCampaignDashboardFor", (runsDir: string) => openDashboardFor(runsDir)),
-    vscode.commands.registerCommand("csauto.openCampaignDashboard", async () => {
-      const campaigns = await findCampaignRunsDirs();
-      if (campaigns.length === 0) {
-        void vscode.window.showInformationMessage("csauto: no campaigns found in this workspace (no registry.json).");
+    vscode.commands.registerCommand("csauto.openDashboard", async () => {
+      // One entry point: open directly when the workspace has at most one
+      // campaign; quick-pick (pinned first) when there are several.
+      let pinned: string | undefined;
+      try {
+        pinned = path.resolve(server.resolveRunsDir());
+      } catch {
+        // No workspace folder; startServer() will surface the error.
+      }
+      const detected = (await findCampaignRunsDirs()).map((dir) => path.resolve(dir));
+      const campaigns = Array.from(new Set(pinned ? [pinned, ...detected] : detected));
+      if (campaigns.length <= 1) {
+        await openDashboardFor(campaigns[0]);
         return;
       }
       const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? "";
       const picked = await vscode.window.showQuickPick(
         campaigns.map((dir) => ({
           label: `$(folder) ${path.relative(workspaceRoot, dir) || path.basename(dir)}`,
+          description: dir === pinned ? "pinned" : undefined,
           dir,
         })),
         { placeHolder: "Open the dashboard for which campaign?" },
@@ -142,6 +150,7 @@ export function activate(context: vscode.ExtensionContext): void {
         await openDashboardFor(picked.dir);
       }
     }),
+    vscode.commands.registerCommand("csauto.openCampaignDashboardFor", (runsDir: string) => openDashboardFor(runsDir)),
     vscode.commands.registerCommand("csauto.startServer", async () => {
       const state = await startServer();
       if (state) {

@@ -163,11 +163,10 @@ The extension is the primary way to use csauto. It runs the csauto server in the
 Everything is reachable from the **csauto activity bar icon** (or the command palette):
 
 - **Runs Directory** — pins the campaign directory for this workspace (auto-detects campaigns via their `registry.json`); useful when the campaign lives in a subfolder of the workspace.
-- **Open Dashboard** — starts the server if needed and opens the dashboard panel (also on the status bar).
 - **Start/Stop/Restart Server**, **Show Server Logs** — server lifecycle and diagnostics.
 - **Run Doctor** — validates the environment and reports problems.
 - **Install csauto CLI** — writes a `csauto` shim to `~/.local/bin` backed by the extension's managed runtime, so the same csauto works in your terminal.
-- **Open Campaign Dashboard…** — workspaces holding several campaigns (even different solvers) can open one dashboard per campaign side by side; each gets its own server with its own `csauto.toml`, and panels are titled by solver and campaign.
+- **Open Dashboard** — starts the campaign's server if needed and opens its dashboard panel (also on the status bar); workspaces holding several campaigns (even different solvers) get a picker instead, and can open one dashboard per campaign side by side, each with its own server and `csauto.toml`, titled by solver and campaign.
 - **Run notifications** — a notification fires when a running case finishes (DONE or FAILED), with a shortcut back to the dashboard (disable via `csauto.notifyOnRunCompletion`).
 
 On first use the extension creates a private Python environment (in extension storage) and installs its bundled csauto into it, so extension and engine versions never drift. Settings under `csauto.*`: `pythonPath` (bring your own interpreter instead of the managed runtime), `runsDir` (default `RUNS`, resolved against the workspace root), `port` (0 = auto), and `serveArgs`.

@@ -87,11 +87,6 @@
         "category": "csauto"
       },
       {
-        "command": "csauto.openCampaignDashboard",
-        "title": "Open Campaign Dashboard…",
-        "category": "csauto"
-      },
-      {
         "command": "csauto.stopAllServers",
         "title": "Stop All Servers",
         "category": "csauto"
