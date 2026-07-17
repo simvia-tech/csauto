@@ -43,18 +43,25 @@ export class RuntimeManager {
     return path.join(this.context.globalStorageUri.fsPath, "runtimes");
   }
 
-  private get venvDir(): string {
-    return path.join(this.runtimesRoot, this.version);
+  /**
+   * Editable (dev) runtimes are version-independent — they serve whatever the
+   * checkout contains — so they live in a stable "dev" directory that version
+   * bumps don't invalidate. Wheel runtimes are keyed on the version. The two
+   * coexist, so a dev host and an installed extension don't thrash a shared
+   * venv.
+   */
+  private venvDirFor(source: InstallSource): string {
+    return path.join(this.runtimesRoot, source.kind === "editable" ? "dev" : this.version);
   }
 
-  private get venvPython(): string {
+  private pythonIn(venvDir: string): string {
     return process.platform === "win32"
-      ? path.join(this.venvDir, "Scripts", "python.exe")
-      : path.join(this.venvDir, "bin", "python");
+      ? path.join(venvDir, "Scripts", "python.exe")
+      : path.join(venvDir, "bin", "python");
   }
 
-  private get readyMarker(): string {
-    return path.join(this.venvDir, ".csauto-ready");
+  private markerIn(venvDir: string): string {
+    return path.join(venvDir, ".csauto-ready");
   }
 
   /** The python executable running csauto, without triggering any setup. */
@@ -63,14 +70,21 @@ export class RuntimeManager {
     if (override) {
       return override;
     }
-    return fs.existsSync(this.readyMarker) ? this.venvPython : undefined;
+    try {
+      const source = this.findInstallSource();
+      const venvDir = this.venvDirFor(source);
+      const existing = fs.readFileSync(this.markerIn(venvDir), "utf-8");
+      return existing === this.markerFor(source) ? this.pythonIn(venvDir) : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   /**
    * Returns the python executable to run csauto with, creating the managed
    * venv on first use (with user consent). Undefined if the user declined.
-   * The runtime is recreated when the install source changes — e.g. when a
-   * dev checkout switches from the bundled wheel to an editable install.
+   * The runtime is recreated when its install source changes — e.g. a new
+   * bundled wheel version, or a dev checkout moving to a different path.
    */
   async ensurePython(): Promise<string | undefined> {
     const override = vscode.workspace.getConfiguration("csauto").get<string>("pythonPath", "").trim();
@@ -78,22 +92,23 @@ export class RuntimeManager {
       return override;
     }
     const source = this.findInstallSource();
+    const venvDir = this.venvDirFor(source);
     const expected = this.markerFor(source);
     let existing: string | undefined;
     try {
-      existing = fs.readFileSync(this.readyMarker, "utf-8");
+      existing = fs.readFileSync(this.markerIn(venvDir), "utf-8");
     } catch {
       // No runtime yet.
     }
     if (existing === expected) {
-      return this.venvPython;
+      return this.pythonIn(venvDir);
     }
     if (!(await this.askConsent())) {
       return undefined;
     }
-    await this.createRuntime(source, expected);
+    await this.createRuntime(source, venvDir, expected);
     void this.cleanupStaleRuntimes();
-    return this.venvPython;
+    return this.pythonIn(venvDir);
   }
 
   private async askConsent(): Promise<boolean> {
@@ -157,36 +172,58 @@ export class RuntimeManager {
     throw new Error("No bundled csauto wheel found in the extension (and no source checkout to install from).");
   }
 
+  /**
+   * Editable markers deliberately omit the version: the venv serves whatever
+   * the checkout contains, so version bumps must not invalidate it.
+   */
   private markerFor(source: InstallSource): string {
+    if (source.kind === "editable") {
+      return JSON.stringify({ kind: source.kind, source: source.path });
+    }
     return JSON.stringify({ version: this.version, kind: source.kind, source: source.path });
   }
 
-  private async createRuntime(source: InstallSource, marker: string): Promise<void> {
+  private async createRuntime(source: InstallSource, venvDir: string, marker: string): Promise<void> {
     const basePython = await this.findBasePython();
+    const python = this.pythonIn(venvDir);
     await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Notification, title: "Setting up the csauto runtime…" },
       async (progress) => {
-        this.output.appendLine(`[csauto] Creating runtime venv at ${this.venvDir} (${source.kind} install)`);
-        await fs.promises.rm(this.venvDir, { recursive: true, force: true });
+        this.output.appendLine(`[csauto] Creating runtime venv at ${venvDir} (${source.kind} install)`);
+        await fs.promises.rm(venvDir, { recursive: true, force: true });
         await fs.promises.mkdir(this.runtimesRoot, { recursive: true });
-        await run(basePython, ["-m", "venv", this.venvDir], this.output);
+        await run(basePython, ["-m", "venv", venvDir], this.output);
         progress.report({ message: "installing csauto…" });
         const installArgs =
           source.kind === "editable"
             ? ["-m", "pip", "install", "--upgrade", "-e", `${source.path}[web]`]
             : ["-m", "pip", "install", "--upgrade", `${source.path}[web]`];
-        await run(this.venvPython, installArgs, this.output);
-        await fs.promises.writeFile(this.readyMarker, marker, "utf-8");
+        await run(python, installArgs, this.output);
+        await fs.promises.writeFile(this.markerIn(venvDir), marker, "utf-8");
         this.output.appendLine(`[csauto] Runtime ready (csauto ${this.version}, ${source.kind}).`);
       },
     );
   }
 
+  /**
+   * Keep the current wheel runtime and the dev runtime; delete everything
+   * else (old versions, and version-named dirs left over from when editable
+   * installs shared them).
+   */
   private async cleanupStaleRuntimes(): Promise<void> {
     try {
       const entries = await fs.promises.readdir(this.runtimesRoot);
       for (const entry of entries) {
-        if (entry !== this.version) {
+        let stale = entry !== this.version && entry !== "dev";
+        if (entry === this.version) {
+          try {
+            const marker = JSON.parse(await fs.promises.readFile(this.markerIn(path.join(this.runtimesRoot, entry)), "utf-8"));
+            stale = marker.kind === "editable";
+          } catch {
+            // Unreadable marker — leave the directory alone.
+          }
+        }
+        if (stale) {
           await fs.promises.rm(path.join(this.runtimesRoot, entry), { recursive: true, force: true });
           this.output.appendLine(`[csauto] Removed stale runtime ${entry}.`);
         }
