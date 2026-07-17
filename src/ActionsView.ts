@@ -81,29 +81,40 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
       actionItem("Prepare Campaign…", "new-folder", "csauto.prepare"),
       actionItem("Runs Directory", "pinned", "csauto.selectRunsDir", this.pinnedRunsDir() ?? "not set"),
       actionItem("Open Dashboard", "dashboard", "csauto.openDashboard"),
+      actionItem("Open Campaign Dashboard…", "multiple-windows", "csauto.openCampaignDashboard"),
       actionItem("Run Doctor", "checklist", "csauto.runDoctor"),
     ];
     return item;
   }
 
   private serverGroup(): Item {
-    const state = this.server.current;
-    const item = new Item("Server", vscode.TreeItemCollapsibleState.Expanded);
+    const running = this.server.list();
+    const item = new Item("Servers", vscode.TreeItemCollapsibleState.Expanded);
     item.iconPath = new vscode.ThemeIcon("server-process");
-    const status = new Item(state ? "Running" : "Stopped");
-    status.description = state ? `port ${state.port}` : undefined;
-    status.iconPath = state
-      ? new vscode.ThemeIcon("pass-filled", new vscode.ThemeColor("testing.iconPassed"))
-      : new vscode.ThemeIcon("circle-slash");
-    status.command = { command: "csauto.showLogs", title: "Show Server Logs" };
-    item.children = [status];
-    if (state) {
-      item.children.push(
-        actionItem("Stop Server", "debug-stop", "csauto.stopServer"),
-        actionItem("Restart Server", "debug-restart", "csauto.restartServer"),
-      );
+    item.children = [];
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    for (const state of running) {
+      const campaign = path.basename(path.dirname(state.runsDir));
+      const entry = new Item(campaign);
+      entry.iconPath = new vscode.ThemeIcon("pass-filled", new vscode.ThemeColor("testing.iconPassed"));
+      entry.description = `port ${state.port}`;
+      entry.tooltip = root ? path.relative(root, state.runsDir) || state.runsDir : state.runsDir;
+      entry.command = { command: "csauto.openCampaignDashboardFor", title: "Open Dashboard", arguments: [state.runsDir] };
+      item.children.push(entry);
+    }
+    if (running.length === 0) {
+      const status = new Item("Stopped");
+      status.iconPath = new vscode.ThemeIcon("circle-slash");
+      status.command = { command: "csauto.showLogs", title: "Show Server Logs" };
+      item.children.push(status, actionItem("Start Server", "play", "csauto.startServer"));
     } else {
-      item.children.push(actionItem("Start Server", "play", "csauto.startServer"));
+      item.children.push(
+        actionItem("Stop Server…", "debug-stop", "csauto.stopServer"),
+        actionItem("Restart Server…", "debug-restart", "csauto.restartServer"),
+      );
+      if (running.length > 1) {
+        item.children.push(actionItem("Stop All Servers", "stop-circle", "csauto.stopAllServers"));
+      }
     }
     item.children.push(actionItem("Show Server Logs", "output", "csauto.showLogs"));
     return item;

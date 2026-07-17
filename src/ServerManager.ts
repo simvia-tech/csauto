@@ -44,13 +44,24 @@ function isPortFree(port: number): Promise<boolean> {
   });
 }
 
+interface ManagedServer {
+  child: ChildProcessWithoutNullStreams;
+  state: ServerState;
+  stopping: boolean;
+}
+
+/**
+ * One csauto server per campaign (runs directory), each with its own port,
+ * session token, and working directory — so each campaign's csauto.toml
+ * (and therefore its solver) applies. Multiple servers run concurrently.
+ */
 export class ServerManager implements vscode.Disposable {
-  private child: ChildProcessWithoutNullStreams | undefined;
-  private state: ServerState | undefined;
-  private stopping = false;
-  private starting: Promise<ServerState> | undefined;
-  private readonly stateEmitter = new vscode.EventEmitter<ServerState | undefined>();
+  private readonly servers = new Map<string, ManagedServer>();
+  private readonly starting = new Map<string, Promise<ServerState>>();
+  private readonly stateEmitter = new vscode.EventEmitter<void>();
+  private readonly startEmitter = new vscode.EventEmitter<ServerState>();
   readonly onDidChangeState = this.stateEmitter.event;
+  readonly onDidStart = this.startEmitter.event;
 
   constructor(
     private readonly runtime: RuntimeManager,
@@ -58,24 +69,18 @@ export class ServerManager implements vscode.Disposable {
     private readonly workspaceState: vscode.Memento,
   ) {}
 
-  /**
-   * Keep the port stable per workspace: every new port becomes another
-   * forwarded-port entry in remote sessions, so reuse the previous one
-   * whenever it is still free.
-   */
-  private async choosePort(configured: number): Promise<number> {
-    if (configured > 0) {
-      return configured;
-    }
-    const remembered = this.workspaceState.get<number>("csauto.lastPort");
-    if (remembered && (await isPortFree(remembered))) {
-      return remembered;
-    }
-    return findFreePort();
+  /** All running servers. */
+  list(): ServerState[] {
+    return [...this.servers.values()].map((server) => server.state);
   }
 
+  /** The server for the workspace's pinned runs directory, if running. */
   get current(): ServerState | undefined {
-    return this.state;
+    try {
+      return this.servers.get(this.resolveRunsDir())?.state;
+    } catch {
+      return undefined;
+    }
   }
 
   resolveRunsDir(): string {
@@ -91,26 +96,50 @@ export class ServerManager implements vscode.Disposable {
     return path.join(folder.uri.fsPath, configured);
   }
 
-  async start(): Promise<ServerState> {
-    if (this.state) {
-      return this.state;
+  /** The directory whose csauto.toml governs this campaign. */
+  campaignRoot(runsDir: string): string {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (workspaceRoot && path.resolve(runsDir) === path.resolve(workspaceRoot)) {
+      return runsDir;
     }
-    if (!this.starting) {
-      this.starting = this.doStart().finally(() => {
-        this.starting = undefined;
-      });
-    }
-    return this.starting;
+    return path.dirname(runsDir);
   }
 
-  private async doStart(): Promise<ServerState> {
+  /** Start (or return) the server for a runs directory; defaults to the pinned one. */
+  async start(runsDirArg?: string): Promise<ServerState> {
+    const runsDir = path.resolve(runsDirArg ?? this.resolveRunsDir());
+    const running = this.servers.get(runsDir);
+    if (running) {
+      return running.state;
+    }
+    let pending = this.starting.get(runsDir);
+    if (!pending) {
+      pending = this.doStart(runsDir).finally(() => {
+        this.starting.delete(runsDir);
+      });
+      this.starting.set(runsDir, pending);
+    }
+    return pending;
+  }
+
+  private async choosePort(runsDir: string, configured: number): Promise<number> {
+    if (configured > 0 && this.list().length === 0) {
+      return configured;
+    }
+    const remembered = this.workspaceState.get<number>(`csauto.lastPort:${runsDir}`);
+    if (remembered && (await isPortFree(remembered))) {
+      return remembered;
+    }
+    return findFreePort();
+  }
+
+  private async doStart(runsDir: string): Promise<ServerState> {
     const python = await this.runtime.ensurePython();
     if (!python) {
       throw new Error("csauto runtime setup was declined. Set it up, or point csauto.pythonPath to your own interpreter.");
     }
 
     const config = vscode.workspace.getConfiguration("csauto");
-    const runsDir = this.resolveRunsDir();
     if (!fs.existsSync(runsDir)) {
       const choice = await vscode.window.showInformationMessage(
         `The runs directory does not exist yet: ${runsDir}. Create it and start an empty campaign?`,
@@ -125,11 +154,9 @@ export class ServerManager implements vscode.Disposable {
       }
       await fs.promises.mkdir(runsDir, { recursive: true });
     }
-    const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? path.dirname(runsDir);
+    const cwd = this.campaignRoot(runsDir);
 
     void runDoctor(python, runsDir, cwd, this.output).then(({ fails }) => {
-      // An empty campaign is a normal state for the extension (fresh folder,
-      // prepare not run yet) — hint instead of alarming.
       const realFails = fails.filter((line) => !line.includes("no case"));
       if (realFails.length > 0) {
         void vscode.window
@@ -146,7 +173,7 @@ export class ServerManager implements vscode.Disposable {
       }
     });
 
-    const port = await this.choosePort(config.get<number>("port", 0));
+    const port = await this.choosePort(runsDir, config.get<number>("port", 0));
     const extraArgs = config.get<string[]>("serveArgs", []);
     const token = crypto.randomBytes(24).toString("hex");
     const serveArgs = [
@@ -162,22 +189,20 @@ export class ServerManager implements vscode.Disposable {
       ...extraArgs,
     ];
 
-    this.output.appendLine(`[csauto] Starting: ${python} ${serveArgs.join(" ")}`);
+    this.output.appendLine(`[csauto] Starting: ${python} ${serveArgs.join(" ")} (cwd ${cwd})`);
     const child = spawn(python, serveArgs, { cwd, env: { ...process.env, CSAUTO_API_TOKEN: token } });
-    this.child = child;
-    this.stopping = false;
+    const managed: ManagedServer = { child, state: { port, runsDir, token }, stopping: false };
 
     child.stdout.on("data", (data: Buffer) => this.output.append(data.toString()));
     child.stderr.on("data", (data: Buffer) => this.output.append(data.toString()));
     child.on("exit", (code) => {
-      this.output.appendLine(`[csauto] Server exited with code ${code ?? "unknown"}.`);
-      const wasRunning = this.state !== undefined;
-      this.child = undefined;
-      this.state = undefined;
-      this.stateEmitter.fire(undefined);
-      if (wasRunning && !this.stopping) {
+      this.output.appendLine(`[csauto] Server for ${runsDir} exited with code ${code ?? "unknown"}.`);
+      const wasRunning = this.servers.get(runsDir) === managed;
+      this.servers.delete(runsDir);
+      this.stateEmitter.fire();
+      if (wasRunning && !managed.stopping) {
         void vscode.window
-          .showWarningMessage("The csauto server stopped unexpectedly.", "Show Logs")
+          .showWarningMessage(`The csauto server for ${path.basename(cwd)} stopped unexpectedly.`, "Show Logs")
           .then((choice) => {
             if (choice === "Show Logs") {
               this.output.show(true);
@@ -199,16 +224,17 @@ export class ServerManager implements vscode.Disposable {
     try {
       await Promise.race([this.waitForReady(port, child), spawnError]);
     } catch (err) {
-      this.stopping = true;
+      managed.stopping = true;
       child.kill();
       throw err;
     }
 
-    this.state = { port, runsDir, token };
-    void this.workspaceState.update("csauto.lastPort", port);
-    this.stateEmitter.fire(this.state);
-    this.output.appendLine(`[csauto] Server ready on http://127.0.0.1:${port}/`);
-    return this.state;
+    this.servers.set(runsDir, managed);
+    void this.workspaceState.update(`csauto.lastPort:${runsDir}`, port);
+    this.stateEmitter.fire();
+    this.startEmitter.fire(managed.state);
+    this.output.appendLine(`[csauto] Server ready on http://127.0.0.1:${port}/ (${runsDir})`);
+    return managed.state;
   }
 
   private async waitForReady(port: number, child: ChildProcessWithoutNullStreams): Promise<void> {
@@ -230,25 +256,34 @@ export class ServerManager implements vscode.Disposable {
     throw new Error("Timed out waiting for the csauto server to start.");
   }
 
-  async stop(): Promise<void> {
-    const child = this.child;
-    if (!child) {
+  /** Stop the server for a runs directory (all servers when omitted). */
+  async stop(runsDir?: string): Promise<void> {
+    const targets = runsDir ? [path.resolve(runsDir)] : [...this.servers.keys()];
+    await Promise.all(targets.map((target) => this.stopOne(target)));
+  }
+
+  private async stopOne(runsDir: string): Promise<void> {
+    const managed = this.servers.get(runsDir);
+    if (!managed) {
       return;
     }
-    this.stopping = true;
-    this.output.appendLine("[csauto] Stopping server...");
-    const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
-    child.kill("SIGTERM");
+    managed.stopping = true;
+    this.output.appendLine(`[csauto] Stopping server for ${runsDir}...`);
+    const exited = new Promise<void>((resolve) => managed.child.once("exit", () => resolve()));
+    managed.child.kill("SIGTERM");
     const timeout = delay(5_000).then(() => "timeout" as const);
     if ((await Promise.race([exited, timeout])) === "timeout") {
-      child.kill("SIGKILL");
+      managed.child.kill("SIGKILL");
       await exited;
     }
   }
 
   dispose(): void {
-    this.stopping = true;
-    this.child?.kill("SIGTERM");
+    for (const managed of this.servers.values()) {
+      managed.stopping = true;
+      managed.child.kill("SIGTERM");
+    }
     this.stateEmitter.dispose();
+    this.startEmitter.dispose();
   }
 }

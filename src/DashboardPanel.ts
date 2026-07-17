@@ -1,5 +1,7 @@
 import * as vscode from "vscode";
 import * as crypto from "crypto";
+import * as path from "path";
+import { ServerState } from "./ServerManager";
 
 /**
  * Theme variables forwarded into the dashboard iframe. The iframe is a
@@ -18,7 +20,6 @@ const THEME_VARS = [
   "--vscode-widget-border",
   "--vscode-panel-border",
   "--vscode-sideBar-background",
-  "--vscode-tab-activeBackground",
   "--vscode-input-background",
   "--vscode-input-foreground",
   "--vscode-input-border",
@@ -33,6 +34,7 @@ const THEME_VARS = [
   "--vscode-list-hoverBackground",
   "--vscode-list-activeSelectionBackground",
   "--vscode-list-activeSelectionForeground",
+  "--vscode-tab-activeBackground",
   "--vscode-font-family",
   "--vscode-font-size",
   "--vscode-editor-font-family",
@@ -51,60 +53,87 @@ function themeKind(): string {
   }
 }
 
+async function fetchSolverName(state: ServerState): Promise<string | undefined> {
+  try {
+    const response = await fetch(`http://127.0.0.1:${state.port}/api/app_config`, {
+      headers: { "X-CSAUTO-TOKEN": state.token },
+      signal: AbortSignal.timeout(3_000),
+    });
+    if (!response.ok) {
+      return undefined;
+    }
+    return ((await response.json()) as { solver?: string }).solver;
+  } catch {
+    return undefined;
+  }
+}
+
+/** One dashboard panel per campaign; several can be open at once. */
 export class DashboardPanel {
-  static current: DashboardPanel | undefined;
+  private static readonly panels = new Map<string, DashboardPanel>();
   static output: vscode.OutputChannel | undefined;
   static extensionUri: vscode.Uri | undefined;
 
   private constructor(
     private readonly panel: vscode.WebviewPanel,
-    private port: number,
-    private token: string,
+    private state: ServerState,
   ) {
     panel.onDidDispose(() => {
-      if (DashboardPanel.current === this) {
-        DashboardPanel.current = undefined;
+      if (DashboardPanel.panels.get(this.state.runsDir) === this) {
+        DashboardPanel.panels.delete(this.state.runsDir);
       }
     });
   }
 
-  /** Force the iframe to reload (picks up a rebuilt dashboard). */
-  static async reload(): Promise<void> {
-    if (DashboardPanel.current) {
-      await DashboardPanel.current.render();
-      DashboardPanel.current.panel.reveal();
+  static openCount(): number {
+    return DashboardPanel.panels.size;
+  }
+
+  /** Force every open dashboard to reload (picks up a rebuilt frontend). */
+  static async reloadAll(): Promise<void> {
+    for (const instance of DashboardPanel.panels.values()) {
+      await instance.render();
     }
   }
 
-  static async createOrShow(port: number, token: string): Promise<void> {
-    if (DashboardPanel.current) {
-      if (DashboardPanel.current.port !== port || DashboardPanel.current.token !== token) {
-        DashboardPanel.current.port = port;
-        DashboardPanel.current.token = token;
-        await DashboardPanel.current.render();
+  static async createOrShow(state: ServerState): Promise<void> {
+    const existing = DashboardPanel.panels.get(state.runsDir);
+    if (existing) {
+      if (existing.state.port !== state.port || existing.state.token !== state.token) {
+        existing.state = state;
+        await existing.render();
       }
-      DashboardPanel.current.panel.reveal();
+      existing.panel.reveal();
       return;
     }
-    const panel = vscode.window.createWebviewPanel("csautoDashboard", "csauto", vscode.ViewColumn.One, {
+    const campaignName = path.basename(path.dirname(state.runsDir)) || "csauto";
+    const panel = vscode.window.createWebviewPanel("csautoDashboard", campaignName, vscode.ViewColumn.One, {
       enableScripts: true,
       retainContextWhenHidden: true,
-      portMapping: [{ webviewPort: port, extensionHostPort: port }],
+      portMapping: [{ webviewPort: state.port, extensionHostPort: state.port }],
     });
     if (DashboardPanel.extensionUri) {
       panel.iconPath = vscode.Uri.joinPath(DashboardPanel.extensionUri, "assets", "icone-code-saturne.svg");
     }
-    DashboardPanel.current = new DashboardPanel(panel, port, token);
-    await DashboardPanel.current.render();
+    const instance = new DashboardPanel(panel, state);
+    DashboardPanel.panels.set(state.runsDir, instance);
+    await instance.render();
+    void fetchSolverName(state).then((solver) => {
+      if (solver) {
+        panel.title = `${solver} · ${campaignName}`;
+      }
+    });
   }
 
   private async render(): Promise<void> {
-    const externalUri = await vscode.env.asExternalUri(vscode.Uri.parse(`http://127.0.0.1:${this.port}/`));
+    const externalUri = await vscode.env.asExternalUri(vscode.Uri.parse(`http://127.0.0.1:${this.state.port}/`));
     const separator = externalUri.query ? "&" : "?";
-    const query = `token=${encodeURIComponent(this.token)}&embed=vscode&vsTheme=${themeKind()}`;
+    const query = `token=${encodeURIComponent(this.state.token)}&embed=vscode&vsTheme=${themeKind()}`;
     const src = `${externalUri.toString(true)}${separator}${query}`;
     const origin = `${externalUri.scheme}://${externalUri.authority}`;
-    DashboardPanel.output?.appendLine(`[csauto] Dashboard iframe: ${externalUri.toString(true)} (embed=vscode, vsTheme=${themeKind()})`);
+    DashboardPanel.output?.appendLine(
+      `[csauto] Dashboard iframe: ${externalUri.toString(true)} (${this.state.runsDir}, vsTheme=${themeKind()})`,
+    );
     const nonce = crypto.randomBytes(16).toString("base64");
     this.panel.webview.html = `<!DOCTYPE html>
 <html lang="en">

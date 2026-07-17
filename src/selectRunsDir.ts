@@ -14,6 +14,12 @@ function toSettingValue(workspaceRoot: string, dir: string): string {
   return rel.startsWith("..") ? dir : rel;
 }
 
+/** Campaign runs directories detected in the workspace via their registry.json. */
+export async function findCampaignRunsDirs(): Promise<string[]> {
+  const registries = await vscode.workspace.findFiles("**/registry.json", "**/{node_modules,.git,.venv}/**", 10);
+  return Array.from(new Set(registries.map((uri) => path.dirname(uri.fsPath)))).sort();
+}
+
 /**
  * Pin the runs directory for this workspace: quick-pick of campaign
  * directories detected via their registry.json, plus a folder browser.
@@ -28,8 +34,7 @@ export async function selectRunsDir(): Promise<boolean> {
   const config = vscode.workspace.getConfiguration("csauto");
   const current = config.get<string>("runsDir", "RUNS");
 
-  const registries = await vscode.workspace.findFiles("**/registry.json", "**/{node_modules,.git,.venv}/**", 10);
-  const candidates = Array.from(new Set(registries.map((uri) => path.dirname(uri.fsPath)))).sort();
+  const candidates = await findCampaignRunsDirs();
 
   const items: RunsDirItem[] = candidates.map((dir) => {
     const value = toSettingValue(folder.uri.fsPath, dir);

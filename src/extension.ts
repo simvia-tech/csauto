@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import * as fs from "fs";
+import * as path from "path";
 import { ActionsViewProvider } from "./ActionsView";
 import { DashboardPanel } from "./DashboardPanel";
 import { RunWatcher } from "./RunWatcher";
@@ -9,7 +10,7 @@ import { installCli } from "./InstallCli";
 import { suggestAsterForMeshes } from "./asterSuggestion";
 import { runDoctor } from "./doctor";
 import { prepareCampaign } from "./prepareCampaign";
-import { selectRunsDir } from "./selectRunsDir";
+import { findCampaignRunsDirs, selectRunsDir } from "./selectRunsDir";
 import { EVENT_EXT_DASHBOARD_OPEN, EVENT_EXT_SERVE, sendTelemetry } from "./telemetry";
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -34,8 +35,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!fs.existsSync(runsDir)) {
         return;
       }
-      const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? runsDir;
-      await runDoctor(python, runsDir, cwd, output);
+      await runDoctor(python, runsDir, server.campaignRoot(runsDir), output);
     } catch {
       // No workspace folder — nothing to check against.
     }
@@ -44,23 +44,25 @@ export function activate(context: vscode.ExtensionContext): void {
   statusBar.command = "csauto.openDashboard";
   context.subscriptions.push(output, server, statusBar);
 
-  const updateStatusBar = (state: { port: number } | undefined) => {
-    if (state) {
-      statusBar.text = `$(pulse) csauto :${state.port}`;
-      statusBar.tooltip = `csauto server running on port ${state.port} — click to open the dashboard`;
-    } else {
+  const updateStatusBar = () => {
+    const running = server.list();
+    if (running.length === 0) {
       statusBar.text = "$(play) csauto";
       statusBar.tooltip = "Start the csauto server and open the dashboard";
+    } else if (running.length === 1) {
+      statusBar.text = `$(pulse) csauto :${running[0].port}`;
+      statusBar.tooltip = `csauto server running on port ${running[0].port} — click to open the dashboard`;
+    } else {
+      statusBar.text = `$(pulse) csauto ×${running.length}`;
+      statusBar.tooltip = `${running.length} csauto servers running — click to open the pinned dashboard`;
     }
     statusBar.show();
   };
-  updateStatusBar(server.current);
+  updateStatusBar();
   context.subscriptions.push(server.onDidChangeState(updateStatusBar));
   context.subscriptions.push(
-    server.onDidChangeState((state) => {
-      if (state) {
-        sendTelemetry(runtime.current(), EVENT_EXT_SERVE);
-      }
+    server.onDidStart(() => {
+      sendTelemetry(runtime.current(), EVENT_EXT_SERVE);
     }),
   );
   const actionsView = new ActionsViewProvider(server, runtime);
@@ -75,9 +77,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
   let dashboardPinged = false;
 
-  const startServer = async (): Promise<ServerState | undefined> => {
+  const startServer = async (runsDir?: string): Promise<ServerState | undefined> => {
     try {
-      return await server.start();
+      return await server.start(runsDir);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const choice = await vscode.window.showErrorMessage(`csauto: ${message}`, "Show Logs");
@@ -88,15 +90,56 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   };
 
+  const openDashboardFor = async (runsDir?: string): Promise<void> => {
+    const state = await startServer(runsDir);
+    if (state) {
+      await DashboardPanel.createOrShow(state);
+      if (!dashboardPinged) {
+        dashboardPinged = true;
+        sendTelemetry(runtime.current(), EVENT_EXT_DASHBOARD_OPEN);
+      }
+    }
+  };
+
+  /** Quick-pick one of the running servers (undefined if none; auto when single). */
+  const pickRunningServer = async (placeHolder: string): Promise<ServerState | undefined> => {
+    const running = server.list();
+    if (running.length === 0) {
+      return undefined;
+    }
+    if (running.length === 1) {
+      return running[0];
+    }
+    const picked = await vscode.window.showQuickPick(
+      running.map((state) => ({
+        label: path.basename(path.dirname(state.runsDir)),
+        description: `port ${state.port}`,
+        state,
+      })),
+      { placeHolder },
+    );
+    return picked?.state;
+  };
+
   context.subscriptions.push(
-    vscode.commands.registerCommand("csauto.openDashboard", async () => {
-      const state = await startServer();
-      if (state) {
-        await DashboardPanel.createOrShow(state.port, state.token);
-        if (!dashboardPinged) {
-          dashboardPinged = true;
-          sendTelemetry(runtime.current(), EVENT_EXT_DASHBOARD_OPEN);
-        }
+    vscode.commands.registerCommand("csauto.openDashboard", () => openDashboardFor()),
+    vscode.commands.registerCommand("csauto.openCampaignDashboardFor", (runsDir: string) => openDashboardFor(runsDir)),
+    vscode.commands.registerCommand("csauto.openCampaignDashboard", async () => {
+      const campaigns = await findCampaignRunsDirs();
+      if (campaigns.length === 0) {
+        void vscode.window.showInformationMessage("csauto: no campaigns found in this workspace (no registry.json).");
+        return;
+      }
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? "";
+      const picked = await vscode.window.showQuickPick(
+        campaigns.map((dir) => ({
+          label: `$(folder) ${path.relative(workspaceRoot, dir) || path.basename(dir)}`,
+          dir,
+        })),
+        { placeHolder: "Open the dashboard for which campaign?" },
+      );
+      if (picked) {
+        await openDashboardFor(picked.dir);
       }
     }),
     vscode.commands.registerCommand("csauto.startServer", async () => {
@@ -106,24 +149,37 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }),
     vscode.commands.registerCommand("csauto.stopServer", async () => {
+      const target = await pickRunningServer("Stop which server?");
+      if (target) {
+        await server.stop(target.runsDir);
+      }
+    }),
+    vscode.commands.registerCommand("csauto.stopAllServers", async () => {
       await server.stop();
     }),
     vscode.commands.registerCommand("csauto.restartServer", async () => {
-      await server.stop();
-      await startServer();
+      const target = await pickRunningServer("Restart which server?");
+      if (!target) {
+        await startServer();
+        return;
+      }
+      await server.stop(target.runsDir);
+      const state = await startServer(target.runsDir);
+      if (state) {
+        await DashboardPanel.createOrShow(state);
+      }
     }),
     vscode.commands.registerCommand("csauto.showLogs", () => {
       output.show(true);
     }),
-    vscode.commands.registerCommand("csauto.reloadDashboard", () => DashboardPanel.reload()),
+    vscode.commands.registerCommand("csauto.reloadDashboard", () => DashboardPanel.reloadAll()),
     vscode.commands.registerCommand("csauto.runDoctor", async () => {
       const python = await runtime.ensurePython();
       if (!python) {
         return;
       }
       const runsDir = server.resolveRunsDir();
-      const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? runsDir;
-      const { fails, warns } = await runDoctor(python, runsDir, cwd, output);
+      const { fails, warns } = await runDoctor(python, runsDir, server.campaignRoot(runsDir), output);
       if (fails.length > 0) {
         const choice = await vscode.window.showWarningMessage(
           `csauto doctor: ${fails.length} problem(s), ${warns.length} warning(s). ${fails[0]}`,
@@ -147,32 +203,27 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!prepared) {
         return;
       }
+      const runsDir = server.resolveRunsDir();
       if (server.current) {
-        await server.stop();
-        const state = await startServer();
-        if (state && DashboardPanel.current) {
-          await DashboardPanel.createOrShow(state.port, state.token);
-        }
+        await server.stop(runsDir);
+        await startServer(runsDir);
       }
       const choice = await vscode.window.showInformationMessage(
         "Campaign prepared — the runs directory is pinned for this workspace.",
         "Open Dashboard",
       );
       if (choice === "Open Dashboard") {
-        await vscode.commands.executeCommand("csauto.openDashboard");
+        await openDashboardFor();
       }
     }),
     vscode.commands.registerCommand("csauto.selectRunsDir", async () => {
       const changed = await selectRunsDir();
-      if (!changed) {
+      if (!changed || server.list().length === 0) {
         return;
       }
-      if (server.current) {
-        await server.stop();
-        const state = await startServer();
-        if (state && DashboardPanel.current) {
-          await DashboardPanel.createOrShow(state.port, state.token);
-        }
+      const state = await startServer();
+      if (state) {
+        await DashboardPanel.createOrShow(state);
       }
     }),
   );
