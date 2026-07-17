@@ -136,9 +136,10 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
       doctorItem.description = `${doctor.fails.length} problem(s)`;
       doctorItem.tooltip = `${doctor.fails[0]}\nClick to re-check.`;
     } else {
-      doctorItem.iconPath = new vscode.ThemeIcon("pass-filled", new vscode.ThemeColor("testing.iconPassed"));
+      doctorItem.iconPath = new vscode.ThemeIcon("check");
       const runtimes = doctorRuntimeSummary(doctor.lines) ?? "all checks passed";
-      doctorItem.description = doctor.warns.length > 0 ? `${runtimes} · ${doctor.warns.length} warning(s)` : runtimes;
+      doctorItem.description =
+        doctor.warns.length > 0 ? `${runtimes} · ${doctor.warns.length} warning(s)` : `${runtimes} · ready`;
       doctorItem.tooltip = `Runtimes available to run ${solver}. Click to re-check.`;
     }
 
