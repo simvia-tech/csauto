@@ -35,6 +35,24 @@ function settingScope(
   return "scope: default";
 }
 
+/** Runtime summary from doctor's OK lines, covering both auto and explicit-runtime phrasings. */
+function doctorRuntimeSummary(lines: string[]): string | undefined {
+  const available = lines.find((line) => line.includes("available runtimes:"));
+  if (available) {
+    return available.split("available runtimes:")[1].trim();
+  }
+  if (lines.some((line) => line.includes("docker available"))) {
+    return "docker";
+  }
+  if (lines.some((line) => line.includes("apptainer/singularity available") || line.includes("singularity binary:"))) {
+    return "singularity";
+  }
+  if (lines.some((line) => line.includes("found in PATH") || line.includes("binary:"))) {
+    return "native";
+  }
+  return undefined;
+}
+
 /** Solver name from the campaign's csauto.toml; code_saturne is the engine default. */
 function campaignSolver(campaignRoot: string): string {
   try {
@@ -109,7 +127,6 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
     const doctorItem = new Item("Doctor");
     doctorItem.command = { command: "csauto.runDoctorFor", title: "Run Doctor", arguments: [runsDir] };
     const doctor = lastDoctorResult(runsDir);
-    const runtimeLine = doctor?.lines.find((line) => line.includes("available runtimes:"));
     if (!doctor) {
       doctorItem.iconPath = new vscode.ThemeIcon("question");
       doctorItem.description = "click to check";
@@ -120,7 +137,7 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
       doctorItem.tooltip = `${doctor.fails[0]}\nClick to re-run the checks.`;
     } else {
       doctorItem.iconPath = new vscode.ThemeIcon("pass-filled", new vscode.ThemeColor("testing.iconPassed"));
-      const runtimes = runtimeLine ? runtimeLine.split("available runtimes:")[1].trim() : "all checks passed";
+      const runtimes = doctorRuntimeSummary(doctor.lines) ?? "all checks passed";
       doctorItem.description = doctor.warns.length > 0 ? `${runtimes} · ${doctor.warns.length} warning(s)` : runtimes;
       doctorItem.tooltip = `Runtimes available to run ${solver}. Click to re-run the checks.`;
     }
