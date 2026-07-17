@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from ..registry import STATUS_DONE, STATUS_FAILED
-from .base import SolverAdapterBase
+from .base import CompareKind, SolverAdapterBase
 
 STUB_SETUP_FILENAME = "stub.toml"
 STUB_LOG_FILENAME = "stub.log"
@@ -43,7 +43,7 @@ class StubAdapter(SolverAdapterBase):
     template_input_names: ClassVar[frozenset[str]] = frozenset({STUB_SETUP_FILENAME})
     anomaly_file_names: ClassVar[tuple[str, ...]] = ("csauto.stderr", "csauto.stdout", STUB_LOG_FILENAME)
     cleanup_log_names: ClassVar[frozenset[str]] = frozenset({STUB_LOG_FILENAME, "csauto.stdout", "csauto.stderr"})
-    default_compare_kind: ClassVar[str] = STUB_SETUP_FILENAME
+    compare_kinds: ClassVar[tuple[CompareKind, ...]] = (CompareKind(STUB_SETUP_FILENAME, STUB_SETUP_FILENAME),)
     control_actions: ClassVar[frozenset[str]] = frozenset({"stop"})
 
     def run_argv(self, case_path: str | Path, nprocs: int, nt: int, run_args: Sequence[str] | None = None) -> list[str]:

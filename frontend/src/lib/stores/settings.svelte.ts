@@ -60,8 +60,7 @@ export function getRestartSettings(): RestartSettings {
     nt: readNumber("csauto_restart_nt", 1),
     maxParallel: readNumber("csauto_restart_max_parallel", 0) || null,
     mode: readString("csauto_restart_mode", "iterations") as
-      | "iterations"
-      | "physical_time",
+      "iterations" | "physical_time",
     value: readNumber("csauto_restart_value", 100),
   };
 }

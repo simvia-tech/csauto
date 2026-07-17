@@ -11,6 +11,7 @@
   import FormLabel from "$lib/components/shared/FormLabel.svelte";
   import DiffViewer from "./DiffViewer.svelte";
   import { fetchCompareDiff } from "$lib/api/endpoints";
+  import { getAppConfig } from "$lib/stores/appConfig.svelte";
   import { getRows, getDoeColumns } from "$lib/stores/status.svelte";
   import Icon from "$lib/components/shared/Icon.svelte";
   import Button from "$lib/components/shared/Button.svelte";
@@ -24,7 +25,7 @@
 
   let leftCase = $state("");
   let rightCase = $state("");
-  let kind = $state("setup.xml");
+  let kind = $state("");
   let search = $state("");
   let diffText = $state("");
   let loading = $state(false);
@@ -32,12 +33,21 @@
   let error = $state("");
 
   let caseOptions = $derived(allCases.map((c) => ({ value: c, label: c })));
-  let kindOptions = [
+
+  /* Comparable files come from the solver adapter via /api/app_config; this
+     list is only the fallback for older backends. */
+  const FALLBACK_KINDS = [
     { value: "setup.xml", label: "setup.xml" },
     { value: "doe_row.csv", label: "doe_row.csv" },
     { value: "run_solver.log", label: "run_solver.log" },
     { value: "performance.log", label: "performance.log" },
   ];
+  let kindOptions = $derived(getAppConfig()?.compare_kinds ?? FALLBACK_KINDS);
+  $effect(() => {
+    if (!kindOptions.some((option) => option.value === kind)) {
+      kind = kindOptions[0]?.value ?? "";
+    }
+  });
 
   let showAllParams = $state(false);
   let canCompare = $derived(leftCase && rightCase && leftCase !== rightCase);

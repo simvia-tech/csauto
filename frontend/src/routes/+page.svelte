@@ -28,6 +28,7 @@
     getFilteredRows,
     getHeroCounts,
   } from "$lib/stores/status.svelte";
+  import { setAppConfig } from "$lib/stores/appConfig.svelte";
 
   /* Hero counts, updated on every status load */
   let heroCounts = $state({
@@ -63,6 +64,7 @@
     loadStatus();
     fetchAppConfig()
       .then((config) => {
+        setAppConfig(config);
         panels = config.panels;
       })
       .catch(() => {});

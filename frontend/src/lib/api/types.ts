@@ -47,9 +47,16 @@ export interface PerfPayload {
   records: PerfRecord[];
 }
 
+export interface CompareKindOption {
+  value: string;
+  label: string;
+}
+
 export interface AppConfig {
   solver: string;
   panels: string[];
+  compare_kinds: CompareKindOption[];
+  error_files: string[];
 }
 
 /* Shared */
