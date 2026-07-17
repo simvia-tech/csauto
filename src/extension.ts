@@ -5,6 +5,7 @@ import { RunWatcher } from "./RunWatcher";
 import { RuntimeManager } from "./RuntimeManager";
 import { ServerManager, ServerState } from "./ServerManager";
 import { installCli } from "./InstallCli";
+import { suggestAsterForMeshes } from "./asterSuggestion";
 import { runDoctor } from "./doctor";
 import { selectRunsDir } from "./selectRunsDir";
 import { EVENT_EXT_DASHBOARD_OPEN, EVENT_EXT_SERVE, sendTelemetry } from "./telemetry";
@@ -16,6 +17,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const runtime = new RuntimeManager(context, output);
   const server = new ServerManager(runtime, output, context.workspaceState);
   context.subscriptions.push(new RunWatcher(server, output));
+  void suggestAsterForMeshes(context);
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
   statusBar.command = "csauto.openDashboard";
   context.subscriptions.push(output, server, statusBar);

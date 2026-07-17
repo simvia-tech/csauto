@@ -21,6 +21,7 @@ csauto becomes extension-first: the repository now ships a VS Code extension tha
 - Extension telemetry events (extension serve, dashboard open, CLI install) routed through `csauto _telemetry-ping`, sharing the CLI's anonymous user id and opt-out, additionally gated on VS Code's telemetry setting
 - `_telemetry-ping --failed` flag to mark unsuccessful events
 - CI: extension workflow building and uploading the `.vsix`; releases now attach the `.vsix` and the wheel
+- One-time suggestion to install VS Code Aster for 3D MED mesh visualization when the workspace contains `.med` files
 
 ### Changed
 - The built dashboard moved from `frontend/dist/` into the Python package (`csauto/_frontend/`), making wheels self-contained: `pip install` from any location now serves the dashboard
