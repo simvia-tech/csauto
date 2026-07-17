@@ -18,6 +18,9 @@ hooks/**
 eval/**
 RUNS/**
 frontend/**
+csauto/**
+pyproject.toml
+VERSION
 esbuild.js
 tsconfig.json
 package-lock.json

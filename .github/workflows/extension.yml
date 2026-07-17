@@ -1,0 +1,72 @@
+name: Extension CI
+
+# CI for the VS Code extension rework. Scoped to the feature branch; fold
+# into pr.yml when the branch merges to main.
+on:
+  push:
+    branches: [feat/vscode-extension]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Ruff
+        run: |
+          pip install ruff
+          ruff check .
+          ruff format --check .
+
+      - name: Run tests
+        run: |
+          pip install pytest fastapi uvicorn pydantic httpx
+          pytest -q
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Frontend install
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Svelte check
+        working-directory: frontend
+        run: pnpm check
+        continue-on-error: true
+
+      - name: Prettier check
+        working-directory: frontend
+        run: pnpm format:check
+
+      - name: Frontend build
+        working-directory: frontend
+        run: pnpm build
+
+      - name: Extension compile
+        run: |
+          npm ci
+          npm run compile
+
+      - name: Package .vsix
+        run: npx --yes @vscode/vsce package
+
+      - name: Upload .vsix artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: csauto-vsix
+          path: "*.vsix"
+          if-no-files-found: error

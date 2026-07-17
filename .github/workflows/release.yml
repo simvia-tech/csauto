@@ -64,12 +64,33 @@ jobs:
             exit 1
           fi
 
+      - name: Set up Node
+        if: steps.version_changed.outputs.changed == 'true' && steps.check_tag.outputs.exists == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up Python
+        if: steps.version_changed.outputs.changed == 'true' && steps.check_tag.outputs.exists == 'false'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Build .vsix and wheel
+        if: steps.version_changed.outputs.changed == 'true' && steps.check_tag.outputs.exists == 'false'
+        run: |
+          npm ci
+          npx --yes @vscode/vsce package
+
       - name: Create GitHub release
         if: steps.version_changed.outputs.changed == 'true' && steps.check_tag.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v${{ steps.version.outputs.version }}" \
-            --title "v${{ steps.version.outputs.version }}" \
+          VERSION="${{ steps.version.outputs.version }}"
+          gh release create "v${VERSION}" \
+            --title "v${VERSION}" \
             --notes-file release_notes.md \
-            --target "${{ github.event.workflow_run.head_sha }}"
+            --target "${{ github.event.workflow_run.head_sha }}" \
+            "csauto-${VERSION}.vsix" \
+            "bundled/csauto-${VERSION}-py3-none-any.whl"
