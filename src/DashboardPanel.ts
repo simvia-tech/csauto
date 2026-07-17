@@ -113,7 +113,7 @@ export class DashboardPanel {
       portMapping: [{ webviewPort: state.port, extensionHostPort: state.port }],
     });
     if (DashboardPanel.extensionUri) {
-      panel.iconPath = vscode.Uri.joinPath(DashboardPanel.extensionUri, "assets", "icone-code-saturne.svg");
+      panel.iconPath = vscode.Uri.joinPath(DashboardPanel.extensionUri, "assets", "simvia-mark.svg");
     }
     const instance = new DashboardPanel(panel, state);
     DashboardPanel.panels.set(state.runsDir, instance);
@@ -121,6 +121,9 @@ export class DashboardPanel {
     void fetchSolverName(state).then((solver) => {
       if (solver) {
         panel.title = `${solver} · ${campaignName}`;
+        if (solver === "code_saturne" && DashboardPanel.extensionUri) {
+          panel.iconPath = vscode.Uri.joinPath(DashboardPanel.extensionUri, "assets", "icone-code-saturne.svg");
+        }
       }
     });
   }

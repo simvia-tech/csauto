@@ -2,7 +2,7 @@
   "name": "csauto",
   "displayName": "csauto",
   "version": "1.0.0",
-  "description": "Automate and monitor Code_Saturne CFD simulation campaigns from VS Code",
+  "description": "Automate and monitor CFD simulation campaigns from VS Code (code_saturne and other solver adapters)",
   "publisher": "simvia",
   "license": "GPL-3.0",
   "author": {
@@ -92,7 +92,7 @@
         {
           "id": "csauto",
           "title": "csauto",
-          "icon": "assets/csauto-activity.svg"
+          "icon": "assets/simvia-activity.svg"
         }
       ]
     },
@@ -101,7 +101,7 @@
         {
           "id": "csauto.actions",
           "name": "csauto",
-          "icon": "assets/csauto-activity.svg"
+          "icon": "assets/simvia-activity.svg"
         }
       ]
     },
