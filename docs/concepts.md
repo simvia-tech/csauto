@@ -200,17 +200,17 @@ per-case) so every case can reference the mesh with a relative `../MESH` path.
 How that folder gets there is controlled by `mesh_mode` in `csauto.toml` (or
 `--mesh-mode` on `csauto prepare`):
 
-- `copy` (default) — the template's sibling `MESH/`/`POST/` dirs are physically
-  copied into `RUNS/`. Safe everywhere, but wastes disk space for large meshes
-  (`.med` files can be gigabytes) since the mesh already exists at the study level.
-- `symlink` — `RUNS/MESH` and `RUNS/POST` become symlinks to the original
-  directories instead of copies. No duplication, but **not supported with the
-  `docker`/`singularity` runtimes**: those runtimes only bind-mount `RUNS/` into
-  the container, so a symlink pointing outside `RUNS/` resolves to a path that
-  is not mounted and the run fails to find the mesh. `csauto run` detects this
-  combination up front and raises a clear error instead of launching a broken
-  container run — use `runtime = "native"`, or keep `mesh_mode = "copy"`, for
-  container-based campaigns.
+- `symlink` (default) — `RUNS/MESH` and `RUNS/POST` become symlinks to the
+  original directories instead of copies, so large meshes (`.med` files can be
+  gigabytes) are never duplicated per study. Container runtimes handle this
+  transparently: `csauto run` bind-mounts each symlink target into the
+  container at the same absolute host path (`MESH` read-only, `POST`
+  writable), so the symlinks stored in `RUNS/` resolve identically on both
+  sides. A broken symlink (target deleted or moved) is still detected up front
+  and reported before launching.
+- `copy` — the template's sibling `MESH/`/`POST/` dirs are physically copied
+  into `RUNS/`. Uses more disk, but makes `RUNS/` fully self-contained — useful
+  when the runs directory is moved or archived independently of the study.
 - On Windows, creating a symlink may require developer mode or elevated
   privileges; `prepare` falls back to copying (with a warning) if the symlink
   cannot be created.

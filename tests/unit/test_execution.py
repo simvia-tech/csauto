@@ -221,14 +221,91 @@ def test_check_shared_dir_symlinks_inside_runs_dir_is_ok_for_containers(tmp_path
 
 
 @pytest.mark.parametrize("runtime", [RUNTIME_DOCKER, RUNTIME_SINGULARITY])
-def test_check_shared_dir_symlinks_raises_for_containers_when_target_outside_runs_dir(
-    tmp_path: Path, runtime: str
-) -> None:
+def test_check_shared_dir_symlinks_outside_runs_dir_is_ok_for_containers(tmp_path: Path, runtime: str) -> None:
     runs_dir = tmp_path / "RUNS"
     runs_dir.mkdir()
     outside = tmp_path / "study" / "MESH"
     outside.mkdir(parents=True)
     (runs_dir / "MESH").symlink_to(outside, target_is_directory=True)
 
-    with pytest.raises(RuntimeError, match="symlink"):
+    check_shared_dir_symlinks(runs_dir, runtime)
+
+
+@pytest.mark.parametrize("runtime", [RUNTIME_DOCKER, RUNTIME_SINGULARITY])
+def test_check_shared_dir_symlinks_raises_for_broken_symlink(tmp_path: Path, runtime: str) -> None:
+    runs_dir = tmp_path / "RUNS"
+    runs_dir.mkdir()
+    (runs_dir / "MESH").symlink_to(tmp_path / "gone", target_is_directory=True)
+
+    with pytest.raises(RuntimeError, match="does not exist"):
         check_shared_dir_symlinks(runs_dir, runtime)
+
+
+def test_shared_dir_symlink_mounts_lists_outside_targets(tmp_path: Path) -> None:
+    from csauto.execution import shared_dir_symlink_mounts
+
+    runs_dir = tmp_path / "RUNS"
+    runs_dir.mkdir()
+    mesh = tmp_path / "study" / "MESH"
+    post = tmp_path / "study" / "POST"
+    mesh.mkdir(parents=True)
+    post.mkdir(parents=True)
+    (runs_dir / "MESH").symlink_to(mesh, target_is_directory=True)
+    (runs_dir / "POST").symlink_to(post, target_is_directory=True)
+
+    mounts = shared_dir_symlink_mounts(runs_dir)
+
+    assert (mesh.resolve(), True) in mounts
+    assert (post.resolve(), False) in mounts
+
+
+def test_shared_dir_symlink_mounts_ignores_real_dirs_and_internal_links(tmp_path: Path) -> None:
+    from csauto.execution import shared_dir_symlink_mounts
+
+    runs_dir = tmp_path / "RUNS"
+    real_mesh = runs_dir / "_MESH_real"
+    real_mesh.mkdir(parents=True)
+    (runs_dir / "MESH").symlink_to(real_mesh, target_is_directory=True)
+    (runs_dir / "POST").mkdir()
+
+    assert shared_dir_symlink_mounts(runs_dir) == []
+
+
+def test_build_runtime_run_command_singularity_binds_symlinked_shared_dirs(tmp_path: Path) -> None:
+    runs_dir = tmp_path / "RUNS"
+    case_dir = runs_dir / "case0001"
+    case_dir.mkdir(parents=True)
+    mesh = tmp_path / "study" / "MESH"
+    mesh.mkdir(parents=True)
+    (runs_dir / "MESH").symlink_to(mesh, target_is_directory=True)
+    selection = RuntimeSelection(
+        runtime=RUNTIME_SINGULARITY,
+        docker_image="img",
+        singularity_bin="/usr/bin/apptainer",
+        singularity_image="/images/code_saturne.sif",
+    )
+
+    cmd = build_runtime_run_command(case_dir, 2, 1, selection)
+
+    joined = " ".join(cmd)
+    assert f"--bind {mesh.resolve()}:{mesh.resolve()}:ro" in joined
+
+
+def test_build_singularity_slurm_script_binds_symlinked_shared_dirs(tmp_path: Path) -> None:
+    runs_dir = tmp_path / "RUNS"
+    case_dir = runs_dir / "case0001"
+    (case_dir / "DATA").mkdir(parents=True)
+    (case_dir / "DATA" / "setup.xml").write_text("<root/>", encoding="utf-8")
+    mesh = tmp_path / "study" / "MESH"
+    mesh.mkdir(parents=True)
+    (runs_dir / "MESH").symlink_to(mesh, target_is_directory=True)
+    selection = RuntimeSelection(
+        runtime=RUNTIME_SINGULARITY,
+        docker_image="img",
+        singularity_bin="/usr/bin/apptainer",
+        singularity_image="/images/code_saturne.sif",
+    )
+
+    script = CodeSaturneAdapter().build_slurm_script(case_dir, nprocs=2, nt=1, selection=selection)
+
+    assert f"--bind {mesh.resolve()}:{mesh.resolve()}:ro" in script

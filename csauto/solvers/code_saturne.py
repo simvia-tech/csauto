@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from ..execution import (
     RUNTIME_SINGULARITY,
+    shared_dir_symlink_mounts,
     singularity_paths,
     singularity_shell_exec_prefix,
 )
@@ -121,13 +122,17 @@ class CodeSaturneAdapter(SolverAdapterBase):
 
         runs_root, container_root, container_case = singularity_paths(case_dir, self.container_root)
         container_setup = f"{container_case}/{setup_rel.as_posix()}"
+        extra_binds = [
+            f"{target}:{target}:ro" if readonly else f"{target}:{target}"
+            for target, readonly in shared_dir_symlink_mounts(runs_root, self.shared_dir_names)
+        ]
         env_flags: list[str] = []
         for key, value in sorted((env_vars or {}).items()):
             env_flags.extend(["--env", f"{key}={value}"])
         env_flags_str = " ".join(shlex.quote(part) for part in env_flags)
         stage_args = " ".join(shlex.quote(str(arg)) for arg in (run_args or []) if str(arg) != "")
 
-        stage_command = singularity_shell_exec_prefix("$CONTAINER_CASE", env_flags_str)
+        stage_command = singularity_shell_exec_prefix("$CONTAINER_CASE", env_flags_str, extra_binds)
         stage_command.extend(
             [
                 self.container_bin_name,
@@ -146,7 +151,7 @@ class CodeSaturneAdapter(SolverAdapterBase):
         if stage_args:
             stage_command.append(stage_args)
 
-        finalize_command = singularity_shell_exec_prefix("$CONTAINER_CASE", env_flags_str)
+        finalize_command = singularity_shell_exec_prefix("$CONTAINER_CASE", env_flags_str, extra_binds)
         finalize_command.extend(
             [
                 self.container_bin_name,
@@ -165,7 +170,7 @@ class CodeSaturneAdapter(SolverAdapterBase):
             '--output="$EXEC_DIR/solver_%j.out"',
             '--error="$EXEC_DIR/solver_%j.err"',
         ]
-        solver_command.extend(singularity_shell_exec_prefix("$EXEC_DIR_CONTAINER", env_flags_str))
+        solver_command.extend(singularity_shell_exec_prefix("$EXEC_DIR_CONTAINER", env_flags_str, extra_binds))
         solver_command.extend(
             [
                 "bash",

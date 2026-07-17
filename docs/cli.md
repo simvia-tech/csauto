@@ -65,8 +65,9 @@ Options:
 
 - `--mesh-mode {copy,symlink}`: how to place the shared `MESH`/`POST` dirs (siblings of
   `<template_dir>`) into `<output_dir>`. Defaults to `mesh_mode` in `csauto.toml`
-  (itself defaulting to `copy`). See [concepts.md](./concepts.md#shared-meshpost-directories)
-  for the tradeoffs, in particular the `symlink` + container-runtime caveat.
+  (itself defaulting to `symlink`; container runtimes bind-mount the symlink
+  targets automatically). See [concepts.md](./concepts.md#shared-meshpost-directories)
+  for the tradeoffs.
 - `--strict`: fail (instead of warn) when a DOE column matches nothing in the
   template — the same silent-mismatch failure mode `csauto doe` checks for at
   generation time.

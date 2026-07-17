@@ -34,7 +34,11 @@ def build_run_command(
     runs_root = case_dir.parent.resolve()
     container_root = adapter.container_root
     container_case = f"{container_root}/{case_dir.name}"
+    from .execution import shared_dir_symlink_mounts
+
     cmd: list[str] = ["nohup", "docker", "run", "-v", f"{runs_root}:{container_root}"]
+    for target, readonly in shared_dir_symlink_mounts(runs_root, adapter.shared_dir_names):
+        cmd.extend(["-v", f"{target}:{target}:ro" if readonly else f"{target}:{target}"])
     if display:
         cmd.extend(
             [

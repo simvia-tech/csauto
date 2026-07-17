@@ -105,7 +105,7 @@ def _write_doe_row(case_dir: Path, headers: Sequence[str], row: Mapping[str, str
         writer.writerow(row_data)
 
 
-def _copy_shared_dir(parent_dir: Path, name: str, source_dir: Path, mesh_mode: str = "copy") -> None:
+def _copy_shared_dir(parent_dir: Path, name: str, source_dir: Path, mesh_mode: str = "symlink") -> None:
     """Copy or symlink a shared folder into the runs directory."""
     dest_dir = parent_dir / name
     if not source_dir.is_dir():
@@ -284,7 +284,7 @@ def generate_cases(
     rows: Sequence[Mapping[str, str]],
     template_dir: Path,
     output_dir: Path,
-    mesh_mode: str = "copy",
+    mesh_mode: str = "symlink",
     adapter=None,
     strict: bool = False,
 ) -> None:

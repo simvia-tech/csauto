@@ -51,3 +51,23 @@ def test_read_container_id_returns_none_when_file_missing(tmp_path: Path) -> Non
     cidfile = tmp_path / "no_such_file.cid"
     result = read_container_id(cidfile, wait=0.0)
     assert result is None
+
+
+def test_build_run_command_mounts_symlinked_shared_dirs(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("DISPLAY", raising=False)
+    runs_dir = tmp_path / "RUNS"
+    case_dir = runs_dir / "case0001"
+    case_dir.mkdir(parents=True)
+    mesh = tmp_path / "study" / "MESH"
+    post = tmp_path / "study" / "POST"
+    mesh.mkdir(parents=True)
+    post.mkdir(parents=True)
+    (runs_dir / "MESH").symlink_to(mesh, target_is_directory=True)
+    (runs_dir / "POST").symlink_to(post, target_is_directory=True)
+
+    cmd = build_run_command(case_dir, 4, 2, "my_image")
+
+    joined = " ".join(cmd)
+    assert f"-v {mesh.resolve()}:{mesh.resolve()}:ro" in joined
+    assert f"-v {post.resolve()}:{post.resolve()}" in joined
+    assert f"{post.resolve()}:ro" not in joined
