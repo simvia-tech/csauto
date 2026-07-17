@@ -160,14 +160,13 @@ The web UI also provides features beyond the CLI: edit case files, compare runs 
 
 The extension is the primary way to use csauto. It runs the csauto server in the background on a free port and embeds the dashboard in an editor panel — over Remote-SSH sessions, VS Code forwards the port automatically.
 
-Everything is reachable from the **csauto activity bar icon** (or the command palette):
+The sidebar (csauto activity bar icon) shows **one section per campaign** detected in the workspace (via their `registry.json`) — each with its own **Open Dashboard**, **Run Doctor**, and server **Stop/Restart** actions, its solver and port in the section header, and a **Pin as Default** action choosing which campaign the status bar and palette commands target. Multiple campaigns (even different solvers) can have their dashboards open side by side, each backed by its own server and `csauto.toml`, with panels titled by solver and campaign.
 
-- **Runs Directory** — pins the campaign directory for this workspace (auto-detects campaigns via their `registry.json`); useful when the campaign lives in a subfolder of the workspace.
-- **Start/Stop/Restart Server**, **Show Server Logs** — server lifecycle and diagnostics.
-- **Run Doctor** — validates the environment and reports problems.
-- **Install csauto CLI** — writes a `csauto` shim to `~/.local/bin` backed by the extension's managed runtime, so the same csauto works in your terminal.
-- **Open Dashboard** — starts the campaign's server if needed and opens its dashboard panel (also on the status bar); workspaces holding several campaigns (even different solvers) get a picker instead, and can open one dashboard per campaign side by side, each with its own server and `csauto.toml`, titled by solver and campaign.
-- **Run notifications** — a notification fires when a running case finishes (DONE or FAILED), with a shortcut back to the dashboard (disable via `csauto.notifyOnRunCompletion`).
+Below the campaigns:
+
+- **Prepare Campaign…** — guided `csauto prepare` that pins the resulting runs directory.
+- **Setup** — extension version, managed runtime state, solver runtime check, **Install csauto CLI** (a `csauto` shim in `~/.local/bin` backed by the extension's managed runtime), and server logs.
+- **Run notifications** — a notification fires when a running case finishes (DONE or FAILED) in any campaign, with a shortcut back to its dashboard (disable via `csauto.notifyOnRunCompletion`).
 
 On first use the extension creates a private Python environment (in extension storage) and installs its bundled csauto into it, so extension and engine versions never drift. Settings under `csauto.*`: `pythonPath` (bring your own interpreter instead of the managed runtime), `runsDir` (default `RUNS`, resolved against the workspace root), `port` (0 = auto), and `serveArgs`.
 

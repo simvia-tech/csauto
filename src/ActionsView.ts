@@ -1,8 +1,10 @@
 import * as vscode from "vscode";
+import * as fs from "fs";
 import * as path from "path";
 import { findShadowingAliasFiles, shimInstalled } from "./InstallCli";
 import { RuntimeManager } from "./RuntimeManager";
 import { ServerManager } from "./ServerManager";
+import { findCampaignRunsDirs } from "./selectRunsDir";
 import { lastDoctorResult, onDidRunDoctor } from "./doctor";
 
 class Item extends vscode.TreeItem {
@@ -13,10 +15,10 @@ class Item extends vscode.TreeItem {
   }
 }
 
-function actionItem(label: string, icon: string, command: string, description?: string): Item {
+function actionItem(label: string, icon: string, command: string, description?: string, args?: unknown[]): Item {
   const item = new Item(label);
   item.iconPath = new vscode.ThemeIcon(icon);
-  item.command = { command, title: label };
+  item.command = { command, title: label, arguments: args };
   item.description = description;
   return item;
 }
@@ -33,6 +35,21 @@ function settingScope(
   return "scope: default";
 }
 
+/** Best-effort solver name from the campaign's csauto.toml. */
+function campaignSolver(campaignRoot: string): string | undefined {
+  try {
+    const config = fs.readFileSync(path.join(campaignRoot, "csauto.toml"), "utf-8");
+    return /^\s*solver\s*=\s*"([^"]+)"/m.exec(config)?.[1] ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Sidebar tree: one section per campaign (its dashboard, doctor, and server
+ * lifecycle), followed by the global Prepare action and the Setup/Settings
+ * sections.
+ */
 export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
   private readonly changeEmitter = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.changeEmitter.event;
@@ -57,65 +74,60 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
     if (parent) {
       return parent.children ?? [];
     }
-    return [this.campaignGroup(), this.serverGroup(), await this.setupGroup(), this.settingsGroup()];
+    return [...(await this.campaignGroups()), await this.setupGroup(), this.settingsGroup()];
   }
 
   private pinnedRunsDir(): string | undefined {
     try {
-      const runsDir = this.server.resolveRunsDir();
-      const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-      if (root) {
-        const rel = path.relative(root, runsDir);
-        return rel === "" ? "." : rel.startsWith("..") ? runsDir : rel;
-      }
-      return runsDir;
+      return path.resolve(this.server.resolveRunsDir());
     } catch {
       return undefined;
     }
   }
 
-  private campaignGroup(): Item {
-    const item = new Item("Campaign", vscode.TreeItemCollapsibleState.Expanded);
-    item.iconPath = new vscode.ThemeIcon("beaker");
-    item.children = [
-      actionItem("Prepare Campaign…", "new-folder", "csauto.prepare"),
-      actionItem("Runs Directory", "pinned", "csauto.selectRunsDir", this.pinnedRunsDir() ?? "not set"),
-      actionItem("Open Dashboard", "dashboard", "csauto.openDashboard"),
-      actionItem("Run Doctor", "checklist", "csauto.runDoctor"),
-    ];
-    return item;
+  private async campaignGroups(): Promise<Item[]> {
+    const pinned = this.pinnedRunsDir();
+    const detected = (await findCampaignRunsDirs()).map((dir) => path.resolve(dir));
+    const campaigns = Array.from(new Set(pinned && fs.existsSync(pinned) ? [pinned, ...detected] : detected)).sort();
+
+    const groups = campaigns.map((runsDir) => this.campaignGroup(runsDir, runsDir === pinned));
+    if (campaigns.length === 0) {
+      const empty = new Item("No campaigns found");
+      empty.iconPath = new vscode.ThemeIcon("info");
+      empty.tooltip = "Prepare a campaign from a DOE CSV and a template, or pin an existing runs directory.";
+      groups.push(empty, actionItem("Pin Runs Directory…", "pinned", "csauto.selectRunsDir"));
+    }
+    groups.push(actionItem("Prepare Campaign…", "new-folder", "csauto.prepare"));
+    return groups;
   }
 
-  private serverGroup(): Item {
-    const running = this.server.list();
-    const item = new Item("Servers", vscode.TreeItemCollapsibleState.Expanded);
-    item.iconPath = new vscode.ThemeIcon("server-process");
-    item.children = [];
-    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    for (const state of running) {
-      const campaign = path.basename(path.dirname(state.runsDir));
-      const entry = new Item(campaign);
-      entry.iconPath = new vscode.ThemeIcon("pass-filled", new vscode.ThemeColor("testing.iconPassed"));
-      entry.description = `port ${state.port}`;
-      entry.tooltip = root ? path.relative(root, state.runsDir) || state.runsDir : state.runsDir;
-      entry.command = { command: "csauto.openCampaignDashboardFor", title: "Open Dashboard", arguments: [state.runsDir] };
-      item.children.push(entry);
-    }
-    if (running.length === 0) {
-      const status = new Item("Stopped");
-      status.iconPath = new vscode.ThemeIcon("circle-slash");
-      status.command = { command: "csauto.showLogs", title: "Show Server Logs" };
-      item.children.push(status, actionItem("Start Server", "play", "csauto.startServer"));
-    } else {
+  private campaignGroup(runsDir: string, isPinned: boolean): Item {
+    const root = this.server.campaignRoot(runsDir);
+    const state = this.server.get(runsDir);
+    const solver = campaignSolver(root);
+
+    const item = new Item(path.basename(root), vscode.TreeItemCollapsibleState.Expanded);
+    item.iconPath = state
+      ? new vscode.ThemeIcon("vm-running", new vscode.ThemeColor("testing.iconPassed"))
+      : new vscode.ThemeIcon("folder");
+    const parts = [solver, state ? `port ${state.port}` : undefined, isPinned ? "pinned" : undefined];
+    item.description = parts.filter(Boolean).join(" · ");
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    item.tooltip = workspaceRoot ? path.relative(workspaceRoot, runsDir) || runsDir : runsDir;
+
+    item.children = [
+      actionItem("Open Dashboard", "dashboard", "csauto.openCampaignDashboardFor", undefined, [runsDir]),
+      actionItem("Run Doctor", "checklist", "csauto.runDoctorFor", undefined, [runsDir]),
+    ];
+    if (state) {
       item.children.push(
-        actionItem("Stop Server…", "debug-stop", "csauto.stopServer"),
-        actionItem("Restart Server…", "debug-restart", "csauto.restartServer"),
+        actionItem("Stop Server", "debug-stop", "csauto.stopServerFor", undefined, [runsDir]),
+        actionItem("Restart Server", "debug-restart", "csauto.restartServerFor", undefined, [runsDir]),
       );
-      if (running.length > 1) {
-        item.children.push(actionItem("Stop All Servers", "stop-circle", "csauto.stopAllServers"));
-      }
     }
-    item.children.push(actionItem("Show Server Logs", "output", "csauto.showLogs"));
+    if (!isPinned) {
+      item.children.push(actionItem("Pin as Default", "pinned", "csauto.pinCampaign", undefined, [runsDir]));
+    }
     return item;
   }
 
@@ -195,7 +207,9 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
       cliItem = actionItem("Install csauto CLI", "terminal", "csauto.installCli");
     }
 
-    item.children = [versionItem, runtimeItem, solverItem, cliItem];
+    const logsItem = actionItem("Show Server Logs", "output", "csauto.showLogs");
+
+    item.children = [versionItem, runtimeItem, solverItem, cliItem, logsItem];
     return item;
   }
 

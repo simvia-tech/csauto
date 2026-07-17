@@ -74,10 +74,15 @@ export class ServerManager implements vscode.Disposable {
     return [...this.servers.values()].map((server) => server.state);
   }
 
+  /** The running server for a runs directory, if any. */
+  get(runsDir: string): ServerState | undefined {
+    return this.servers.get(path.resolve(runsDir))?.state;
+  }
+
   /** The server for the workspace's pinned runs directory, if running. */
   get current(): ServerState | undefined {
     try {
-      return this.servers.get(this.resolveRunsDir())?.state;
+      return this.get(this.resolveRunsDir());
     } catch {
       return undefined;
     }

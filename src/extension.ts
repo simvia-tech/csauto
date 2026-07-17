@@ -66,6 +66,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
   const actionsView = new ActionsViewProvider(server, runtime);
+  const registryWatcher = vscode.workspace.createFileSystemWatcher("**/registry.json");
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider("csauto.actions", actionsView),
     vscode.workspace.onDidChangeConfiguration((event) => {
@@ -73,6 +74,9 @@ export function activate(context: vscode.ExtensionContext): void {
         actionsView.refresh();
       }
     }),
+    registryWatcher,
+    registryWatcher.onDidCreate(() => actionsView.refresh()),
+    registryWatcher.onDidDelete(() => actionsView.refresh()),
   );
 
   let dashboardPinged = false;
@@ -87,6 +91,28 @@ export function activate(context: vscode.ExtensionContext): void {
         output.show(true);
       }
       return undefined;
+    }
+  };
+
+  const doctorFlow = async (runsDirArg?: string): Promise<void> => {
+    const python = await runtime.ensurePython();
+    if (!python) {
+      return;
+    }
+    const runsDir = runsDirArg ?? server.resolveRunsDir();
+    const { fails, warns } = await runDoctor(python, runsDir, server.campaignRoot(runsDir), output);
+    if (fails.length > 0) {
+      const choice = await vscode.window.showWarningMessage(
+        `csauto doctor: ${fails.length} problem(s), ${warns.length} warning(s). ${fails[0]}`,
+        "Show Logs",
+      );
+      if (choice === "Show Logs") {
+        output.show(true);
+      }
+    } else {
+      vscode.window.showInformationMessage(
+        warns.length > 0 ? `csauto doctor: OK with ${warns.length} warning(s) — see logs.` : "csauto doctor: all checks passed.",
+      );
     }
   };
 
@@ -182,26 +208,24 @@ export function activate(context: vscode.ExtensionContext): void {
       output.show(true);
     }),
     vscode.commands.registerCommand("csauto.reloadDashboard", () => DashboardPanel.reloadAll()),
-    vscode.commands.registerCommand("csauto.runDoctor", async () => {
-      const python = await runtime.ensurePython();
-      if (!python) {
-        return;
+    vscode.commands.registerCommand("csauto.runDoctor", () => doctorFlow()),
+    vscode.commands.registerCommand("csauto.runDoctorFor", (runsDir: string) => doctorFlow(runsDir)),
+    vscode.commands.registerCommand("csauto.stopServerFor", (runsDir: string) => server.stop(runsDir)),
+    vscode.commands.registerCommand("csauto.restartServerFor", async (runsDir: string) => {
+      await server.stop(runsDir);
+      const state = await startServer(runsDir);
+      if (state) {
+        await DashboardPanel.createOrShow(state);
       }
-      const runsDir = server.resolveRunsDir();
-      const { fails, warns } = await runDoctor(python, runsDir, server.campaignRoot(runsDir), output);
-      if (fails.length > 0) {
-        const choice = await vscode.window.showWarningMessage(
-          `csauto doctor: ${fails.length} problem(s), ${warns.length} warning(s). ${fails[0]}`,
-          "Show Logs",
-        );
-        if (choice === "Show Logs") {
-          output.show(true);
-        }
-      } else {
-        vscode.window.showInformationMessage(
-          warns.length > 0 ? `csauto doctor: OK with ${warns.length} warning(s) — see logs.` : "csauto doctor: all checks passed.",
-        );
+    }),
+    vscode.commands.registerCommand("csauto.pinCampaign", async (runsDir: string) => {
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      let value = runsDir;
+      if (workspaceRoot) {
+        const rel = path.relative(workspaceRoot, runsDir);
+        value = rel === "" ? "." : rel.startsWith("..") ? runsDir : rel;
       }
+      await vscode.workspace.getConfiguration("csauto").update("runsDir", value, vscode.ConfigurationTarget.Workspace);
     }),
     vscode.commands.registerCommand("csauto.installCli", async () => {
       await installCli(runtime, output);
