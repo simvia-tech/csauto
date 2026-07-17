@@ -8,6 +8,7 @@ import { ServerManager, ServerState } from "./ServerManager";
 import { installCli } from "./InstallCli";
 import { suggestAsterForMeshes } from "./asterSuggestion";
 import { runDoctor } from "./doctor";
+import { prepareCampaign } from "./prepareCampaign";
 import { selectRunsDir } from "./selectRunsDir";
 import { EVENT_EXT_DASHBOARD_OPEN, EVENT_EXT_SERVE, sendTelemetry } from "./telemetry";
 
@@ -140,6 +141,26 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("csauto.installCli", async () => {
       await installCli(runtime, output);
       actionsView.refresh();
+    }),
+    vscode.commands.registerCommand("csauto.prepare", async () => {
+      const prepared = await prepareCampaign(runtime, output);
+      if (!prepared) {
+        return;
+      }
+      if (server.current) {
+        await server.stop();
+        const state = await startServer();
+        if (state && DashboardPanel.current) {
+          await DashboardPanel.createOrShow(state.port, state.token);
+        }
+      }
+      const choice = await vscode.window.showInformationMessage(
+        "Campaign prepared — the runs directory is pinned for this workspace.",
+        "Open Dashboard",
+      );
+      if (choice === "Open Dashboard") {
+        await vscode.commands.executeCommand("csauto.openDashboard");
+      }
     }),
     vscode.commands.registerCommand("csauto.selectRunsDir", async () => {
       const changed = await selectRunsDir();

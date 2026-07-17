@@ -79,6 +79,7 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
     item.iconPath = new vscode.ThemeIcon("beaker");
     item.children = [
       actionItem("Runs Directory", "pinned", "csauto.selectRunsDir", this.pinnedRunsDir() ?? "not set"),
+      actionItem("Prepare Campaign…", "new-folder", "csauto.prepare"),
       actionItem("Open Dashboard", "dashboard", "csauto.openDashboard"),
       actionItem("Run Doctor", "checklist", "csauto.runDoctor"),
     ];

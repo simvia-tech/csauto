@@ -80,6 +80,11 @@
         "command": "csauto.reloadDashboard",
         "title": "Reload Dashboard",
         "category": "csauto"
+      },
+      {
+        "command": "csauto.prepare",
+        "title": "Prepare Campaign…",
+        "category": "csauto"
       }
     ],
     "viewsContainers": {
