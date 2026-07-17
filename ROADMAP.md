@@ -4,7 +4,7 @@
 
 This roadmap is a declaration of intent, not a contractual engagement. It is updated at each minor or major release.
 
-*Last updated: v1.0.0 — 2026-07-15*
+*Last updated: v1.0.0 — 2026-07-17*
 
 ## Current Capabilities (v1.0.0)
 

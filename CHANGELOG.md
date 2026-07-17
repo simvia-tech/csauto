@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [1.0.0] - 2026-07-15
+## [1.0.0] - 2026-07-17
 
 csauto becomes extension-first: the repository now ships a VS Code extension that is the primary interface, with the CLI as a companion for headless/HPC use.
 
@@ -17,8 +17,6 @@ csauto becomes extension-first: the repository now ships a VS Code extension tha
 - "Install csauto CLI" writes a `csauto` shim to `~/.local/bin` backed by the managed runtime, and warns when a shell alias would shadow it
 - "Reload Dashboard" command and a dev watch pipeline (`npm run watch`: esbuild + tsc + frontend rebuild)
 - New CLI verbs for web-UI action parity: `csauto kill`, `csauto note`, `csauto convergence`
-- `csauto doe` cross-checks spec parameter names against the template's placeholders and IF-condition variables (`./TEMPLATE` by default, `--template DIR` to override, `--no-check` to skip): a spec parameter matching nothing in the template is an error — previously a typo silently produced cases that ran with the template's hardcoded value — and template variables not covered by the spec produce a warning
-- `csauto prepare --strict` turns the "DOE columns not used in template" warning into an error
 - `CSAUTO_API_TOKEN` environment variable as a token source for `csauto serve` (flag > env > csauto.toml)
 - The dashboard accepts a `?token=` query parameter (stored, then stripped from the URL) so the extension can authenticate the embedded dashboard automatically
 - Extension telemetry events (extension serve, dashboard open, CLI install) routed through `csauto _telemetry-ping`, sharing the CLI's anonymous user id and opt-out, additionally gated on VS Code's telemetry setting
@@ -27,11 +25,6 @@ csauto becomes extension-first: the repository now ships a VS Code extension tha
 - One-time suggestion to install VS Code Aster for 3D MED mesh visualization when the workspace contains `.med` files
 
 ### Changed
-- Dashboard branding is solver-aware: the header shows the Code_Saturne logo only for `code_saturne` campaigns (other solvers get their name as text), and the favicon defaults to the Simvia mark, switching to `/favicon-<solver>.svg` when such an asset exists (`favicon-code_saturne.svg` ships today; a future solver just drops a file in `frontend/static/`)
-- The compare panel's file list and the Recent Errors file selector are now driven by the solver adapter via `/api/app_config` (`compare_kinds` with honest labels — first entry is the default, from which `default_compare_kind` now derives — and `error_files` from `anomaly_file_names`), with the previous hardcoded lists kept as fallbacks for older backends
-- The Timing Snapshot panel is now driven by the solver adapter end to end: adapters declare `performance_columns` (key, label, kind) which `/api/perf` exposes and the frontend renders (table and CSV export), and `performance_fields` (CLI CSV export) derives from the same metadata so the column order matches the UI; dashboard cards are declared per adapter (`dashboard_panels`, exposed via `/api/app_config`), so a future solver without residuals simply doesn't show that card — adding a solver requires no frontend or core changes
-- `mesh_mode = "symlink"` now works with the docker and singularity runtimes: symlinked `MESH`/`POST` targets are bind-mounted into the container at their absolute host path (`MESH` read-only, `POST` writable), for direct runs and Slurm scripts alike, so the symlinks in `RUNS/` resolve identically inside the container; the up-front rejection now only fires for broken symlink targets
-- `mesh_mode` defaults to `symlink` (was `copy`): physically duplicating multi-gigabyte meshes per study is now opt-in; the Windows fallback to copy-with-warning when symlinks cannot be created is unchanged
 - The built dashboard moved from `frontend/dist/` into the Python package (`csauto/_frontend/`), making wheels self-contained: `pip install` from any location now serves the dashboard
 - The extension starts its server with a random per-session API token, so the local port is no longer open to other local users
 - The `.vsix` ships only the bundled wheel, extension bundle, and assets (the Python source tree is no longer duplicated inside it)
@@ -42,8 +35,25 @@ csauto becomes extension-first: the repository now ships a VS Code extension tha
 
 ### Fixed
 - Sticky status-table columns no longer let scrolled content bleed through on hover with translucent theme colors
+
+## [0.4.1] - 2026-07-17
+
+Deepen the solver adapter boundary (dashboard panels, timing columns, compare kinds, and error files are now adapter-driven), make `mesh_mode = "symlink"` the default with full container-runtime support, and validate DOE specs against the template.
+
+### Changed
+- Dashboard branding is solver-aware: the header shows the Code_Saturne logo only for `code_saturne` campaigns (other solvers get their name as text), and the favicon defaults to the Simvia mark, switching to `/favicon-<solver>.svg` when such an asset exists (`favicon-code_saturne.svg` ships today; a future solver just drops a file in `frontend/static/`)
+- The compare panel's file list and the Recent Errors file selector are now driven by the solver adapter via `/api/app_config` (`compare_kinds` with honest labels — first entry is the default, from which `default_compare_kind` now derives — and `error_files` from `anomaly_file_names`), with the previous hardcoded lists kept as fallbacks for older backends
+- The Timing Snapshot panel is now driven by the solver adapter end to end: adapters declare `performance_columns` (key, label, kind) which `/api/perf` exposes and the frontend renders (table and CSV export), and `performance_fields` (CLI CSV export) derives from the same metadata so the column order matches the UI; dashboard cards are declared per adapter (`dashboard_panels`, exposed via `/api/app_config`), so a future solver without residuals simply doesn't show that card — adding a solver requires no frontend or core changes
+- `mesh_mode = "symlink"` now works with the docker and singularity runtimes: symlinked `MESH`/`POST` targets are bind-mounted into the container at their absolute host path (`MESH` read-only, `POST` writable), for direct runs and Slurm scripts alike, so the symlinks in `RUNS/` resolve identically inside the container; the up-front rejection now only fires for broken symlink targets
+- `mesh_mode` defaults to `symlink` (was `copy`): physically duplicating multi-gigabyte meshes per study is now opt-in; the Windows fallback to copy-with-warning when symlinks cannot be created is unchanged
+
+### Fixed
 - The Log Tail panel now offers every file its priority table declares (`csauto.stdout`, `csauto.stderr`, `listing`, `run_status.running`) instead of only `*.log`/`summary` names, so solvers whose console log is `csauto.stdout` (e.g. su2) get a working tail instead of "No log data available"
 - Recent-errors scanning deduplicates resolved file paths, so adapters aliasing several conventional names onto one file can no longer report the same error twice
+
+### Added
+- `csauto doe` cross-checks spec parameter names against the template's placeholders and IF-condition variables (`./TEMPLATE` by default, `--template DIR` to override, `--no-check` to skip): a spec parameter matching nothing in the template is an error — previously a typo silently produced cases that ran with the template's hardcoded value — and template variables not covered by the spec produce a warning
+- `csauto prepare --strict` turns the "DOE columns not used in template" warning into an error
 
 ## [0.4.0] - 2026-07-15
 
