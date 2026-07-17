@@ -190,3 +190,21 @@ class TestStubAdapter:
         (run_dir / "extra.txt").write_text("x", encoding="utf-8")
         files = adapter.list_result_files(case_dir)
         assert sorted(files) == ["OUT/run_0001/extra.txt", "OUT/run_0001/stub.log"]
+
+
+def test_code_saturne_performance_fields_derive_from_columns() -> None:
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    adapter = CodeSaturneAdapter()
+    assert adapter.performance_fields == tuple(c.key for c in adapter.performance_columns)
+    assert all(c.label for c in adapter.performance_columns)
+    assert {c.kind for c in adapter.performance_columns} <= {"time", "int", "float", "text"}
+
+
+def test_adapter_base_defaults_expose_all_dashboard_panels() -> None:
+    from csauto.solvers.base import ALL_DASHBOARD_PANELS
+    from csauto.solvers.stub import StubAdapter
+
+    adapter = StubAdapter()
+    assert adapter.dashboard_panels == ALL_DASHBOARD_PANELS
+    assert adapter.performance_fields == ()

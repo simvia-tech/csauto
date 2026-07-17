@@ -67,8 +67,18 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
         gradients_time: str | None = None
         balances_time: str | None = None
 
+    class PerfColumnModel(BaseModel):
+        key: str
+        label: str
+        kind: str
+
     class PerformancePayloadModel(BaseModel):
+        columns: list[PerfColumnModel]
         records: list[PerformanceRecordModel]
+
+    class AppConfigModel(BaseModel):
+        solver: str
+        panels: list[str]
 
     class RecentErrorItemModel(BaseModel):
         case_id: str
@@ -111,7 +121,21 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
         authorization: str | None = Header(default=None),
     ) -> dict[str, Any]:
         ctx.require_auth(x_csauto_token, authorization)
-        return {"records": read_performance_rows(ctx.runs_dir, ctx.validate_cases(query.case), adapter=ctx.adapter)}
+        return {
+            "columns": [
+                {"key": column.key, "label": column.label, "kind": column.kind}
+                for column in ctx.adapter.performance_columns
+            ],
+            "records": read_performance_rows(ctx.runs_dir, ctx.validate_cases(query.case), adapter=ctx.adapter),
+        }
+
+    @app.get("/api/app_config", response_model=AppConfigModel)
+    def api_app_config(
+        x_csauto_token: str | None = Header(default=None),
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        ctx.require_auth(x_csauto_token, authorization)
+        return {"solver": ctx.adapter.name, "panels": list(ctx.adapter.dashboard_panels)}
 
     @app.get("/api/restart_origin", response_model=RestartOriginResponse)
     def api_restart_origin(

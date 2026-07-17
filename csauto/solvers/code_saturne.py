@@ -18,7 +18,6 @@ from ..execution import (
 )
 from ..logs import (
     ANOMALY_FILES_DEFAULT,
-    PERFORMANCE_FIELDS,
     detect_run_outcome,
     extract_last_iteration,
     extract_restart_origin,
@@ -32,7 +31,7 @@ from ..logs import (
 from ..probes import list_probe_files, list_profile_files, locate_probe_files
 from ..residuals import find_residuals_files, parse_residuals_from_log
 from ..template import find_run_cfg, find_setup_file
-from .base import SolverAdapterBase
+from .base import PerfColumn, SolverAdapterBase
 
 if TYPE_CHECKING:
     from ..execution import RuntimeSelection
@@ -86,7 +85,15 @@ class CodeSaturneAdapter(SolverAdapterBase):
             "run_status.running",
         }
     )
-    performance_fields: ClassVar[tuple[str, ...]] = PERFORMANCE_FIELDS
+    performance_columns: ClassVar[tuple[PerfColumn, ...]] = (
+        PerfColumn("elapsed_time", "Elapsed (s)", "time"),
+        PerfColumn("io_time", "I/O (s)", "time"),
+        PerfColumn("linear_solver_time", "Linear Solver (s)", "time"),
+        PerfColumn("gradients_time", "Gradients (s)", "time"),
+        PerfColumn("balances_time", "Balances (s)", "time"),
+        PerfColumn("mpi_ranks", "MPI Ranks", "int"),
+        PerfColumn("threads", "Threads", "int"),
+    )
     default_compare_kind: ClassVar[str] = "setup.xml"
     control_actions: ClassVar[frozenset[str]] = frozenset({"stop", "extend", "checkpoint", "flush"})
 

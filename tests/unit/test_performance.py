@@ -83,15 +83,16 @@ def test_collect_performance_csv_includes_time_breakdown_columns(
 
     with output.open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
+        # Column order follows the adapter's performance_columns (UI order).
         assert reader.fieldnames == [
             "case_id",
             "elapsed_time",
-            "mpi_ranks",
-            "threads",
             "io_time",
             "linear_solver_time",
             "gradients_time",
             "balances_time",
+            "mpi_ranks",
+            "threads",
         ]
         row = next(reader)
         assert row["case_id"] == "case0001"

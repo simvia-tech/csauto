@@ -32,17 +32,24 @@ export interface StatusPayload {
 
 export interface PerfRecord {
   case_id: string;
-  elapsed_time: string | null;
-  mpi_ranks: string | null;
-  threads: string | null;
-  io_time: string | null;
-  linear_solver_time: string | null;
-  gradients_time: string | null;
-  balances_time: string | null;
+  [key: string]: string | null;
+}
+
+export interface PerfColumn {
+  key: string;
+  label: string;
+  kind: "time" | "int" | "float" | "text";
 }
 
 export interface PerfPayload {
+  /** Column metadata from the solver adapter; absent on older backends. */
+  columns?: PerfColumn[];
   records: PerfRecord[];
+}
+
+export interface AppConfig {
+  solver: string;
+  panels: string[];
 }
 
 /* Shared */

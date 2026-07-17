@@ -13,11 +13,22 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from ..execution import RuntimeSelection
     from ..maintenance import DoctorItem
+
+
+class PerfColumn(NamedTuple):
+    """One column of the performance/timing table, as rendered by the UI."""
+
+    key: str
+    label: str
+    kind: str = "text"  # "time" | "int" | "float" | "text"
+
+
+ALL_DASHBOARD_PANELS = ("status", "residuals", "probes", "performance", "compare", "tail", "errors")
 
 
 @runtime_checkable
@@ -35,6 +46,8 @@ class SolverAdapter(Protocol):
     anomaly_file_names: tuple[str, ...]
     cleanup_log_names: frozenset[str]
     performance_fields: tuple[str, ...]
+    performance_columns: tuple[PerfColumn, ...]
+    dashboard_panels: tuple[str, ...]
     default_compare_kind: str
     control_actions: frozenset[str]
 
@@ -151,9 +164,15 @@ class SolverAdapterBase(ABC):
     template_input_names: ClassVar[frozenset[str]] = frozenset()
     anomaly_file_names: ClassVar[tuple[str, ...]] = ("csauto.stderr", "csauto.stdout")
     cleanup_log_names: ClassVar[frozenset[str]] = frozenset({"csauto.stdout", "csauto.stderr"})
-    performance_fields: ClassVar[tuple[str, ...]] = ()
+    performance_columns: ClassVar[tuple[PerfColumn, ...]] = ()
+    dashboard_panels: ClassVar[tuple[str, ...]] = ALL_DASHBOARD_PANELS
     default_compare_kind: ClassVar[str] = ""
     control_actions: ClassVar[frozenset[str]] = frozenset()
+
+    @property
+    def performance_fields(self) -> tuple[str, ...]:
+        """CSV export keys, derived from the column metadata so CLI and UI stay consistent."""
+        return tuple(column.key for column in self.performance_columns)
 
     @abstractmethod
     def run_argv(self, case_path: str | Path, nprocs: int, nt: int, run_args: Sequence[str] | None = None) -> list[str]:

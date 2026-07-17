@@ -7,6 +7,7 @@
 
 import { apiGet, apiGetText, apiPost } from "./client";
 import type {
+  AppConfig,
   StatusPayload,
   PerfPayload,
   StringListResponse,
@@ -32,6 +33,10 @@ export function fetchStatus(log = false): Promise<StatusPayload> {
 
 export function fetchPerf(cases: string[]): Promise<PerfPayload> {
   return apiGet<PerfPayload>(`/api/perf?${caseParams(cases)}`);
+}
+
+export function fetchAppConfig(): Promise<AppConfig> {
+  return apiGet<AppConfig>("/api/app_config");
 }
 
 export function fetchResidualColumns(cases: string[]): Promise<string[]> {
@@ -256,7 +261,10 @@ export function setCaseConvergence(
 }
 
 export function openGui(caseId: string): Promise<void> {
-  return apiPost("/api/open_gui", { case: caseId, scale: window.devicePixelRatio }).then(() => undefined);
+  return apiPost("/api/open_gui", {
+    case: caseId,
+    scale: window.devicePixelRatio,
+  }).then(() => undefined);
 }
 
 /* Settings */
