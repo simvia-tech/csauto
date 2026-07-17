@@ -18,6 +18,7 @@ RUNS/
 **/.csauto.cid
 **/.csauto.jobid
 **/.csauto.history.jsonl
+**/.csauto.gui.log
 **/csauto.stdout
 **/csauto.stderr
 

@@ -54,6 +54,27 @@ def build_run_command(
     return cmd
 
 
+_X11_SOCKET_CANDIDATES = ("/mnt/wslg/.X11-unix", "/tmp/.X11-unix")
+
+
+def find_x11_socket_dir() -> str | None:
+    """The host directory holding X sockets, as visible to the docker daemon.
+
+    /mnt/wslg is preferred on WSL: /tmp/.X11-unix is bind-mounted per
+    namespace there, and Docker Desktop's daemon resolves volume mounts in its
+    own namespace where /tmp/.X11-unix is empty — only the /mnt/wslg path is
+    shared with it.
+    """
+    for candidate in _X11_SOCKET_CANDIDATES:
+        path = Path(candidate)
+        try:
+            if path.is_dir() and any(path.iterdir()):
+                return str(path.resolve())
+        except OSError:
+            continue
+    return None
+
+
 def build_gui_command(
     case_dir: Path,
     docker_image: str | None = None,
@@ -74,14 +95,10 @@ def build_gui_command(
     container_setup = f"{container_case}/{setup_rel.as_posix()}"
     cmd: list[str] = ["docker", "run", "-v", f"{runs_root}:{container_root}"]
     if display:
-        cmd.extend(
-            [
-                "-e",
-                f"DISPLAY=unix{display}",
-                "-v",
-                "/tmp/.X11-unix:/tmp/.X11-unix",
-            ]
-        )
+        socket_dir = find_x11_socket_dir()
+        cmd.extend(["-e", f"DISPLAY={display}"])
+        if socket_dir:
+            cmd.extend(["-v", f"{socket_dir}:/tmp/.X11-unix"])
     cmd.extend(["-w", container_case, docker_image])
     cmd.extend(adapter.gui_argv(container_setup))
     return cmd

@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import * as fs from "fs";
 import { ActionsViewProvider } from "./ActionsView";
 import { DashboardPanel } from "./DashboardPanel";
 import { RunWatcher } from "./RunWatcher";
@@ -18,6 +19,26 @@ export function activate(context: vscode.ExtensionContext): void {
   const server = new ServerManager(runtime, output, context.workspaceState);
   context.subscriptions.push(new RunWatcher(server, output));
   void suggestAsterForMeshes(context);
+
+  // Populate the sidebar's environment checks without any side effects: only
+  // when the managed runtime already exists and the runs dir is present (a
+  // first-time setup must stay tied to an explicit user action).
+  void (async () => {
+    const python = runtime.current();
+    if (!python) {
+      return;
+    }
+    try {
+      const runsDir = server.resolveRunsDir();
+      if (!fs.existsSync(runsDir)) {
+        return;
+      }
+      const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? runsDir;
+      await runDoctor(python, runsDir, cwd, output);
+    } catch {
+      // No workspace folder — nothing to check against.
+    }
+  })();
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
   statusBar.command = "csauto.openDashboard";
   context.subscriptions.push(output, server, statusBar);

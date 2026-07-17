@@ -1,3 +1,4 @@
+import contextlib
 import math
 import os
 import shlex
@@ -401,16 +402,32 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         except ValueError as exc:
             raise ctx.http_exception_cls(status_code=400, detail=str(exc)) from exc
         cmd_str = " ".join(shlex.quote(part) for part in cmd)
+        gui_log = case_dir / ".csauto.gui.log"
         try:
-            subprocess.Popen(
-                cmd,
-                cwd=case_dir.parent,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
+            with gui_log.open("wb") as log_handle:
+                proc = subprocess.Popen(
+                    cmd,
+                    cwd=case_dir.parent,
+                    stdout=log_handle,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                )
         except Exception as exc:
             raise ctx.http_exception_cls(status_code=500, detail=f"Launch error: {exc}") from exc
+        # A GUI that dies immediately (missing X socket, broken image, ...)
+        # would otherwise fail silently — catch the early exit and surface it.
+        try:
+            returncode = proc.wait(timeout=1.5)
+        except subprocess.TimeoutExpired:
+            returncode = None
+        if returncode is not None and returncode != 0:
+            tail = ""
+            with contextlib.suppress(OSError):
+                tail = gui_log.read_text(encoding="utf-8", errors="ignore").strip()[-500:]
+            raise ctx.http_exception_cls(
+                status_code=500,
+                detail=f"GUI exited immediately (code {returncode}): {tail or 'no output'}",
+            )
         log_case_action(
             ctx.runs_dir,
             case_id,
