@@ -10,7 +10,13 @@
 import type { RunParams, RestartParams, CleanChoice } from "$lib/api/types";
 
 export type DialogType =
-  "none" | "run" | "restart" | "clean" | "alert" | "confirm" | "prompt";
+  | "none"
+  | "run"
+  | "restart"
+  | "clean"
+  | "alert"
+  | "confirm"
+  | "prompt";
 
 interface DialogState {
   type: DialogType;

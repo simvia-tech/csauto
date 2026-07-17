@@ -26,7 +26,12 @@
     message={dialog.props.message as string}
     confirmLabel={dialog.props.confirmLabel as string | undefined}
     confirmVariant={dialog.props.confirmVariant as
-      "primary" | "secondary" | "warning" | "run" | "danger" | undefined}
+      | "primary"
+      | "secondary"
+      | "warning"
+      | "run"
+      | "danger"
+      | undefined}
     value={dialog.props.value as string | undefined}
     placeholder={dialog.props.placeholder as string | undefined}
     multiline={dialog.props.multiline as boolean | undefined}
