@@ -118,6 +118,17 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
     );
     item.iconPath = new vscode.ThemeIcon("tools");
 
+    const { version, kind } = this.runtime.info();
+    const versionItem = new Item("Version");
+    versionItem.iconPath = new vscode.ThemeIcon("tag");
+    versionItem.description = kind === "editable" ? `${version} (dev)` : version;
+    versionItem.tooltip =
+      kind === "editable"
+        ? "Editable install of the source checkout"
+        : kind === "wheel"
+          ? "Installed from the bundled wheel"
+          : undefined;
+
     const runtimeItem = new Item("Python runtime");
     if (runtimePython) {
       runtimeItem.iconPath = new vscode.ThemeIcon("pass-filled", new vscode.ThemeColor("testing.iconPassed"));
@@ -125,7 +136,7 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
       runtimeItem.tooltip = runtimePython;
     } else {
       runtimeItem.iconPath = new vscode.ThemeIcon("info");
-      runtimeItem.description = "set up on first use";
+      runtimeItem.description = "created at next server start";
     }
 
     let cliItem: Item;
@@ -149,7 +160,7 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
       cliItem = actionItem("Install csauto CLI", "terminal", "csauto.installCli");
     }
 
-    item.children = [runtimeItem, cliItem];
+    item.children = [versionItem, runtimeItem, cliItem];
     return item;
   }
 
@@ -160,7 +171,6 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
       this.settingItem("Python interpreter", "csauto.pythonPath", "terminal", (value) =>
         value ? String(value) : "managed runtime",
       ),
-      this.settingItem("Runs directory", "csauto.runsDir", "folder"),
       this.settingItem("Port", "csauto.port", "plug", (value) => (value ? String(value) : "auto")),
       this.settingItem("Extra serve args", "csauto.serveArgs", "list-flat", (value) =>
         Array.isArray(value) && value.length > 0 ? value.join(" ") : "none",

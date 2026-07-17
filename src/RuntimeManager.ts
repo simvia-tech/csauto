@@ -64,6 +64,15 @@ export class RuntimeManager {
     return path.join(venvDir, ".csauto-ready");
   }
 
+  /** Version and install kind, for display purposes. */
+  info(): { version: string; kind: "wheel" | "editable" | "unknown" } {
+    try {
+      return { version: this.version, kind: this.findInstallSource().kind };
+    } catch {
+      return { version: this.version, kind: "unknown" };
+    }
+  }
+
   /** The python executable running csauto, without triggering any setup. */
   current(): string | undefined {
     const override = vscode.workspace.getConfiguration("csauto").get<string>("pythonPath", "").trim();
