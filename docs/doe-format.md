@@ -92,6 +92,24 @@ Continuous values are rounded to `--round` digits (default 6). Use `--seed`
 to make `lhs`/`sobol` reproducible (same spec + seed always yields the same
 CSV). Pass `--force` to overwrite an existing output file.
 
+### Spec-vs-template cross-check
+
+`csauto doe` validates the spec parameter names against the template's
+placeholders and `<!-- IF ... -->` condition variables (from `./TEMPLATE` by
+default, or the directory given with `--template DIR`):
+
+- a spec parameter matching nothing in the template is an **error** — a typo
+  like `u_inlett` vs `{u_inlet}` would otherwise generate a study that runs
+  successfully with the template's hardcoded value, never varying the intended
+  parameter;
+- a template variable not covered by the spec is a **warning** (`prepare`
+  fails on it later if it is still uncovered).
+
+Pass `--no-check` to skip the check, e.g. when generating a CSV before the
+template exists. `csauto prepare --strict` provides the mirror-image guard at
+prepare time, turning the "DOE columns not used in template" warning into an
+error.
+
 ---
 
 ## `case_id` rules
