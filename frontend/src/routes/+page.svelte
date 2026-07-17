@@ -48,6 +48,24 @@
   let panels = $state<string[] | null>(null);
   const showPanel = (name: string) => panels === null || panels.includes(name);
 
+  /** Solver-specific favicon when a matching asset exists (e.g. /favicon-code_saturne.svg). */
+  async function applySolverFavicon(solver: string): Promise<void> {
+    const href = `/favicon-${solver}.svg`;
+    try {
+      // GET rather than HEAD: the SPA fallback route only accepts GET.
+      const response = await fetch(href);
+      if (
+        !response.ok ||
+        !response.headers.get("content-type")?.includes("svg")
+      )
+        return;
+    } catch {
+      return;
+    }
+    const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    if (link) link.href = href;
+  }
+
   async function loadStatus() {
     try {
       const data = await fetchStatus();
@@ -66,6 +84,7 @@
       .then((config) => {
         setAppConfig(config);
         panels = config.panels;
+        void applySolverFavicon(config.solver);
       })
       .catch(() => {});
   });

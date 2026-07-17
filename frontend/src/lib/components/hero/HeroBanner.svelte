@@ -9,6 +9,7 @@
   import { Settings } from "lucide-svelte";
 
   import codeSaturneLogo from "../../../assets/code-saturne.svg";
+  import { getAppConfig } from "$lib/stores/appConfig.svelte";
 
   interface Props {
     totalCases: number;
@@ -37,7 +38,13 @@
   style="padding-inline: max(16px, calc((100vw - 1200px) / 2));"
 >
   <div class="flex items-center gap-3 mr-auto">
-    <img src={codeSaturneLogo} alt="CODE_SATURNE" class="h-7 w-auto" />
+    {#if !getAppConfig() || getAppConfig()?.solver === "code_saturne"}
+      <img src={codeSaturneLogo} alt="CODE_SATURNE" class="h-7 w-auto" />
+    {:else}
+      <span class="text-lg font-bold text-ink tracking-tight"
+        >{getAppConfig()?.solver}</span
+      >
+    {/if}
   </div>
 
   <nav
