@@ -193,6 +193,8 @@ To re-enable: `csauto enable-telemetry`
 
 Please check out our [CONTRIBUTING.md](./CONTRIBUTING.md) file if you want to contribute to the project.
 
+Merge requests adding support for new solvers are gladly welcome: all solver-specific logic lives behind a single adapter class, so a new solver means writing one adapter with no changes to the core or the UI — see [docs/adding-a-solver.md](docs/adding-a-solver.md) for the step-by-step guide.
+
 Thank you to all our contributors :
 
 - Ulysse Bouchet - [Email](mailto:ulysse.bouchet@simvia.tech)
