@@ -27,19 +27,18 @@ async function pickPath(
 
 /**
  * Guided `csauto prepare`: pick a DOE CSV and a template case from the
- * workspace, generate the cases, and pin the resulting runs directory.
- * Returns true when a campaign was prepared.
+ * workspace and generate the cases. Returns the created runs directory.
  */
-export async function prepareCampaign(runtime: RuntimeManager, output: vscode.OutputChannel): Promise<boolean> {
+export async function prepareCampaign(runtime: RuntimeManager, output: vscode.OutputChannel): Promise<string | undefined> {
   const folder = vscode.workspace.workspaceFolders?.[0];
   if (!folder) {
     void vscode.window.showErrorMessage("csauto: open a folder first to prepare a campaign.");
-    return false;
+    return undefined;
   }
   const root = folder.uri.fsPath;
   const python = await runtime.ensurePython();
   if (!python) {
-    return false;
+    return undefined;
   }
 
   const csvs = await vscode.workspace.findFiles("**/*.csv", "**/{node_modules,.git,RUNS}/**", 30);
@@ -51,7 +50,7 @@ export async function prepareCampaign(runtime: RuntimeManager, output: vscode.Ou
     filters: { "CSV files": ["csv"] },
   });
   if (!doePath) {
-    return false;
+    return undefined;
   }
 
   const setups = await vscode.workspace.findFiles("**/DATA/setup.xml", "**/{node_modules,.git,RUNS}/**", 30);
@@ -66,7 +65,7 @@ export async function prepareCampaign(runtime: RuntimeManager, output: vscode.Ou
     canSelectFolders: true,
   });
   if (!templatePath) {
-    return false;
+    return undefined;
   }
 
   const outName = await vscode.window.showInputBox({
@@ -74,7 +73,7 @@ export async function prepareCampaign(runtime: RuntimeManager, output: vscode.Ou
     value: "RUNS",
   });
   if (!outName) {
-    return false;
+    return undefined;
   }
 
   const ok = await vscode.window.withProgress(
@@ -103,11 +102,8 @@ export async function prepareCampaign(runtime: RuntimeManager, output: vscode.Ou
     if (choice === "Show Logs") {
       output.show(true);
     }
-    return false;
+    return undefined;
   }
 
-  const rel = path.relative(root, path.resolve(root, outName));
-  const pin = rel === "" ? "." : rel.startsWith("..") ? path.resolve(root, outName) : rel;
-  await vscode.workspace.getConfiguration("csauto").update("runsDir", pin, vscode.ConfigurationTarget.Workspace);
-  return true;
+  return path.resolve(root, outName);
 }

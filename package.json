@@ -72,11 +72,6 @@
         "category": "csauto"
       },
       {
-        "command": "csauto.selectRunsDir",
-        "title": "Pin Runs Directory…",
-        "category": "csauto"
-      },
-      {
         "command": "csauto.reloadDashboard",
         "title": "Reload Dashboard",
         "category": "csauto"
@@ -117,11 +112,6 @@
           "type": "string",
           "default": "",
           "description": "Python interpreter with csauto installed, used instead of the extension's managed runtime. Leave empty to let the extension manage its own environment."
-        },
-        "csauto.runsDir": {
-          "type": "string",
-          "default": "RUNS",
-          "description": "Directory containing generated cases. Relative paths are resolved against the workspace root."
         },
         "csauto.port": {
           "type": "number",

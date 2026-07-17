@@ -160,7 +160,7 @@ The web UI also provides features beyond the CLI: edit case files, compare runs 
 
 The extension is the primary way to use csauto. It runs the csauto server in the background on a free port and embeds the dashboard in an editor panel — over Remote-SSH sessions, VS Code forwards the port automatically.
 
-The sidebar (csauto activity bar icon) shows **one section per campaign** detected in the workspace (via their `registry.json`) — each with its own **Open Dashboard**, **Run Doctor**, and server **Stop/Restart** actions, its solver and port in the section header, and a **Pin as Default** action choosing which campaign the status bar and palette commands target. Multiple campaigns (even different solvers) can have their dashboards open side by side, each backed by its own server and `csauto.toml`, with panels titled by solver and campaign.
+The sidebar (csauto activity bar icon) shows **one section per campaign** detected in the workspace (via their `registry.json`) — each with its own **Open Dashboard**, **Run Doctor**, **Server Logs**, and server **Stop/Restart** actions, plus its solver and port in the section header. Multiple campaigns (even different solvers) can have their dashboards open side by side, each backed by its own server and `csauto.toml`, with panels titled by solver and campaign. Palette commands ask which campaign to act on when the workspace has more than one.
 
 Below the campaigns:
 
@@ -168,7 +168,7 @@ Below the campaigns:
 - **Setup** — extension version, managed runtime state, solver runtime check, **Install csauto CLI** (a `csauto` shim in `~/.local/bin` backed by the extension's managed runtime), and server logs.
 - **Run notifications** — a notification fires when a running case finishes (DONE or FAILED) in any campaign, with a shortcut back to its dashboard (disable via `csauto.notifyOnRunCompletion`).
 
-On first use the extension creates a private Python environment (in extension storage) and installs its bundled csauto into it, so extension and engine versions never drift. Settings under `csauto.*`: `pythonPath` (bring your own interpreter instead of the managed runtime), `runsDir` (default `RUNS`, resolved against the workspace root), `port` (0 = auto), and `serveArgs`.
+On first use the extension creates a private Python environment (in extension storage) and installs its bundled csauto into it, so extension and engine versions never drift. Settings under `csauto.*`: `pythonPath` (bring your own interpreter instead of the managed runtime), `port` (0 = auto), and `serveArgs`.
 
 To develop the extension: `npm install`, `npm run watch` (esbuild + tsc + frontend rebuild in parallel), then press F5 to launch an Extension Development Host. In dev mode the managed runtime uses an **editable install** of the checkout, so Python changes are live after "Restart Server" and dashboard changes after "Reload Dashboard" (the watch task rebuilds `csauto/_frontend` automatically). `npm run package` produces the production bundle; `npm run bundle` builds the wheel shipped in the `.vsix`; `npx @vscode/vsce package` builds the `.vsix` itself.
 

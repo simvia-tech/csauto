@@ -77,31 +77,21 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
     return [...(await this.campaignGroups()), await this.setupGroup(), this.settingsGroup()];
   }
 
-  private pinnedRunsDir(): string | undefined {
-    try {
-      return path.resolve(this.server.resolveRunsDir());
-    } catch {
-      return undefined;
-    }
-  }
-
   private async campaignGroups(): Promise<Item[]> {
-    const pinned = this.pinnedRunsDir();
-    const detected = (await findCampaignRunsDirs()).map((dir) => path.resolve(dir));
-    const campaigns = Array.from(new Set(pinned && fs.existsSync(pinned) ? [pinned, ...detected] : detected)).sort();
+    const campaigns = await findCampaignRunsDirs();
 
     const groups: Item[] = [actionItem("New Campaign…", "new-folder", "csauto.prepare")];
-    groups.push(...campaigns.map((runsDir) => this.campaignGroup(runsDir, runsDir === pinned)));
+    groups.push(...campaigns.map((runsDir) => this.campaignGroup(runsDir)));
     if (campaigns.length === 0) {
       const empty = new Item("No campaigns found");
       empty.iconPath = new vscode.ThemeIcon("info");
-      empty.tooltip = "Create a campaign from a DOE CSV and a template, or pin an existing runs directory.";
-      groups.push(empty, actionItem("Pin Runs Directory…", "pinned", "csauto.selectRunsDir"));
+      empty.tooltip = "Create a campaign from a DOE CSV and a template case.";
+      groups.push(empty);
     }
     return groups;
   }
 
-  private campaignGroup(runsDir: string, isPinned: boolean): Item {
+  private campaignGroup(runsDir: string): Item {
     const root = this.server.campaignRoot(runsDir);
     const state = this.server.get(runsDir);
     const solver = campaignSolver(root);
@@ -110,7 +100,7 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
     item.iconPath = state
       ? new vscode.ThemeIcon("vm-running", new vscode.ThemeColor("testing.iconPassed"))
       : new vscode.ThemeIcon("folder");
-    const parts = [solver, state ? `port ${state.port}` : undefined, isPinned ? "pinned" : undefined];
+    const parts = [solver, state ? `port ${state.port}` : undefined];
     item.description = parts.filter(Boolean).join(" · ");
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     item.tooltip = workspaceRoot ? path.relative(workspaceRoot, runsDir) || runsDir : runsDir;
@@ -125,9 +115,6 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
         actionItem("Stop Server", "debug-stop", "csauto.stopServerFor", undefined, [runsDir]),
         actionItem("Restart Server", "debug-restart", "csauto.restartServerFor", undefined, [runsDir]),
       );
-    }
-    if (!isPinned) {
-      item.children.push(actionItem("Pin as Default", "pinned", "csauto.pinCampaign", undefined, [runsDir]));
     }
     return item;
   }

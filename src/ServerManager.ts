@@ -91,28 +91,6 @@ export class ServerManager implements vscode.Disposable {
     return this.servers.get(path.resolve(runsDir))?.state;
   }
 
-  /** The server for the workspace's pinned runs directory, if running. */
-  get current(): ServerState | undefined {
-    try {
-      return this.get(this.resolveRunsDir());
-    } catch {
-      return undefined;
-    }
-  }
-
-  resolveRunsDir(): string {
-    const config = vscode.workspace.getConfiguration("csauto");
-    const configured = config.get<string>("runsDir", "RUNS").trim() || "RUNS";
-    if (path.isAbsolute(configured)) {
-      return configured;
-    }
-    const folder = vscode.workspace.workspaceFolders?.[0];
-    if (!folder) {
-      throw new Error("Open a folder first: the runs directory is resolved against the workspace root.");
-    }
-    return path.join(folder.uri.fsPath, configured);
-  }
-
   /** The directory whose csauto.toml governs this campaign. */
   campaignRoot(runsDir: string): string {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -122,9 +100,9 @@ export class ServerManager implements vscode.Disposable {
     return path.dirname(runsDir);
   }
 
-  /** Start (or return) the server for a runs directory; defaults to the pinned one. */
-  async start(runsDirArg?: string): Promise<ServerState> {
-    const runsDir = path.resolve(runsDirArg ?? this.resolveRunsDir());
+  /** Start (or return) the server for a runs directory. */
+  async start(runsDirArg: string): Promise<ServerState> {
+    const runsDir = path.resolve(runsDirArg);
     const running = this.servers.get(runsDir);
     if (running) {
       return running.state;
@@ -161,13 +139,9 @@ export class ServerManager implements vscode.Disposable {
       const choice = await vscode.window.showInformationMessage(
         `The runs directory does not exist yet: ${runsDir}. Create it and start an empty campaign?`,
         "Create",
-        "Change Setting",
       );
       if (choice !== "Create") {
-        if (choice === "Change Setting") {
-          void vscode.commands.executeCommand("workbench.action.openSettings", "csauto.runsDir");
-        }
-        throw new Error(`Runs directory not found: ${runsDir}. Adjust csauto.runsDir or open your campaign folder.`);
+        throw new Error(`Runs directory not found: ${runsDir}.`);
       }
       await fs.promises.mkdir(runsDir, { recursive: true });
     }

@@ -1,75 +1,43 @@
 import * as vscode from "vscode";
 import * as path from "path";
 
-interface RunsDirItem extends vscode.QuickPickItem {
-  value?: string;
-  browse?: boolean;
-}
-
-function toSettingValue(workspaceRoot: string, dir: string): string {
-  const rel = path.relative(workspaceRoot, dir);
-  if (rel === "") {
-    return ".";
-  }
-  return rel.startsWith("..") ? dir : rel;
-}
-
 /** Campaign runs directories detected in the workspace via their registry.json. */
 export async function findCampaignRunsDirs(): Promise<string[]> {
   const registries = await vscode.workspace.findFiles("**/registry.json", "**/{node_modules,.git,.venv}/**", 10);
-  return Array.from(new Set(registries.map((uri) => path.dirname(uri.fsPath)))).sort();
+  return Array.from(new Set(registries.map((uri) => path.resolve(path.dirname(uri.fsPath))))).sort();
 }
 
 /**
- * Pin the runs directory for this workspace: quick-pick of campaign
- * directories detected via their registry.json, plus a folder browser.
- * Persists to workspace settings. Returns true if the setting changed.
+ * Resolve the campaign a palette command should act on: auto when the
+ * workspace has exactly one, quick-pick (plus browse) otherwise.
  */
-export async function selectRunsDir(): Promise<boolean> {
-  const folder = vscode.workspace.workspaceFolders?.[0];
-  if (!folder) {
-    void vscode.window.showErrorMessage("csauto: open a folder first to pin a runs directory.");
-    return false;
+export async function pickCampaign(placeHolder: string): Promise<string | undefined> {
+  const campaigns = await findCampaignRunsDirs();
+  if (campaigns.length === 1) {
+    return campaigns[0];
   }
-  const config = vscode.workspace.getConfiguration("csauto");
-  const current = config.get<string>("runsDir", "RUNS");
-
-  const candidates = await findCampaignRunsDirs();
-
-  const items: RunsDirItem[] = candidates.map((dir) => {
-    const value = toSettingValue(folder.uri.fsPath, dir);
-    return {
-      label: `$(folder) ${value}`,
-      description: value === current ? "current" : undefined,
-      value,
-    };
-  });
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? "";
+  interface CampaignItem extends vscode.QuickPickItem {
+    dir?: string;
+    browse?: boolean;
+  }
+  const items: CampaignItem[] = campaigns.map((dir) => ({
+    label: `$(folder) ${path.relative(workspaceRoot, dir) || path.basename(dir)}`,
+    dir,
+  }));
   items.push({ label: "$(search) Browse…", browse: true });
-
-  const picked = await vscode.window.showQuickPick(items, {
-    placeHolder: "Pin the runs directory for this workspace (campaigns detected via registry.json)",
-  });
+  const picked = await vscode.window.showQuickPick(items, { placeHolder });
   if (!picked) {
-    return false;
+    return undefined;
   }
-
-  let value = picked.value;
   if (picked.browse) {
     const chosen = await vscode.window.showOpenDialog({
       canSelectFiles: false,
       canSelectFolders: true,
       canSelectMany: false,
-      defaultUri: folder.uri,
-      openLabel: "Pin as runs directory",
+      openLabel: "Use as runs directory",
     });
-    if (!chosen || chosen.length === 0) {
-      return false;
-    }
-    value = toSettingValue(folder.uri.fsPath, chosen[0].fsPath);
+    return chosen?.[0]?.fsPath;
   }
-  if (value === undefined || value === current) {
-    return false;
-  }
-  await config.update("runsDir", value, vscode.ConfigurationTarget.Workspace);
-  return true;
+  return picked.dir;
 }
