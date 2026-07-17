@@ -1220,3 +1220,11 @@ def test_api_app_config_exposes_solver_and_panels(web_env) -> None:
     assert data["solver"] == "code_saturne"
     assert "residuals" in data["panels"]
     assert "performance" in data["panels"]
+    assert [k["value"] for k in data["compare_kinds"]] == [
+        "setup.xml",
+        "doe_row.csv",
+        "run_solver.log",
+        "performance.log",
+    ]
+    assert data["compare_kinds"][0]["label"] == "setup.xml"
+    assert data["error_files"] == ["csauto.stderr", "run_solver.log", "listing", "csauto.stdout"]

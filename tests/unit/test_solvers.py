@@ -208,3 +208,11 @@ def test_adapter_base_defaults_expose_all_dashboard_panels() -> None:
     adapter = StubAdapter()
     assert adapter.dashboard_panels == ALL_DASHBOARD_PANELS
     assert adapter.performance_fields == ()
+
+
+def test_default_compare_kind_derives_from_first_compare_kind() -> None:
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+    from csauto.solvers.stub import StubAdapter
+
+    assert CodeSaturneAdapter().default_compare_kind == "setup.xml"
+    assert StubAdapter().default_compare_kind == "stub.toml"

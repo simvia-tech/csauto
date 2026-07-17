@@ -20,6 +20,13 @@ if TYPE_CHECKING:
     from ..maintenance import DoctorItem
 
 
+class CompareKind(NamedTuple):
+    """One comparable file in the compare panel; first declared entry is the default."""
+
+    value: str
+    label: str
+
+
 class PerfColumn(NamedTuple):
     """One column of the performance/timing table, as rendered by the UI."""
 
@@ -48,6 +55,7 @@ class SolverAdapter(Protocol):
     performance_fields: tuple[str, ...]
     performance_columns: tuple[PerfColumn, ...]
     dashboard_panels: tuple[str, ...]
+    compare_kinds: tuple[CompareKind, ...]
     default_compare_kind: str
     control_actions: frozenset[str]
 
@@ -166,8 +174,13 @@ class SolverAdapterBase(ABC):
     cleanup_log_names: ClassVar[frozenset[str]] = frozenset({"csauto.stdout", "csauto.stderr"})
     performance_columns: ClassVar[tuple[PerfColumn, ...]] = ()
     dashboard_panels: ClassVar[tuple[str, ...]] = ALL_DASHBOARD_PANELS
-    default_compare_kind: ClassVar[str] = ""
+    compare_kinds: ClassVar[tuple[CompareKind, ...]] = ()
     control_actions: ClassVar[frozenset[str]] = frozenset()
+
+    @property
+    def default_compare_kind(self) -> str:
+        """The first declared compare kind, so CLI/API defaults follow the UI order."""
+        return self.compare_kinds[0].value if self.compare_kinds else ""
 
     @property
     def performance_fields(self) -> tuple[str, ...]:

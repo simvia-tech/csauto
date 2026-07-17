@@ -31,7 +31,7 @@ from ..logs import (
 from ..probes import list_probe_files, list_profile_files, locate_probe_files
 from ..residuals import find_residuals_files, parse_residuals_from_log
 from ..template import find_run_cfg, find_setup_file
-from .base import PerfColumn, SolverAdapterBase
+from .base import CompareKind, PerfColumn, SolverAdapterBase
 
 if TYPE_CHECKING:
     from ..execution import RuntimeSelection
@@ -94,7 +94,12 @@ class CodeSaturneAdapter(SolverAdapterBase):
         PerfColumn("mpi_ranks", "MPI Ranks", "int"),
         PerfColumn("threads", "Threads", "int"),
     )
-    default_compare_kind: ClassVar[str] = "setup.xml"
+    compare_kinds: ClassVar[tuple[CompareKind, ...]] = (
+        CompareKind("setup.xml", "setup.xml"),
+        CompareKind("doe_row.csv", "doe_row.csv"),
+        CompareKind("run_solver.log", "run_solver.log"),
+        CompareKind("performance.log", "performance.log"),
+    )
     control_actions: ClassVar[frozenset[str]] = frozenset({"stop", "extend", "checkpoint", "flush"})
 
     def run_argv(self, case_path: str | Path, nprocs: int, nt: int, run_args: Sequence[str] | None = None) -> list[str]:

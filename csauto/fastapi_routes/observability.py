@@ -76,9 +76,15 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
         columns: list[PerfColumnModel]
         records: list[PerformanceRecordModel]
 
+    class CompareKindModel(BaseModel):
+        value: str
+        label: str
+
     class AppConfigModel(BaseModel):
         solver: str
         panels: list[str]
+        compare_kinds: list[CompareKindModel]
+        error_files: list[str]
 
     class RecentErrorItemModel(BaseModel):
         case_id: str
@@ -135,7 +141,12 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
         authorization: str | None = Header(default=None),
     ) -> dict[str, Any]:
         ctx.require_auth(x_csauto_token, authorization)
-        return {"solver": ctx.adapter.name, "panels": list(ctx.adapter.dashboard_panels)}
+        return {
+            "solver": ctx.adapter.name,
+            "panels": list(ctx.adapter.dashboard_panels),
+            "compare_kinds": [{"value": kind.value, "label": kind.label} for kind in ctx.adapter.compare_kinds],
+            "error_files": list(ctx.adapter.anomaly_file_names),
+        }
 
     @app.get("/api/restart_origin", response_model=RestartOriginResponse)
     def api_restart_origin(

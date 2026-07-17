@@ -268,10 +268,17 @@ def collect_recent_errors(
         case_dir = runs_dir / case_id
         if not case_dir.is_dir():
             continue
+        seen_paths: set[str] = set()
         for name in files_to_scan:
             path = adapter.locate_case_file(case_dir, name)
             if not path or not path.is_file():
                 continue
+            # Aliased names (adapters mapping several conventional names onto
+            # one file) must not cause the same file to be scanned twice.
+            resolved_key = str(path.resolve())
+            if resolved_key in seen_paths:
+                continue
+            seen_paths.add(resolved_key)
             cache = _scan_anomaly_file(path)
             if cache is None:
                 continue

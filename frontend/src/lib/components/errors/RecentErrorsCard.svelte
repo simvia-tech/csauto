@@ -22,6 +22,7 @@
   import FormLabel from "$lib/components/shared/FormLabel.svelte";
   import Icon from "$lib/components/shared/Icon.svelte";
   import { fetchRecentErrors } from "$lib/api/endpoints";
+  import { getAppConfig } from "$lib/stores/appConfig.svelte";
   import { toCaseOptions } from "$lib/utils/options";
   import { saveCsvBlob, buildPlotFilename } from "$lib/actions/export";
   import {
@@ -49,10 +50,19 @@
   let { allCases }: Props = $props();
 
   const DEFAULT_ERROR_CONTEXT = 6;
+  /* Fallback for older backends; normally the file list comes from the
+     solver adapter via /api/app_config. */
   const DEFAULT_ERROR_FILES = ["csauto.stderr", "run_solver.log", "listing"];
 
   let selectedCases = $state<string[]>([]);
   let selectedFiles = $state<string[]>([...DEFAULT_ERROR_FILES]);
+  let filesTouched = false;
+  $effect(() => {
+    const configFiles = getAppConfig()?.error_files;
+    if (configFiles?.length && !filesTouched) {
+      selectedFiles = [...configFiles];
+    }
+  });
   let severity = $state("all");
   let searchQuery = $state("");
   let context = $state(DEFAULT_ERROR_CONTEXT);
@@ -158,7 +168,12 @@
     "listing",
     "csauto.stdout",
   ];
-  let fileOptions = ALL_ERROR_FILES.map((f) => ({ value: f, label: f }));
+  let fileOptions = $derived(
+    (getAppConfig()?.error_files ?? ALL_ERROR_FILES).map((f) => ({
+      value: f,
+      label: f,
+    })),
+  );
   let severityOptions = [
     { value: "all", label: "All" },
     { value: "error", label: "Error" },
@@ -178,6 +193,7 @@
   }
 
   function handleFilesChange(files: string[]) {
+    filesTouched = true;
     selectedFiles = files;
     if (files.length === 0) {
       dedupedItems = [];
