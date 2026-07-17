@@ -35,13 +35,13 @@ function settingScope(
   return "scope: default";
 }
 
-/** Best-effort solver name from the campaign's csauto.toml. */
-function campaignSolver(campaignRoot: string): string | undefined {
+/** Solver name from the campaign's csauto.toml; code_saturne is the engine default. */
+function campaignSolver(campaignRoot: string): string {
   try {
     const config = fs.readFileSync(path.join(campaignRoot, "csauto.toml"), "utf-8");
-    return /^\s*solver\s*=\s*"([^"]+)"/m.exec(config)?.[1] ?? undefined;
+    return /^\s*solver\s*=\s*"([^"]+)"/m.exec(config)?.[1] ?? "code_saturne";
   } catch {
-    return undefined;
+    return "code_saturne";
   }
 }
 
@@ -90,14 +90,14 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
     const detected = (await findCampaignRunsDirs()).map((dir) => path.resolve(dir));
     const campaigns = Array.from(new Set(pinned && fs.existsSync(pinned) ? [pinned, ...detected] : detected)).sort();
 
-    const groups = campaigns.map((runsDir) => this.campaignGroup(runsDir, runsDir === pinned));
+    const groups: Item[] = [actionItem("New Campaign…", "new-folder", "csauto.prepare")];
+    groups.push(...campaigns.map((runsDir) => this.campaignGroup(runsDir, runsDir === pinned)));
     if (campaigns.length === 0) {
       const empty = new Item("No campaigns found");
       empty.iconPath = new vscode.ThemeIcon("info");
-      empty.tooltip = "Prepare a campaign from a DOE CSV and a template, or pin an existing runs directory.";
+      empty.tooltip = "Create a campaign from a DOE CSV and a template, or pin an existing runs directory.";
       groups.push(empty, actionItem("Pin Runs Directory…", "pinned", "csauto.selectRunsDir"));
     }
-    groups.push(actionItem("Prepare Campaign…", "new-folder", "csauto.prepare"));
     return groups;
   }
 
@@ -118,6 +118,7 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
     item.children = [
       actionItem("Open Dashboard", "dashboard", "csauto.openCampaignDashboardFor", undefined, [runsDir]),
       actionItem("Run Doctor", "checklist", "csauto.runDoctorFor", undefined, [runsDir]),
+      actionItem("Server Logs", "output", "csauto.showLogsFor", undefined, [runsDir]),
     ];
     if (state) {
       item.children.push(
@@ -207,7 +208,7 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
       cliItem = actionItem("Install csauto CLI", "terminal", "csauto.installCli");
     }
 
-    const logsItem = actionItem("Show Server Logs", "output", "csauto.showLogs");
+    const logsItem = actionItem("Extension Logs", "output", "csauto.showLogs");
 
     item.children = [versionItem, runtimeItem, solverItem, cliItem, logsItem];
     return item;

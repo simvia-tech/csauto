@@ -83,7 +83,7 @@
       },
       {
         "command": "csauto.prepare",
-        "title": "Prepare Campaign…",
+        "title": "New Campaign…",
         "category": "csauto"
       },
       {

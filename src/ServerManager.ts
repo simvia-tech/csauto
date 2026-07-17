@@ -58,6 +58,7 @@ interface ManagedServer {
 export class ServerManager implements vscode.Disposable {
   private readonly servers = new Map<string, ManagedServer>();
   private readonly starting = new Map<string, Promise<ServerState>>();
+  private readonly channels = new Map<string, vscode.OutputChannel>();
   private readonly stateEmitter = new vscode.EventEmitter<void>();
   private readonly startEmitter = new vscode.EventEmitter<ServerState>();
   readonly onDidChangeState = this.stateEmitter.event;
@@ -68,6 +69,17 @@ export class ServerManager implements vscode.Disposable {
     private readonly output: vscode.OutputChannel,
     private readonly workspaceState: vscode.Memento,
   ) {}
+
+  /** Per-campaign output channel (server stdout/stderr, doctor runs). */
+  channelFor(runsDir: string): vscode.OutputChannel {
+    const key = path.resolve(runsDir);
+    let channel = this.channels.get(key);
+    if (!channel) {
+      channel = vscode.window.createOutputChannel(`csauto · ${path.basename(this.campaignRoot(key))}`);
+      this.channels.set(key, channel);
+    }
+    return channel;
+  }
 
   /** All running servers. */
   list(): ServerState[] {
@@ -160,15 +172,16 @@ export class ServerManager implements vscode.Disposable {
       await fs.promises.mkdir(runsDir, { recursive: true });
     }
     const cwd = this.campaignRoot(runsDir);
+    const channel = this.channelFor(runsDir);
 
-    void runDoctor(python, runsDir, cwd, this.output).then(({ fails }) => {
+    void runDoctor(python, runsDir, cwd, channel).then(({ fails }) => {
       const realFails = fails.filter((line) => !line.includes("no case"));
       if (realFails.length > 0) {
         void vscode.window
           .showWarningMessage(`csauto doctor found ${realFails.length} problem(s): ${realFails[0]}`, "Show Logs")
           .then((choice) => {
             if (choice === "Show Logs") {
-              this.output.show(true);
+              channel.show(true);
             }
           });
       } else if (fails.length > 0) {
@@ -194,14 +207,14 @@ export class ServerManager implements vscode.Disposable {
       ...extraArgs,
     ];
 
-    this.output.appendLine(`[csauto] Starting: ${python} ${serveArgs.join(" ")} (cwd ${cwd})`);
+    channel.appendLine(`[csauto] Starting: ${python} ${serveArgs.join(" ")} (cwd ${cwd})`);
     const child = spawn(python, serveArgs, { cwd, env: { ...process.env, CSAUTO_API_TOKEN: token } });
     const managed: ManagedServer = { child, state: { port, runsDir, token }, stopping: false };
 
-    child.stdout.on("data", (data: Buffer) => this.output.append(data.toString()));
-    child.stderr.on("data", (data: Buffer) => this.output.append(data.toString()));
+    child.stdout.on("data", (data: Buffer) => channel.append(data.toString()));
+    child.stderr.on("data", (data: Buffer) => channel.append(data.toString()));
     child.on("exit", (code) => {
-      this.output.appendLine(`[csauto] Server for ${runsDir} exited with code ${code ?? "unknown"}.`);
+      channel.appendLine(`[csauto] Server exited with code ${code ?? "unknown"}.`);
       const wasRunning = this.servers.get(runsDir) === managed;
       this.servers.delete(runsDir);
       this.stateEmitter.fire();
@@ -210,7 +223,7 @@ export class ServerManager implements vscode.Disposable {
           .showWarningMessage(`The csauto server for ${path.basename(cwd)} stopped unexpectedly.`, "Show Logs")
           .then((choice) => {
             if (choice === "Show Logs") {
-              this.output.show(true);
+              channel.show(true);
             }
           });
       }
@@ -238,7 +251,8 @@ export class ServerManager implements vscode.Disposable {
     void this.workspaceState.update(`csauto.lastPort:${runsDir}`, port);
     this.stateEmitter.fire();
     this.startEmitter.fire(managed.state);
-    this.output.appendLine(`[csauto] Server ready on http://127.0.0.1:${port}/ (${runsDir})`);
+    channel.appendLine(`[csauto] Server ready on http://127.0.0.1:${port}/`);
+    this.output.appendLine(`[csauto] Server for ${path.basename(cwd)} ready on port ${port} (logs: "csauto · ${path.basename(cwd)}").`);
     return managed.state;
   }
 
@@ -273,7 +287,7 @@ export class ServerManager implements vscode.Disposable {
       return;
     }
     managed.stopping = true;
-    this.output.appendLine(`[csauto] Stopping server for ${runsDir}...`);
+    this.channelFor(runsDir).appendLine("[csauto] Stopping server...");
     const exited = new Promise<void>((resolve) => managed.child.once("exit", () => resolve()));
     managed.child.kill("SIGTERM");
     const timeout = delay(5_000).then(() => "timeout" as const);
@@ -287,6 +301,9 @@ export class ServerManager implements vscode.Disposable {
     for (const managed of this.servers.values()) {
       managed.stopping = true;
       managed.child.kill("SIGTERM");
+    }
+    for (const channel of this.channels.values()) {
+      channel.dispose();
     }
     this.stateEmitter.dispose();
     this.startEmitter.dispose();

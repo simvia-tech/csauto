@@ -35,7 +35,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!fs.existsSync(runsDir)) {
         return;
       }
-      await runDoctor(python, runsDir, server.campaignRoot(runsDir), output);
+      await runDoctor(python, runsDir, server.campaignRoot(runsDir), server.channelFor(runsDir));
     } catch {
       // No workspace folder — nothing to check against.
     }
@@ -100,14 +100,15 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
     const runsDir = runsDirArg ?? server.resolveRunsDir();
-    const { fails, warns } = await runDoctor(python, runsDir, server.campaignRoot(runsDir), output);
+    const channel = server.channelFor(runsDir);
+    const { fails, warns } = await runDoctor(python, runsDir, server.campaignRoot(runsDir), channel);
     if (fails.length > 0) {
       const choice = await vscode.window.showWarningMessage(
         `csauto doctor: ${fails.length} problem(s), ${warns.length} warning(s). ${fails[0]}`,
         "Show Logs",
       );
       if (choice === "Show Logs") {
-        output.show(true);
+        channel.show(true);
       }
     } else {
       vscode.window.showInformationMessage(
@@ -206,6 +207,9 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand("csauto.showLogs", () => {
       output.show(true);
+    }),
+    vscode.commands.registerCommand("csauto.showLogsFor", (runsDir: string) => {
+      server.channelFor(runsDir).show(true);
     }),
     vscode.commands.registerCommand("csauto.reloadDashboard", () => DashboardPanel.reloadAll()),
     vscode.commands.registerCommand("csauto.runDoctor", () => doctorFlow()),
