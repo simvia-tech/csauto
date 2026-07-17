@@ -9,7 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 csauto becomes extension-first: the repository now ships a VS Code extension that is the primary interface, with the CLI as a companion for headless/HPC use.
 
 ### Added
-- VS Code extension (TypeScript, repo root): activity-bar sidebar with sections (Campaign: pin runs directory with campaign auto-detection, open dashboard, doctor; Server: status and lifecycle; Setup: runtime state and CLI install with alias-shadowing detection; Settings: live values with click-through), status bar item, and the dashboard embedded in a webview (works over Remote-SSH via automatic port forwarding)
+- VS Code extension (TypeScript, repo root): campaign-centric activity-bar sidebar — a New Campaign action (the `csauto prepare` flow), one section per detected campaign (open dashboard, Environment check, server lifecycle, per-campaign server logs), Setup (version, Python runtime state, CLI install with alias-shadowing detection) and Settings (live values with click-through) — plus a status bar item and the dashboard embedded in a webview (works over Remote-SSH via automatic port forwarding)
 - Native VS Code theming for the embedded dashboard: the webview forwards `--vscode-*` theme variables into the dashboard iframe (postMessage handshake, live theme switching), and the dashboard remaps its design tokens onto them — colors, fonts, radii, scrollbars, selection and input colors all follow the editor theme, with dark-theme readability fixes; the browser look is unchanged
 - Run-completion notifications: the extension polls the server and notifies when cases finish or fail (`csauto.notifyOnRunCompletion`)
 - Multiple campaign dashboards side by side: each campaign (runs directory) gets its own server — started from its own folder so its `csauto.toml`/solver applies — and its own webview panel titled with the solver and campaign name (the sidebar shows one section per campaign with its own dashboard, environment check, per-campaign server logs, and server actions); run notifications, sidebar server list, and per-server stop/restart cover all of them
@@ -30,6 +30,7 @@ csauto becomes extension-first: the repository now ships a VS Code extension tha
 - The `.vsix` ships only the bundled wheel, extension bundle, and assets (the Python source tree is no longer duplicated inside it)
 - `csauto/__init__.py` version detection works in wheel installs (falls back to package metadata)
 - README restructured extension-first; install.sh remains the headless/HPC path
+- The extension's activity-bar and webview tab icons use the Simvia mark (the project is no longer code_saturne-only); code_saturne campaign dashboards keep the code_saturne icon on their tab
 - Frontend and extension toolchains upgraded (Vite 8, Svelte 5.56, TypeScript 7 for the extension)
 - Dialog backdrops use a neutral scrim instead of the EDF blue tint
 
