@@ -3,6 +3,7 @@ import * as path from "path";
 import { findShadowingAliasFiles, shimInstalled } from "./InstallCli";
 import { RuntimeManager } from "./RuntimeManager";
 import { ServerManager } from "./ServerManager";
+import { lastDoctorResult, onDidRunDoctor } from "./doctor";
 
 class Item extends vscode.TreeItem {
   children?: Item[];
@@ -41,6 +42,7 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
     private readonly runtime: RuntimeManager,
   ) {
     server.onDidChangeState(() => this.changeEmitter.fire());
+    onDidRunDoctor(() => this.changeEmitter.fire());
   }
 
   refresh(): void {
@@ -130,6 +132,7 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
           : undefined;
 
     const runtimeItem = new Item("Python runtime");
+    runtimeItem.command = { command: "csauto.showLogs", title: "Show Server Logs" };
     if (runtimePython) {
       runtimeItem.iconPath = new vscode.ThemeIcon("pass-filled", new vscode.ThemeColor("testing.iconPassed"));
       runtimeItem.description = "ready";
@@ -138,6 +141,27 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
       runtimeItem.iconPath = new vscode.ThemeIcon("info");
       runtimeItem.description = "created at next server start";
     }
+
+    const solverItem = new Item("Code_Saturne");
+    const doctor = lastDoctorResult();
+    const runtimeLine = doctor?.lines.find((line) => line.includes("available runtimes:"));
+    const noRuntimeLine = doctor?.lines.find((line) => line.includes("no runtime found"));
+    if (runtimeLine) {
+      solverItem.iconPath = new vscode.ThemeIcon("pass-filled", new vscode.ThemeColor("testing.iconPassed"));
+      solverItem.description = runtimeLine.split("available runtimes:")[1].trim();
+      solverItem.tooltip = "Solver runtimes detected. Click to re-run the checks.";
+    } else if (noRuntimeLine) {
+      solverItem.iconPath = new vscode.ThemeIcon("warning", new vscode.ThemeColor("list.warningForeground"));
+      solverItem.description = "no runtime found";
+      solverItem.tooltip =
+        "No Code_Saturne runtime detected: install Docker (with the solver image), a native code_saturne " +
+        "binary, or Apptainer/Singularity. Click to re-run the checks.";
+    } else {
+      solverItem.iconPath = new vscode.ThemeIcon("question");
+      solverItem.description = "click to check";
+      solverItem.tooltip = "Run doctor to check for a Code_Saturne runtime (docker, native binary, or Singularity).";
+    }
+    solverItem.command = { command: "csauto.runDoctor", title: "Run Doctor" };
 
     let cliItem: Item;
     if (cliInstalled && shadowed) {
@@ -160,7 +184,7 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
       cliItem = actionItem("Install csauto CLI", "terminal", "csauto.installCli");
     }
 
-    item.children = [versionItem, runtimeItem, cliItem];
+    item.children = [versionItem, runtimeItem, solverItem, cliItem];
     return item;
   }
 

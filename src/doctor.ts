@@ -4,6 +4,17 @@ import { execFile } from "child_process";
 export interface DoctorResult {
   fails: string[];
   warns: string[];
+  lines: string[];
+}
+
+let lastResult: DoctorResult | undefined;
+const resultEmitter = new vscode.EventEmitter<DoctorResult>();
+
+/** Fires whenever a doctor run completes (server start or explicit command). */
+export const onDidRunDoctor = resultEmitter.event;
+
+export function lastDoctorResult(): DoctorResult | undefined {
+  return lastResult;
 }
 
 export function runDoctor(
@@ -20,10 +31,14 @@ export function runDoctor(
         output.appendLine(text);
       }
       const lines = text.split("\n");
-      resolve({
+      const result: DoctorResult = {
         fails: lines.filter((line) => line.startsWith("[FAIL]")),
         warns: lines.filter((line) => line.startsWith("[WARN]")),
-      });
+        lines,
+      };
+      lastResult = result;
+      resultEmitter.fire(result);
+      resolve(result);
     });
   });
 }
