@@ -13,9 +13,20 @@
   "engines": {
     "vscode": "^1.125.0"
   },
-  "icon": "assets/simvia.png",
+  "icon": "assets/icon.png",
   "categories": [
+    "Data Science",
+    "Visualization",
     "Other"
+  ],
+  "keywords": [
+    "code saturne",
+    "cfd",
+    "simulation",
+    "hpc",
+    "slurm",
+    "doe",
+    "campaign"
   ],
   "activationEvents": [
     "workspaceContains:csauto.toml",

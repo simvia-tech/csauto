@@ -47,6 +47,12 @@ source ~/.bashrc   # or: source ~/.zshrc
 
 To update an existing installation, re-run the same command — the script detects the existing install, pulls the latest changes, and reinstalls.
 
+Alternatively, each [release](https://github.com/simvia-tech/csauto/releases) ships a self-contained wheel (dashboard included) for scripted or CI installs:
+
+```bash
+pip install "csauto-<version>-py3-none-any.whl[web]"
+```
+
 <details>
 <summary>Manual installation (for contributors or custom locations)</summary>
 
@@ -146,7 +152,9 @@ The web UI (`csauto serve`) is the primary interface for runtime monitoring and 
 | `perf`      | Extract performance metrics from logs             | Timing Snapshot panel      |
 | `cleanup`   | Remove old RESU dirs, logs (`--prune-resu`, etc.) | Status → Clean Selected    |
 
-The web UI also provides features beyond the CLI: kill running cases, edit case files, add notes, mark convergence, compare runs side-by-side, plot probes/profiles, and scan logs for recent errors.
+Utility commands: `csauto completion bash|zsh` (shell completion) and `csauto enable-telemetry` / `disable-telemetry`.
+
+The web UI also provides features beyond the CLI: edit case files, compare runs side-by-side, plot probes/profiles, and scan logs for recent errors.
 
 ## VS Code extension
 
