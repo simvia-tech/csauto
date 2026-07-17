@@ -105,31 +105,29 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     item.tooltip = workspaceRoot ? path.relative(workspaceRoot, runsDir) || runsDir : runsDir;
 
-    const runtimeCheck = new Item("Solver runtime");
+    // One row summarizes the campaign's doctor state and re-runs it on click.
+    const doctorItem = new Item("Doctor");
+    doctorItem.command = { command: "csauto.runDoctorFor", title: "Run Doctor", arguments: [runsDir] };
     const doctor = lastDoctorResult(runsDir);
     const runtimeLine = doctor?.lines.find((line) => line.includes("available runtimes:"));
-    const noRuntimeLine = doctor?.lines.find((line) => line.includes("no runtime found"));
-    if (runtimeLine) {
-      runtimeCheck.iconPath = new vscode.ThemeIcon("pass-filled", new vscode.ThemeColor("testing.iconPassed"));
-      runtimeCheck.description = runtimeLine.split("available runtimes:")[1].trim();
-      runtimeCheck.tooltip = `Runtimes available to run ${solver}. Click to re-run the checks.`;
-    } else if (noRuntimeLine) {
-      runtimeCheck.iconPath = new vscode.ThemeIcon("warning", new vscode.ThemeColor("list.warningForeground"));
-      runtimeCheck.description = "no runtime found";
-      runtimeCheck.tooltip =
-        `No runtime detected to run ${solver}: install Docker (with the solver image), a native solver ` +
-        "binary, or Apptainer/Singularity. Click to re-run the checks.";
+    if (!doctor) {
+      doctorItem.iconPath = new vscode.ThemeIcon("question");
+      doctorItem.description = "click to check";
+      doctorItem.tooltip = `Validate this campaign's environment (runtime able to run ${solver}, paths, web deps).`;
+    } else if (doctor.fails.length > 0) {
+      doctorItem.iconPath = new vscode.ThemeIcon("error", new vscode.ThemeColor("list.errorForeground"));
+      doctorItem.description = `${doctor.fails.length} problem(s)`;
+      doctorItem.tooltip = `${doctor.fails[0]}\nClick to re-run the checks.`;
     } else {
-      runtimeCheck.iconPath = new vscode.ThemeIcon("question");
-      runtimeCheck.description = "click to check";
-      runtimeCheck.tooltip = `Run doctor to check for a runtime able to run ${solver}.`;
+      doctorItem.iconPath = new vscode.ThemeIcon("pass-filled", new vscode.ThemeColor("testing.iconPassed"));
+      const runtimes = runtimeLine ? runtimeLine.split("available runtimes:")[1].trim() : "all checks passed";
+      doctorItem.description = doctor.warns.length > 0 ? `${runtimes} · ${doctor.warns.length} warning(s)` : runtimes;
+      doctorItem.tooltip = `Runtimes available to run ${solver}. Click to re-run the checks.`;
     }
-    runtimeCheck.command = { command: "csauto.runDoctorFor", title: "Run Doctor", arguments: [runsDir] };
 
     item.children = [
       actionItem("Open Dashboard", "dashboard", "csauto.openCampaignDashboardFor", undefined, [runsDir]),
-      runtimeCheck,
-      actionItem("Run Doctor", "checklist", "csauto.runDoctorFor", undefined, [runsDir]),
+      doctorItem,
       actionItem("Server Logs", "output", "csauto.showLogsFor", undefined, [runsDir]),
     ];
     if (state) {
