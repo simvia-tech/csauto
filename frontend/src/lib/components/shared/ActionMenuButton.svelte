@@ -91,7 +91,7 @@
     <ul
       bind:this={listEl}
       role="menu"
-      class="bg-white border border-border rounded-md p-1 grid gap-0.5 shadow-lg"
+      class="bg-control border border-border rounded-md p-1 grid gap-0.5 shadow-lg"
       style={listStyle}
     >
       {#each items as item (item.label)}
@@ -103,7 +103,7 @@
             aria-disabled={item.disabled}
             class="w-full flex items-center gap-2 text-left py-[7px] px-[10px] bg-transparent border border-transparent rounded-md text-[12.5px] text-ink transition-[background] duration-[120ms] ease-in-out disabled:opacity-40 disabled:pointer-events-none {item.disabled
               ? ''
-              : 'cursor-pointer hover:bg-edf-gris-clair hover:border-border'}"
+              : 'cursor-pointer hover:bg-control-hover hover:border-border'}"
             onmousedown={(e) => {
               e.stopPropagation();
               select(item);

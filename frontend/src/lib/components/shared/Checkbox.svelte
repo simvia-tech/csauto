@@ -46,8 +46,8 @@
     class="inline-flex items-center justify-center rounded border-2 cursor-pointer transition-colors duration-100 shrink-0
 			{disabled ? 'opacity-40 cursor-not-allowed' : ''}
 			{checked || indeterminate
-      ? 'bg-edf-bleu-moyen border-edf-bleu-moyen text-white'
-      : 'bg-white border-edf-gris-moyen hover:border-edf-bleu-clair'}"
+      ? 'bg-accent border-accent text-accent-fg'
+      : 'bg-control border-border hover:border-accent'}"
     style="width: {size}px; height: {size}px;"
     role="checkbox"
     aria-checked={indeterminate ? "mixed" : checked}

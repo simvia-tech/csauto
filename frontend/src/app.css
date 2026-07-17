@@ -79,9 +79,14 @@
   --color-ink: var(--color-edf-noir);
   --color-muted: rgb(120, 120, 120);
   --color-accent: var(--color-edf-bleu-moyen);
+  --color-accent-hover: rgb(12, 72, 170);
+  --color-accent-fg: var(--color-edf-blanc);
   --color-accent-2: var(--color-edf-orange-moyen);
   --color-card: var(--color-edf-blanc);
+  --color-control: var(--color-edf-blanc);
+  --color-control-hover: var(--color-edf-gris-clair);
   --color-border: var(--color-edf-gris-moyen);
+  --color-scrim: rgba(0, 0, 0, 0.4);
   --color-separator: rgba(51, 51, 51, 0.08);
   --color-table-head: var(--color-edf-gris-clair);
   --color-table-row: var(--color-edf-blanc);
@@ -252,7 +257,7 @@ th.status-sortable {
   user-select: none;
 }
 th.status-sortable:hover {
-  color: var(--color-edf-bleu-moyen);
+  color: var(--color-accent);
 }
 
 #status-doe-select {
@@ -297,17 +302,29 @@ th.status-sortable:hover {
   border-right: none;
 }
 
+/* Sticky cells float above scrolled content, so their background must stay
+   opaque even when the theme's hover/selection colors carry alpha (common in
+   VS Code themes): layer the tint over the opaque row color. */
 #status-table-wrap.sticky-enabled tbody tr:hover td.sticky-left,
 #status-table-wrap.sticky-enabled tbody tr:hover td.sticky-right {
-  background: var(--color-table-hover);
+  background:
+    linear-gradient(var(--color-table-hover), var(--color-table-hover)),
+    var(--color-table-row);
 }
 #status-table-wrap.sticky-enabled tbody tr.row-selected td.sticky-left,
 #status-table-wrap.sticky-enabled tbody tr.row-selected td.sticky-right {
-  background: var(--color-table-selected);
+  background:
+    linear-gradient(var(--color-table-selected), var(--color-table-selected)),
+    var(--color-table-row);
 }
 #status-table-wrap.sticky-enabled tbody tr.row-selected:hover td.sticky-left,
 #status-table-wrap.sticky-enabled tbody tr.row-selected:hover td.sticky-right {
-  background: var(--color-table-selected-hover);
+  background:
+    linear-gradient(
+      var(--color-table-selected-hover),
+      var(--color-table-selected-hover)
+    ),
+    var(--color-table-row);
 }
 
 /* Status pills */
@@ -367,6 +384,12 @@ th.status-sortable:hover {
   font-weight: 700;
 }
 
+/* Selected item in custom dropdown lists */
+.option-selected {
+  color: var(--color-edf-bleu-fonce);
+  background: rgba(16, 87, 200, 0.06);
+}
+
 #status-card:focus {
   outline: none;
 }
@@ -374,7 +397,7 @@ th.status-sortable:hover {
 /* Link-style action buttons (All/None toggles) */
 .link-btn {
   font-size: 12px;
-  color: var(--color-edf-bleu-moyen);
+  color: var(--color-accent);
   cursor: pointer;
   background: transparent;
   border: none;
@@ -611,4 +634,245 @@ code {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* VS Code embedded mode                                               */
+/*                                                                     */
+/* When the dashboard runs inside the VS Code extension's webview, the */
+/* wrapper page forwards the --vscode-* theme variables into this      */
+/* document (see src/lib/vscode-embed.ts) and adds .vscode-embedded    */
+/* (plus .vs-dark for dark/high-contrast themes) on <html>. These      */
+/* overrides remap the dashboard's semantic tokens onto the VS Code    */
+/* theme; without the variables the EDF fallbacks keep working.        */
+/* ------------------------------------------------------------------ */
+
+html.vscode-embedded {
+  --color-bg: var(--vscode-editor-background, rgb(248, 247, 247));
+  --color-ink: var(--vscode-editor-foreground, rgb(51, 51, 51));
+  --color-muted: var(--vscode-descriptionForeground, rgb(120, 120, 120));
+  --color-accent: var(--vscode-button-background, rgb(16, 87, 200));
+  --color-accent-hover: var(--vscode-button-hoverBackground, rgb(12, 72, 170));
+  --color-accent-fg: var(--vscode-button-foreground, rgb(255, 255, 255));
+  --color-card: var(
+    --vscode-editorWidget-background,
+    var(--vscode-sideBar-background, rgb(255, 255, 255))
+  );
+  --color-control: var(
+    --vscode-dropdown-background,
+    var(--vscode-input-background, rgb(255, 255, 255))
+  );
+  --color-control-hover: var(
+    --vscode-list-hoverBackground,
+    color-mix(in srgb, var(--color-ink) 10%, var(--color-control))
+  );
+  --color-border: var(
+    --vscode-widget-border,
+    var(
+      --vscode-panel-border,
+      color-mix(in srgb, var(--color-ink) 22%, transparent)
+    )
+  );
+  --color-separator: color-mix(in srgb, var(--color-ink) 10%, transparent);
+  --color-table-head: color-mix(
+    in srgb,
+    var(--color-ink) 6%,
+    var(--color-card)
+  );
+  --color-table-row: var(--color-card);
+  --color-table-hover: var(
+    --vscode-list-hoverBackground,
+    color-mix(in srgb, var(--color-ink) 8%, var(--color-card))
+  );
+  --color-table-selected: color-mix(
+    in srgb,
+    var(--color-accent) 18%,
+    var(--color-card)
+  );
+  --color-table-selected-hover: color-mix(
+    in srgb,
+    var(--color-accent) 26%,
+    var(--color-card)
+  );
+  --default-font-family: var(--vscode-font-family, "edf-2020");
+  --font-sans: var(
+    --vscode-font-family,
+    "edf-2020",
+    ui-sans-serif,
+    system-ui,
+    sans-serif
+  );
+  --font-mono: var(
+    --vscode-editor-font-family,
+    "JetBrains Mono",
+    "Fira Code",
+    "Cascadia Code",
+    "Courier New",
+    monospace
+  );
+  --radius-card: 6px;
+}
+
+html.vscode-embedded input,
+html.vscode-embedded select,
+html.vscode-embedded textarea {
+  background: var(--vscode-input-background, rgb(255, 255, 255));
+  color: var(--vscode-input-foreground, var(--color-ink));
+  border-color: var(
+    --vscode-input-border,
+    var(
+      --vscode-dropdown-border,
+      color-mix(in srgb, var(--color-ink) 30%, transparent)
+    )
+  );
+}
+
+/* Enabled fields must not read as disabled: reserve the washed-out look
+   for actually-disabled controls. */
+html.vscode-embedded input:disabled,
+html.vscode-embedded select:disabled,
+html.vscode-embedded textarea:disabled {
+  opacity: 0.5;
+}
+
+html.vscode-embedded input:focus,
+html.vscode-embedded select:focus,
+html.vscode-embedded textarea:focus {
+  border-color: var(--vscode-focusBorder, var(--color-accent));
+}
+
+html.vscode-embedded ::placeholder {
+  color: var(--vscode-input-placeholderForeground, var(--color-muted));
+}
+
+/* Dark themes: the pill/label text uses the dark EDF variants by default,
+   which are unreadable on dark backgrounds — switch to the bright ones. */
+html.vscode-embedded.vs-dark .status-running {
+  color: var(--color-edf-bleu-clair);
+}
+html.vscode-embedded.vs-dark .status-done,
+html.vscode-embedded.vs-dark .status-converged {
+  color: var(--color-edf-vert-moyen);
+}
+html.vscode-embedded.vs-dark .status-failed,
+html.vscode-embedded.vs-dark .status-not-converged {
+  color: var(--color-edf-orange-moyen);
+}
+
+/* Flatter, tighter chrome so the embedded dashboard reads as part of the
+   editor: smaller radii, subtle shadows, no entrance animation, VS Code
+   font size and scrollbars. */
+html.vscode-embedded {
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --radius-xl: 5px;
+  --radius-card: 4px;
+  --shadow-lg: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --animate-rise: none;
+}
+
+html.vscode-embedded body {
+  font-size: var(--vscode-font-size, 13px);
+}
+
+html.vscode-embedded ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+html.vscode-embedded ::-webkit-scrollbar-thumb {
+  background: var(
+    --vscode-scrollbarSlider-background,
+    rgba(120, 120, 120, 0.4)
+  );
+}
+html.vscode-embedded ::-webkit-scrollbar-thumb:hover {
+  background: var(
+    --vscode-scrollbarSlider-hoverBackground,
+    rgba(120, 120, 120, 0.7)
+  );
+}
+html.vscode-embedded ::-webkit-scrollbar-track,
+html.vscode-embedded ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Dark themes: remap the dark EDF text utilities (unreadable on dark
+   backgrounds) to their bright counterparts. Scoped shim so components
+   keep their branded colors everywhere else. */
+html.vscode-embedded.vs-dark .text-edf-noir {
+  color: var(--color-ink);
+}
+html.vscode-embedded.vs-dark .text-edf-vert-fonce {
+  color: var(--color-edf-vert-moyen);
+}
+html.vscode-embedded.vs-dark .text-edf-orange-fonce {
+  color: var(--color-edf-orange-moyen);
+}
+
+/* Hide the brand accent stripe on cards; VS Code panels have flat tops. */
+html.vscode-embedded .card-accent-stripe {
+  display: none;
+}
+
+/* Neutral pills keep a light-gray background by default — give them a
+   theme-aware surface on dark. */
+html.vscode-embedded.vs-dark .status-prepared,
+html.vscode-embedded.vs-dark .status-unknown {
+  background: color-mix(in srgb, var(--color-ink) 10%, transparent);
+  border-color: var(--color-border);
+}
+
+/* Dark themes: rules that set dark EDF colors via CSS variables directly
+   (out of reach of the utility-class shim above). */
+html.vscode-embedded.vs-dark .link-btn:hover {
+  color: var(--color-edf-orange-moyen);
+}
+html.vscode-embedded.vs-dark .error-line {
+  color: var(--color-ink);
+}
+html.vscode-embedded.vs-dark .error-badge-new,
+html.vscode-embedded.vs-dark .error-sev-info .error-meta,
+html.vscode-embedded.vs-dark .error-sev-info .error-line {
+  color: var(--color-edf-bleu-clair);
+}
+html.vscode-embedded.vs-dark .error-sev-warn .error-meta,
+html.vscode-embedded.vs-dark .error-sev-warn .error-line {
+  color: var(--color-edf-orange-moyen);
+}
+
+/* Embedded mode: brand-navy headings (card titles, hero stats) go neutral
+   so panels read as editor chrome, and selections use the theme's list
+   selection colors on any theme. */
+html.vscode-embedded .text-edf-bleu-fonce {
+  color: var(--color-ink);
+}
+html.vscode-embedded .option-selected,
+html.vscode-embedded .is-active {
+  color: var(--vscode-list-activeSelectionForeground, var(--color-ink));
+  background: var(
+    --vscode-list-activeSelectionBackground,
+    color-mix(in srgb, var(--color-accent) 20%, var(--color-card))
+  );
+  border-color: transparent;
+}
+
+/* Light themes: some (e.g. Monokai Pro Filter Sun) resolve input.background
+   to the editor background — darker than our card surface, which makes
+   enabled fields read as disabled. Nudge fills toward white so inputs always
+   sit lighter than their card; a no-op for themes with white inputs. */
+html.vscode-embedded:not(.vs-dark) input,
+html.vscode-embedded:not(.vs-dark) select,
+html.vscode-embedded:not(.vs-dark) textarea {
+  background: color-mix(
+    in srgb,
+    white 75%,
+    var(--vscode-input-background, white)
+  );
+}
+
+/* The top header follows the active editor tab color, so the panel reads as
+   a continuation of its tab. */
+html.vscode-embedded .app-header {
+  background: var(--vscode-tab-activeBackground, var(--color-card));
 }

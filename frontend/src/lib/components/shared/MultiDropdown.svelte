@@ -114,7 +114,7 @@
   <button
     bind:this={buttonEl}
     type="button"
-    class="flex items-center justify-between gap-1.5 w-full h-[30px] cursor-pointer bg-white border border-border rounded-md text-[13px] text-ink font-normal pl-2.5 pr-2 transition-colors duration-150 hover:bg-edf-gris-clair focus:outline-none focus:border-edf-bleu-moyen"
+    class="flex items-center justify-between gap-1.5 w-full h-[30px] cursor-pointer bg-control border border-border rounded-md text-[13px] text-ink font-normal pl-2.5 pr-2 transition-colors duration-150 hover:bg-control-hover focus:outline-none focus:border-accent"
     onmousedown={(e) => {
       e.stopPropagation();
       toggleOpen();
@@ -137,10 +137,10 @@
   <Portal>
     <div
       bind:this={listEl}
-      class="bg-white border border-border rounded-md max-h-[260px] overflow-y-auto py-1 w-max"
+      class="bg-control border border-border rounded-md max-h-[260px] overflow-y-auto py-1 w-max"
       style={listStyle}
     >
-      <div class="flex gap-2 px-2.5 py-1 border-b border-[rgba(51,51,51,0.08)]">
+      <div class="flex gap-2 px-2.5 py-1 border-b border-separator">
         <button
           class="link-btn"
           onmousedown={(e) => {
@@ -159,7 +159,7 @@
       {#each options as opt (opt.value)}
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
-          class="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer transition-colors duration-100 hover:bg-edf-gris-clair select-none"
+          class="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer transition-colors duration-100 hover:bg-control-hover select-none"
           onmousedown={(e) => {
             e.stopPropagation();
             toggle(opt.value);
@@ -168,8 +168,8 @@
           <span
             class="inline-flex items-center justify-center shrink-0 w-[14px] h-[14px] rounded border-2 transition-colors duration-100
 						{selectedSet.has(opt.value)
-              ? 'bg-edf-bleu-moyen border-edf-bleu-moyen text-white'
-              : 'bg-white border-edf-gris-moyen'}"
+              ? 'bg-accent border-accent text-accent-fg'
+              : 'bg-control border-border'}"
           >
             {#if selectedSet.has(opt.value)}
               <svg viewBox="0 0 16 16" fill="none" class="w-[10px] h-[10px]">

@@ -170,7 +170,7 @@
           parameters</span
         >
         <button
-          class="text-xs text-edf-bleu-moyen cursor-pointer hover:underline"
+          class="text-xs text-accent cursor-pointer hover:underline"
           onclick={() => (showAllParams = !showAllParams)}
         >
           {showAllParams ? "Show differences only" : "Show all parameters"}

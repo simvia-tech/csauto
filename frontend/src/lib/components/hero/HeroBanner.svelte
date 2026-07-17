@@ -33,7 +33,7 @@
 </script>
 
 <header
-  class="sticky top-0 z-40 flex items-center gap-6 h-14 bg-edf-blanc border-b border-edf-gris-moyen max-lg:flex-wrap max-lg:h-auto max-lg:gap-2"
+  class="app-header sticky top-0 z-40 flex items-center gap-6 h-14 bg-card border-b border-border max-lg:flex-wrap max-lg:h-auto max-lg:gap-2"
   style="padding-inline: max(16px, calc((100vw - 1200px) / 2));"
 >
   <div class="flex items-center gap-3 mr-auto">
@@ -71,7 +71,7 @@
 
   <div class="flex items-center">
     <button
-      class="flex items-center justify-center w-9 h-9 border border-edf-gris-moyen rounded-md bg-white text-ink cursor-pointer transition-colors duration-150 hover:bg-edf-gris-clair hover:border-edf-gris-moyen"
+      class="flex items-center justify-center w-9 h-9 border border-border rounded-md bg-control text-ink cursor-pointer transition-colors duration-150 hover:bg-control-hover hover:border-border"
       onclick={() => (settingsOpen = true)}
       title="Settings"
     >

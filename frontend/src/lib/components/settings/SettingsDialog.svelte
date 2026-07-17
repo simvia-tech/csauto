@@ -97,7 +97,7 @@
     <div class="flex items-center justify-between mb-2">
       <span class="text-xs font-bold text-ink">Auto-refresh intervals</span>
       <button
-        class="text-xs text-edf-bleu-moyen cursor-pointer bg-transparent border-none hover:underline"
+        class="text-xs text-accent cursor-pointer bg-transparent border-none hover:underline"
         onclick={() => (rates = { ...REFRESH_DEFAULTS })}>Reset defaults</button
       >
     </div>
