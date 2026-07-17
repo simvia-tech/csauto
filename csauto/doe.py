@@ -80,11 +80,13 @@ def _resolve_case_id(row: Mapping[str, str], row_index: int) -> str:
     return f"case{row_index:04d}"
 
 
-def _warn_unused_columns(headers: Iterable[str], used_columns: set[str]) -> None:
-    """Log a warning for CSV columns not used in the template."""
+def _report_unused_columns(headers: Iterable[str], used_columns: set[str], *, strict: bool) -> None:
+    """Warn (or fail, in strict mode) for CSV columns not used in the template."""
     unused = [h for h in headers if h not in used_columns and h not in RESERVED_COLUMNS]
     if unused:
         joined = ", ".join(unused)
+        if strict:
+            raise ValueError(f"DOE columns not used in template: {joined}")
         warn(f"DOE columns not used in template: {joined}")
 
 
@@ -257,6 +259,26 @@ def _ensure_registry_case(registry: dict[str, dict[str, Any]], case_id: str, cas
         update_case(registry, case_id, path=str(case_dir))
 
 
+def collect_template_variables(template_dir: Path, adapter=None) -> set[str]:
+    """All placeholder and IF-condition variable names used across a template case.
+
+    Covers the solver setup file, the run configuration, and every extra
+    render target — the same files `generate_cases` renders.
+    """
+    adapter = adapter or _default_adapter()
+    if not template_dir.is_dir():
+        raise FileNotFoundError(f"Template directory not found: {template_dir}")
+    setup_text = adapter.find_setup_file(template_dir).read_text(encoding="utf-8")
+    variables = extract_placeholders(setup_text) | extract_condition_variables(setup_text)
+    run_cfg_path = adapter.find_run_config(template_dir)
+    if run_cfg_path:
+        run_cfg_text = run_cfg_path.read_text(encoding="utf-8")
+        variables |= extract_placeholders(run_cfg_text) | extract_condition_variables(run_cfg_text)
+    for _, _, extra_placeholders, extra_condition in _collect_render_targets(template_dir, adapter):
+        variables |= extra_placeholders | extra_condition
+    return variables
+
+
 def generate_cases(
     headers: Sequence[str],
     rows: Sequence[Mapping[str, str]],
@@ -264,6 +286,7 @@ def generate_cases(
     output_dir: Path,
     mesh_mode: str = "copy",
     adapter=None,
+    strict: bool = False,
 ) -> None:
     """Generate case folders for each DOE row."""
     if mesh_mode not in {"copy", "symlink"}:
@@ -302,7 +325,7 @@ def generate_cases(
         joined = ", ".join(missing_columns)
         raise ValueError(f"Variables without matching DOE columns: {joined}")
 
-    _warn_unused_columns(headers, required_columns)
+    _report_unused_columns(headers, required_columns, strict=strict)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     setup_relative = template_setup.relative_to(template_dir)

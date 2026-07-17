@@ -67,6 +67,9 @@ Options:
   `<template_dir>`) into `<output_dir>`. Defaults to `mesh_mode` in `csauto.toml`
   (itself defaulting to `copy`). See [concepts.md](./concepts.md#shared-meshpost-directories)
   for the tradeoffs, in particular the `symlink` + container-runtime caveat.
+- `--strict`: fail (instead of warn) when a DOE column matches nothing in the
+  template — the same silent-mismatch failure mode `csauto doe` checks for at
+  generation time.
 
 Generated files:
 

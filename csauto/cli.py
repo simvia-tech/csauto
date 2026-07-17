@@ -118,6 +118,11 @@ def parse_arguments(
         "or 'symlink'. 'symlink' avoids duplicating large meshes but is not supported with the docker/singularity "
         "runtimes unless the mesh lives inside output_root already.",
     )
+    prepare_parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Fail (instead of warn) when a DOE column matches nothing in the template.",
+    )
 
     doe_parser = subparsers.add_parser(
         "doe", help="Generate a doe.csv from a parameter spec (factorial/lhs/sobol/ccd)."
@@ -153,6 +158,19 @@ def parse_arguments(
         "--force",
         action="store_true",
         help="Overwrite output_csv if it already exists.",
+    )
+    doe_parser.add_argument(
+        "--template",
+        type=Path,
+        default=None,
+        help="Template case directory to cross-check spec parameter names against "
+        "(default: ./TEMPLATE when it exists).",
+    )
+    doe_parser.add_argument(
+        "--no-check",
+        dest="no_check",
+        action="store_true",
+        help="Skip the spec-vs-template cross-check.",
     )
     run_parser = subparsers.add_parser("run", help="Launch the configured solver on all cases.")
     run_parser.add_argument("runs_dir", type=Path, help="Directory containing generated cases")
@@ -435,12 +453,26 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "prepare":
             headers, rows = load_doe(args.doe_csv)
             generate_cases(
-                headers, rows, args.template_case, args.output_root, mesh_mode=args.mesh_mode, adapter=adapter
+                headers,
+                rows,
+                args.template_case,
+                args.output_root,
+                mesh_mode=args.mesh_mode,
+                adapter=adapter,
+                strict=args.strict,
             )
         elif args.command == "doe":
-            from .doe_generate import generate_rows, load_doe_spec, write_doe_csv
+            from .doe_generate import check_spec_against_template, generate_rows, load_doe_spec, write_doe_csv
 
             spec_params = load_doe_spec(args.spec)
+            if not args.no_check:
+                template_dir = args.template
+                if template_dir is None and Path("TEMPLATE").is_dir():
+                    template_dir = Path("TEMPLATE")
+                if template_dir is not None:
+                    check_spec_against_template([p.name for p in spec_params], template_dir, adapter=adapter)
+                else:
+                    print("Note: no template found to check the spec against (use --template DIR).")
             spec_rows = generate_rows(
                 spec_params,
                 args.method,

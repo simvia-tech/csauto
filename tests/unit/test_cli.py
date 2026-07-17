@@ -31,7 +31,7 @@ def test_prepare_command_calls_generate_cases_with_mesh_mode(tmp_path: Path, mon
 
     calls: list[dict] = []
 
-    def fake_generate_cases(headers, rows, template_case, output_dir, mesh_mode="copy", adapter=None):
+    def fake_generate_cases(headers, rows, template_case, output_dir, mesh_mode="copy", adapter=None, strict=False):
         calls.append({"mesh_mode": mesh_mode})
 
     monkeypatch.setattr("csauto.cli.generate_cases", fake_generate_cases)
@@ -348,3 +348,81 @@ def test_serve_command_flag_overrides_environment_token(tmp_path: Path, monkeypa
 
     assert main(["serve", str(runs_dir), "--token", "flag-secret", "--no-doctor"]) == 0
     assert call["api_token"] == "flag-secret"
+
+
+def _write_doe_study(tmp_path: Path, *, placeholder: str = "u_inlet") -> Path:
+    (tmp_path / "TEMPLATE" / "DATA").mkdir(parents=True)
+    (tmp_path / "TEMPLATE" / "DATA" / "setup.xml").write_text(f"<root>{{{placeholder}}}</root>", encoding="utf-8")
+    spec = tmp_path / "spec.toml"
+    spec.write_text('[parameters.u_inlett]\nlevels = ["1", "2"]\n', encoding="utf-8")
+    return spec
+
+
+def test_doe_command_rejects_spec_param_without_placeholder(tmp_path: Path, monkeypatch, capsys) -> None:
+    monkeypatch.chdir(tmp_path)
+    spec = _write_doe_study(tmp_path)
+
+    exit_code = main(["doe", str(spec), str(tmp_path / "doe.csv"), "--method", "factorial"])
+
+    assert exit_code == 1
+    assert "u_inlett" in capsys.readouterr().err
+    assert not (tmp_path / "doe.csv").exists()
+
+
+def test_doe_command_no_check_skips_template_validation(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    spec = _write_doe_study(tmp_path)
+
+    exit_code = main(["doe", str(spec), str(tmp_path / "doe.csv"), "--method", "factorial", "--no-check"])
+
+    assert exit_code == 0
+    assert (tmp_path / "doe.csv").exists()
+
+
+def test_doe_command_checks_explicit_template_dir(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    spec = _write_doe_study(tmp_path)
+    other = tmp_path / "CASE_A"
+    (other / "DATA").mkdir(parents=True)
+    (other / "DATA" / "setup.xml").write_text("<root>{u_inlett}</root>", encoding="utf-8")
+
+    exit_code = main(["doe", str(spec), str(tmp_path / "doe.csv"), "--method", "factorial", "--template", str(other)])
+
+    assert exit_code == 0
+    assert (tmp_path / "doe.csv").exists()
+
+
+def test_doe_command_without_template_prints_note(tmp_path: Path, monkeypatch, capsys) -> None:
+    monkeypatch.chdir(tmp_path)
+    spec = tmp_path / "spec.toml"
+    spec.write_text('[parameters.u_inlet]\nlevels = ["1"]\n', encoding="utf-8")
+
+    exit_code = main(["doe", str(spec), str(tmp_path / "doe.csv"), "--method", "factorial"])
+
+    assert exit_code == 0
+    assert "no template found" in capsys.readouterr().out
+
+
+def test_prepare_strict_rejects_unused_doe_column(tmp_path: Path, capsys) -> None:
+    (tmp_path / "TEMPLATE" / "DATA").mkdir(parents=True)
+    (tmp_path / "TEMPLATE" / "DATA" / "setup.xml").write_text("<root>{u_inlet}</root>", encoding="utf-8")
+    doe_csv = tmp_path / "doe.csv"
+    doe_csv.write_text("u_inlet,extra_col\n1,foo\n", encoding="utf-8")
+
+    exit_code = main(["prepare", str(doe_csv), str(tmp_path / "TEMPLATE"), str(tmp_path / "RUNS"), "--strict"])
+
+    assert exit_code == 1
+    assert "extra_col" in capsys.readouterr().err
+
+
+def test_prepare_without_strict_only_warns_on_unused_column(tmp_path: Path, capsys) -> None:
+    (tmp_path / "TEMPLATE" / "DATA").mkdir(parents=True)
+    (tmp_path / "TEMPLATE" / "DATA" / "setup.xml").write_text("<root>{u_inlet}</root>", encoding="utf-8")
+    doe_csv = tmp_path / "doe.csv"
+    doe_csv.write_text("u_inlet,extra_col\n1,foo\n", encoding="utf-8")
+
+    exit_code = main(["prepare", str(doe_csv), str(tmp_path / "TEMPLATE"), str(tmp_path / "RUNS")])
+
+    assert exit_code == 0
+    assert "extra_col" in capsys.readouterr().err
+    assert (tmp_path / "RUNS" / "case0001").is_dir()

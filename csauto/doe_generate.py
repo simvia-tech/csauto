@@ -86,6 +86,30 @@ def load_doe_spec(spec_path: Path) -> list[ParameterSpec]:
     return [_parse_parameter(name, table, spec_path) for name, table in parameters.items()]
 
 
+def check_spec_against_template(param_names: list[str], template_dir: Path, adapter=None) -> None:
+    """Cross-check spec parameter names against the template's variables.
+
+    A spec parameter matching nothing in the template is an error: the study
+    would run with the template's hardcoded value while looking successful
+    (typically a typo like u_inlett vs {u_inlet}). A template variable not
+    covered by the spec is only a warning — prepare will fail on it anyway if
+    it is still uncovered at that point.
+    """
+    from .doe import collect_template_variables
+
+    variables = collect_template_variables(template_dir, adapter=adapter)
+    unmatched = sorted(name for name in param_names if name not in variables)
+    if unmatched:
+        joined = ", ".join(unmatched)
+        raise ValueError(
+            f"Spec parameters with no matching placeholder in {template_dir}: {joined} "
+            "(fix the spec, or pass --no-check to skip this check)"
+        )
+    uncovered = sorted(v for v in variables if v not in set(param_names))
+    if uncovered:
+        warn(f"Template variables not covered by the spec: {', '.join(uncovered)}")
+
+
 def _format_value(value: float, round_ndigits: int) -> str:
     return str(round(value, round_ndigits))
 

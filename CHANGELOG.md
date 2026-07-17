@@ -16,6 +16,8 @@ csauto becomes extension-first: the repository now ships a VS Code extension tha
 - "Install csauto CLI" writes a `csauto` shim to `~/.local/bin` backed by the managed runtime, and warns when a shell alias would shadow it
 - "Reload Dashboard" command and a dev watch pipeline (`npm run watch`: esbuild + tsc + frontend rebuild)
 - New CLI verbs for web-UI action parity: `csauto kill`, `csauto note`, `csauto convergence`
+- `csauto doe` cross-checks spec parameter names against the template's placeholders and IF-condition variables (`./TEMPLATE` by default, `--template DIR` to override, `--no-check` to skip): a spec parameter matching nothing in the template is an error — previously a typo silently produced cases that ran with the template's hardcoded value — and template variables not covered by the spec produce a warning
+- `csauto prepare --strict` turns the "DOE columns not used in template" warning into an error
 - `CSAUTO_API_TOKEN` environment variable as a token source for `csauto serve` (flag > env > csauto.toml)
 - The dashboard accepts a `?token=` query parameter (stored, then stripped from the URL) so the extension can authenticate the embedded dashboard automatically
 - Extension telemetry events (extension serve, dashboard open, CLI install) routed through `csauto _telemetry-ping`, sharing the CLI's anonymous user id and opt-out, additionally gated on VS Code's telemetry setting

@@ -216,3 +216,55 @@ def test_write_doe_csv_round_trips_through_load_doe(tmp_path: Path) -> None:
     headers, rows = load_doe(output_path)
     assert headers == ["a", "b"]
     assert rows == [{"a": "1", "b": "x"}, {"a": "2", "b": "y"}]
+
+
+# ---------------------------------------------------------------------------
+# spec-vs-template cross-check
+# ---------------------------------------------------------------------------
+
+
+def _make_template(tmp_path: Path, setup_body: str) -> Path:
+    template = tmp_path / "TEMPLATE"
+    (template / "DATA").mkdir(parents=True)
+    (template / "DATA" / "setup.xml").write_text(setup_body, encoding="utf-8")
+    return template
+
+
+def test_check_spec_against_template_accepts_matching_names(tmp_path: Path) -> None:
+    from csauto.doe_generate import check_spec_against_template
+
+    template = _make_template(tmp_path, "<root>{u_inlet} {k0}</root>")
+    check_spec_against_template(["u_inlet", "k0"], template)
+
+
+def test_check_spec_against_template_rejects_typo(tmp_path: Path) -> None:
+    from csauto.doe_generate import check_spec_against_template
+
+    template = _make_template(tmp_path, "<root>{u_inlet}</root>")
+    with pytest.raises(ValueError, match="u_inlett"):
+        check_spec_against_template(["u_inlett"], template)
+
+
+def test_check_spec_against_template_warns_on_uncovered_placeholder(tmp_path: Path, capsys) -> None:
+    from csauto.doe_generate import check_spec_against_template
+
+    template = _make_template(tmp_path, "<root>{u_inlet} {nprocs_hint}</root>")
+    check_spec_against_template(["u_inlet"], template)
+    assert "nprocs_hint" in capsys.readouterr().err
+
+
+def test_check_spec_against_template_sees_condition_variables(tmp_path: Path) -> None:
+    from csauto.doe_generate import check_spec_against_template
+
+    template = _make_template(
+        tmp_path,
+        "<root><!-- IF turbulence_model == kwSST -->x<!-- ENDIF --></root>",
+    )
+    check_spec_against_template(["turbulence_model"], template)
+
+
+def test_check_spec_against_template_missing_template_dir(tmp_path: Path) -> None:
+    from csauto.doe_generate import check_spec_against_template
+
+    with pytest.raises(FileNotFoundError):
+        check_spec_against_template(["u_inlet"], tmp_path / "nope")
