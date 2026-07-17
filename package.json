@@ -68,7 +68,7 @@
       },
       {
         "command": "csauto.runDoctor",
-        "title": "Run Doctor",
+        "title": "Check Environment",
         "category": "csauto"
       },
       {

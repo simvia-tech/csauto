@@ -95,7 +95,7 @@ export function activate(context: vscode.ExtensionContext): void {
     if (!python) {
       return;
     }
-    const runsDir = runsDirArg ?? (await pickCampaign("Run doctor for which campaign?"));
+    const runsDir = runsDirArg ?? (await pickCampaign("Check the environment of which campaign?"));
     if (!runsDir) {
       return;
     }
@@ -103,7 +103,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const { fails, warns } = await runDoctor(python, runsDir, server.campaignRoot(runsDir), channel);
     if (fails.length > 0) {
       const choice = await vscode.window.showWarningMessage(
-        `csauto doctor: ${fails.length} problem(s), ${warns.length} warning(s). ${fails[0]}`,
+        `csauto environment check: ${fails.length} problem(s), ${warns.length} warning(s). ${fails[0]}`,
         "Show Logs",
       );
       if (choice === "Show Logs") {
@@ -111,7 +111,9 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     } else {
       vscode.window.showInformationMessage(
-        warns.length > 0 ? `csauto doctor: OK with ${warns.length} warning(s) — see logs.` : "csauto doctor: all checks passed.",
+        warns.length > 0
+          ? `csauto environment check: OK with ${warns.length} warning(s) — see logs.`
+          : "csauto environment check: all good.",
       );
     }
   };

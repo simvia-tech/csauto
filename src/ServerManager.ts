@@ -152,7 +152,7 @@ export class ServerManager implements vscode.Disposable {
       const realFails = fails.filter((line) => !line.includes("no case"));
       if (realFails.length > 0) {
         void vscode.window
-          .showWarningMessage(`csauto doctor found ${realFails.length} problem(s): ${realFails[0]}`, "Show Logs")
+          .showWarningMessage(`csauto environment check found ${realFails.length} problem(s): ${realFails[0]}`, "Show Logs")
           .then((choice) => {
             if (choice === "Show Logs") {
               channel.show(true);

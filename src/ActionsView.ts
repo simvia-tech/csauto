@@ -123,23 +123,23 @@ export class ActionsViewProvider implements vscode.TreeDataProvider<Item> {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     item.tooltip = workspaceRoot ? path.relative(workspaceRoot, runsDir) || runsDir : runsDir;
 
-    // One row summarizes the campaign's doctor state and re-runs it on click.
-    const doctorItem = new Item("Doctor");
-    doctorItem.command = { command: "csauto.runDoctorFor", title: "Run Doctor", arguments: [runsDir] };
+    // One row summarizes the campaign's environment checks and re-runs them on click.
+    const doctorItem = new Item("Environment");
+    doctorItem.command = { command: "csauto.runDoctorFor", title: "Check Environment", arguments: [runsDir] };
     const doctor = lastDoctorResult(runsDir);
     if (!doctor) {
       doctorItem.iconPath = new vscode.ThemeIcon("question");
       doctorItem.description = "click to check";
-      doctorItem.tooltip = `Validate this campaign's environment (runtime able to run ${solver}, paths, web deps).`;
+      doctorItem.tooltip = `Check this campaign can run: a runtime for ${solver}, paths, and dependencies.`;
     } else if (doctor.fails.length > 0) {
       doctorItem.iconPath = new vscode.ThemeIcon("error", new vscode.ThemeColor("list.errorForeground"));
       doctorItem.description = `${doctor.fails.length} problem(s)`;
-      doctorItem.tooltip = `${doctor.fails[0]}\nClick to re-run the checks.`;
+      doctorItem.tooltip = `${doctor.fails[0]}\nClick to re-check.`;
     } else {
       doctorItem.iconPath = new vscode.ThemeIcon("pass-filled", new vscode.ThemeColor("testing.iconPassed"));
       const runtimes = doctorRuntimeSummary(doctor.lines) ?? "all checks passed";
       doctorItem.description = doctor.warns.length > 0 ? `${runtimes} · ${doctor.warns.length} warning(s)` : runtimes;
-      doctorItem.tooltip = `Runtimes available to run ${solver}. Click to re-run the checks.`;
+      doctorItem.tooltip = `Runtimes available to run ${solver}. Click to re-check.`;
     }
 
     item.children = [

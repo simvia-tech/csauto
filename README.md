@@ -160,7 +160,7 @@ The web UI also provides features beyond the CLI: edit case files, compare runs 
 
 The extension is the primary way to use csauto. It runs the csauto server in the background on a free port and embeds the dashboard in an editor panel — over Remote-SSH sessions, VS Code forwards the port automatically.
 
-The sidebar (csauto activity bar icon) shows **one section per campaign** detected in the workspace (via their `registry.json`) — each with its own **Open Dashboard**, **Run Doctor**, **Server Logs**, and server **Stop/Restart** actions, plus its solver and port in the section header. Multiple campaigns (even different solvers) can have their dashboards open side by side, each backed by its own server and `csauto.toml`, with panels titled by solver and campaign. Palette commands ask which campaign to act on when the workspace has more than one.
+The sidebar (csauto activity bar icon) shows **one section per campaign** detected in the workspace (via their `registry.json`) — each with its own **Open Dashboard**, **Environment** check, **Server Logs**, and server **Stop/Restart** actions, plus its solver and port in the section header. Multiple campaigns (even different solvers) can have their dashboards open side by side, each backed by its own server and `csauto.toml`, with panels titled by solver and campaign. Palette commands ask which campaign to act on when the workspace has more than one.
 
 Below the campaigns:
 
