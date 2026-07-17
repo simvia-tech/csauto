@@ -14,7 +14,7 @@ export function activate(context: vscode.ExtensionContext): void {
   DashboardPanel.output = output;
   DashboardPanel.extensionUri = context.extensionUri;
   const runtime = new RuntimeManager(context, output);
-  const server = new ServerManager(runtime, output);
+  const server = new ServerManager(runtime, output, context.workspaceState);
   context.subscriptions.push(new RunWatcher(server, output));
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
   statusBar.command = "csauto.openDashboard";

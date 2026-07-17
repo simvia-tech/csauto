@@ -34,6 +34,16 @@ function findFreePort(): Promise<number> {
   });
 }
 
+function isPortFree(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once("error", () => resolve(false));
+    server.listen(port, "127.0.0.1", () => {
+      server.close(() => resolve(true));
+    });
+  });
+}
+
 export class ServerManager implements vscode.Disposable {
   private child: ChildProcessWithoutNullStreams | undefined;
   private state: ServerState | undefined;
@@ -45,7 +55,24 @@ export class ServerManager implements vscode.Disposable {
   constructor(
     private readonly runtime: RuntimeManager,
     private readonly output: vscode.OutputChannel,
+    private readonly workspaceState: vscode.Memento,
   ) {}
+
+  /**
+   * Keep the port stable per workspace: every new port becomes another
+   * forwarded-port entry in remote sessions, so reuse the previous one
+   * whenever it is still free.
+   */
+  private async choosePort(configured: number): Promise<number> {
+    if (configured > 0) {
+      return configured;
+    }
+    const remembered = this.workspaceState.get<number>("csauto.lastPort");
+    if (remembered && (await isPortFree(remembered))) {
+      return remembered;
+    }
+    return findFreePort();
+  }
 
   get current(): ServerState | undefined {
     return this.state;
@@ -119,8 +146,7 @@ export class ServerManager implements vscode.Disposable {
       }
     });
 
-    const configuredPort = config.get<number>("port", 0);
-    const port = configuredPort > 0 ? configuredPort : await findFreePort();
+    const port = await this.choosePort(config.get<number>("port", 0));
     const extraArgs = config.get<string[]>("serveArgs", []);
     const token = crypto.randomBytes(24).toString("hex");
     const serveArgs = [
@@ -179,6 +205,7 @@ export class ServerManager implements vscode.Disposable {
     }
 
     this.state = { port, runsDir, token };
+    void this.workspaceState.update("csauto.lastPort", port);
     this.stateEmitter.fire(this.state);
     this.output.appendLine(`[csauto] Server ready on http://127.0.0.1:${port}/`);
     return this.state;
