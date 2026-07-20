@@ -38,10 +38,29 @@ These class attributes have no default and must be set:
 | `results_dirname` | `"RESU"` | per-case results directory |
 
 Then declare the conventions that differ from the base defaults:
-`template_input_names` (files rendered per case and skipped by the generic
-render sweep), `shared_dir_names` (template-level shared dirs copied/symlinked
-into the runs dir), `cleanup_log_names`, `anomaly_file_names`,
-`default_compare_kind`, `control_actions`, `performance_fields`.
+
+- `template_input_names` — files rendered per case and skipped by the generic
+  render sweep.
+- `shared_dir_names` — template-level shared dirs copied/symlinked into the
+  runs dir.
+- `cleanup_log_names` — logs the Clean action may truncate.
+- `anomaly_file_names` — launcher/solver logs scanned for anomalies, and the
+  file list offered by the Recent Errors panel.
+- `compare_kinds` — `CompareKind(value, label)` entries that populate the
+  compare panel's file selector. The first entry is the default;
+  `default_compare_kind` is derived from it, so do not declare it yourself.
+- `performance_columns` — `PerfColumn(key, label, kind)` entries (`kind` is
+  `"time"`, `"int"`, `"float"`, or `"text"`) that define the Timing Snapshot
+  table. The CSV export keys (`performance_fields`) are derived from them, so
+  do not declare those either.
+- `control_actions` — the live-control directives your `apply_control`
+  implements (code_saturne declares `stop`, `extend`, `checkpoint`, `flush`).
+- `dashboard_panels` — which dashboard panels the UI renders. Defaults to all
+  of them; trim it when a panel cannot be fed by your solver.
+
+The web UI reads `dashboard_panels`, `compare_kinds`, and `anomaly_file_names`
+from `/api/app_config` and the timing columns from `/api/perf`, so these
+declarations reshape the dashboard without any frontend change.
 
 Everything else is optional. Useful overrides, from most to least common:
 
@@ -104,3 +123,12 @@ configuration changes.
   binary, and poll `refresh_status` until the adapter reports `DONE`.
 - `tests/unit/test_solver_boundary.py` will fail if your work leaks solver
   literals into the generic modules — route everything through the adapter.
+
+## 5. Optional: dashboard branding
+
+The dashboard header shows your solver's `name` as text (only code_saturne
+ships a header logo today; adding one means editing
+`frontend/src/lib/components/hero/HeroBanner.svelte`). The favicon defaults to
+the Simvia mark and switches to `/favicon-<name>.svg` automatically when that
+asset exists — drop a `favicon-<name>.svg` into `frontend/static/` and rebuild
+the frontend to ship one.

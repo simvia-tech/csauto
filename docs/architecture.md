@@ -73,6 +73,12 @@ An adapter supplies:
   file catalog (`locate_case_file`), results listing, cleanup log names.
 - **Analytics**: residuals/probes/performance discovery and parsing (SVG
   rendering stays generic in `svg_utils.py`).
+- **Dashboard surface**: `dashboard_panels` (which panels the UI renders),
+  `performance_columns` (Timing Snapshot columns, from which the performance
+  CSV export keys derive), `compare_kinds` (the compare panel's file list,
+  whose first entry is the default), and `anomaly_file_names` doubling as the
+  Recent Errors file list — served to the frontend via `/api/app_config` and
+  `/api/perf`.
 - **Control**: `apply_control` for live stop/extend/checkpoint/flush
   directives, with `control_actions` declaring what the solver supports.
 - **Doctor**: `doctor_checks` for solver-specific environment validation.

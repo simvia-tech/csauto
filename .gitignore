@@ -27,6 +27,12 @@ RUNS/
 frontend/node_modules/
 frontend/.svelte-kit/
 
+# VS Code extension build artifacts
+/node_modules/
+/dist/
+/bundled/
+*.vsix
+
 # AI agent development
 AGENTS.md
 CLAUDE.md

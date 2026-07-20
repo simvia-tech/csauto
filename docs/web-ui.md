@@ -28,6 +28,10 @@ The header always shows:
 When a filter is active, each metric shows the filtered count out of the total
 (e.g., "2 / 5").
 
+Branding is solver-aware: code_saturne campaigns show the Code_Saturne logo in
+the header, other solvers show their name as text, and the browser-tab favicon
+switches to a solver-specific icon when the frontend ships one.
+
 **Settings** (gear icon, top right): opens a dialog where you can set the
 **API token** (if the server requires authentication) and the **auto-refresh
 rate**. The token is stored in the browser session.
@@ -179,7 +183,8 @@ Click **Download as PNG** to export either chart.
 
 Displays performance metrics for one or more cases in a comparison table.
 
-Select cases from the **Cases** dropdown. The table shows:
+Select cases from the **Cases** dropdown. The column set is declared by the
+solver adapter; with code_saturne the table shows:
 
 | Column | Meaning |
 |---|---|
@@ -207,8 +212,9 @@ Steps:
    swap button to switch them)
 2. The panel shows a **parameter diff** summary (e.g., "1 difference out of 3
    parameters"). Click **Show all parameters** to see matching parameters too
-3. Choose a **File** to compare: `setup.xml`, `doe_row.csv`, `run_solver.log`,
-   or `performance.log`
+3. Choose a **File** to compare — the list is declared by the solver adapter,
+   and its first entry is the default (with code_saturne: `setup.xml`,
+   `doe_row.csv`, `run_solver.log`, or `performance.log`)
 4. Use the **Search** bar to filter lines
 
 The output shows a side-by-side diff with line numbers. Differing lines are
@@ -258,7 +264,8 @@ want a quick summary of what went wrong without reading the full log.
 
 Controls:
 - **Cases**: select which cases to scan
-- **Files**: select which log files to include (multi-select: `csauto.stderr`,
+- **Files**: select which log files to include (multi-select; the list is
+  declared by the solver adapter — with code_saturne: `csauto.stderr`,
   `run_solver.log`, `listing`, `csauto.stdout`)
 - **Severity**: `All`, `Error`, `Warn`, `Info`
 - **Search**: plain-text search within matched lines
