@@ -9,6 +9,7 @@
   import { Settings } from "lucide-svelte";
 
   import codeSaturneLogo from "../../../assets/code-saturne.svg";
+  import codeAsterLogo from "../../../assets/code-aster.svg";
   import { getAppConfig } from "$lib/stores/appConfig.svelte";
 
   interface Props {
@@ -40,6 +41,8 @@
   <div class="flex items-center gap-3 mr-auto">
     {#if !getAppConfig() || getAppConfig()?.solver === "code_saturne"}
       <img src={codeSaturneLogo} alt="CODE_SATURNE" class="h-7 w-auto" />
+    {:else if getAppConfig()?.solver === "code_aster"}
+      <img src={codeAsterLogo} alt="CODE_ASTER" class="h-7 w-auto" />
     {:else}
       <span class="text-lg font-bold text-ink tracking-tight"
         >{getAppConfig()?.solver}</span
