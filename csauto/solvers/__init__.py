@@ -15,7 +15,7 @@ import functools
 from .base import SolverAdapter, SolverAdapterBase
 
 DEFAULT_SOLVER = "code_saturne"
-_SOLVER_NAMES = ("code_saturne", "stub")
+_SOLVER_NAMES = ("code_saturne", "stub", "code_aster")
 
 
 def available_solvers() -> tuple[str, ...]:
@@ -37,6 +37,10 @@ def _adapter_for(normalized: str) -> SolverAdapter:
         from .stub import StubAdapter
 
         return StubAdapter()
+    if normalized == "code_aster":
+        from .code_aster import CodeAsterAdapter
+
+        return CodeAsterAdapter()
     choices = ", ".join(available_solvers())
     raise ValueError(f"Unknown solver: {normalized!r}. Choices: {choices}")
 
