@@ -10,9 +10,13 @@ from __future__ import annotations
 
 import re
 
-from collections.abc import Sequence
+from abc import ABC, abstractmethod
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from ..execution import RuntimeSelection
 
 from ..logs import read_tail_lines
 from ..registry import STATUS_DONE, STATUS_FAILED
@@ -31,6 +35,38 @@ class CodeAsterAdapter(SolverAdapterBase):
     results_dirname: ClassVar[str] = "RESULTS"
     shared_dir_names: ClassVar[tuple[str, ...]] = ("MESH", )
     export_file: ClassVar[str] = "study.export"
+
+    def build_run_command(
+        self,
+        case_dir: Path,
+        nprocs: int,
+        nt: int,
+        selection: RuntimeSelection,
+        *,
+        cidfile: Path | None = None,
+        run_args: Sequence[str] | None = None,
+        cleanenv: bool = False,
+        env_vars: Mapping[str, str] | None = None,
+    ) -> list[str]:
+        """Build the docker command to launch a case."""
+        runs_root = case_dir.parent.resolve()
+        container_root = self.container_root
+        container_case = f"{container_root}/{case_dir.name}"
+        from ..execution import shared_dir_symlink_mounts
+
+        cmd: list[str] = ["nohup", "docker", "run", "-v", f"{runs_root}:{container_root}"]
+        for i, shared_data in enumerate(shared_dir_symlink_mounts(runs_root, self.shared_dir_names)):
+            readonly = shared_data[1]
+            linked = f"{shared_data[0]}:{container_case}/{list(self.shared_dir_names)[i]}"
+            cmd.extend(["-v", f"{linked}:ro" if readonly else f"{linked}"])
+        for key, value in sorted((env_vars or {}).items()):
+            cmd.extend(["-e", f"{key}={value}"])
+        cmd.extend(["--label", f"csauto.case_id={case_dir.name}"])
+        if cidfile:
+            cmd.extend(["--cidfile", str(cidfile)])
+        cmd.extend(["-w", container_case, selection.docker_image])
+        cmd.extend(self.run_argv(container_case, nprocs, nt, run_args))
+        return cmd
 
     def run_argv(self, case_path: str | Path, nprocs: int, nt: int, run_args: Sequence[str] | None = None) -> list[str]:
         filename = str(self.export_file).split('/')[-1]
