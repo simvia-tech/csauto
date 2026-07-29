@@ -65,12 +65,12 @@ class CodeAsterAdapter(SolverAdapterBase):
         if cidfile:
             cmd.extend(["--cidfile", str(cidfile)])
         cmd.extend(["-w", container_case, selection.docker_image])
-        cmd.extend(self.run_argv(container_case, nprocs, nt, run_args))
+        filename = self.run_argv(container_case, nprocs, nt, run_args)[0]
+        cmd.extend(["bash", "-i", "-c", f"source /opt/activate.sh && run_aster {filename}"])
         return cmd
 
     def run_argv(self, case_path: str | Path, nprocs: int, nt: int, run_args: Sequence[str] | None = None) -> list[str]:
-        filename = str(self.export_file).split('/')[-1]
-        return ["bash", "-i", "-c", f"source /opt/activate.sh && run_aster {filename}"]
+        return [str(self.export_file).split('/')[-1]]
 
     def find_setup_file(self, template_dir: Path) -> Path:
         files = list(Path(template_dir).glob(f"*.{CODE_ASTER_EXPORT_EXTENSION}"))
