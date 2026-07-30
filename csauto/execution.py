@@ -126,7 +126,7 @@ def resolve_runtime(
             raise FileNotFoundError("apptainer/singularity executable not found in PATH.")
         return RuntimeSelection(
             runtime=RUNTIME_SINGULARITY,
-            docker_image=docker_image,
+            docker_image="",
             singularity_image=image,
             singularity_bin=sbin,
         )
@@ -154,7 +154,7 @@ def resolve_runtime(
     if resolved_native:
         return RuntimeSelection(
             runtime=RUNTIME_NATIVE,
-            docker_image=docker_image,
+            docker_image="",
             saturne_bin=resolved_native,
         )
     raise FileNotFoundError(
@@ -280,6 +280,7 @@ def build_runtime_run_command(
         cmd.append(selection.singularity_image)
         cmd.append(adapter.container_bin_name)
         cmd.extend(adapter.run_argv(container_case, nprocs, nt, run_args))
+        print(cmd)
         return cmd
     raise ValueError(f"Unsupported runtime: {selection.runtime}")
 

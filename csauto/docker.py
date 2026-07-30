@@ -22,7 +22,7 @@ def build_run_command(
     case_dir: Path,
     nprocs: int,
     nt: int,
-    docker_image: str,
+    docker_image: str = "",
     cidfile: Path | None = None,
     run_args: Sequence[str] | None = None,
     env_vars: Mapping[str, str] | None = None,
@@ -60,7 +60,7 @@ def build_run_command(
 
 def build_gui_command(
     case_dir: Path,
-    docker_image: str | None = None,
+    docker_image: str = "",
     adapter: SolverAdapter | None = None,
 ) -> list[str]:
     """Build the docker command to launch the solver GUI for a case."""
