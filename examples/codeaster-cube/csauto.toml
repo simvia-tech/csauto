@@ -1,0 +1,14 @@
+# Use docker (by default)
+
+# select code_aster solver and use docker
+solver = "code_aster"
+runtime = "docker"
+docker_image = "simvia/code_aster:17.4.0"
+
+# Expose UI to all interfaces
+host = "127.0.0.1"
+port = 8000
+
+# Required when host is not 127.0.0.1 or localhost
+[api]
+token = "your-secret-token"

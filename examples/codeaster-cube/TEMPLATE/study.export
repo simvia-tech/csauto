@@ -1,0 +1,18 @@
+# study.export
+# This file was generated using VS Code Aster - https://github.com/simvia-tech/vs-code-aster
+# VS Code Aster is an open-source project maintained by Simvia - https://simvia.tech
+
+# Simulation parameters
+P time_limit 300
+P memory_limit 1024
+P ncpus 1
+P mpi_nbcpu 1
+P mpi_nbnoeud 1
+
+# Input files
+F comm study.comm D 1
+F mmed MESH/{mesh_name} D 20
+
+# Output files
+F rmed RESU/myresults.rmed R 80
+F mess output.mess R 6
