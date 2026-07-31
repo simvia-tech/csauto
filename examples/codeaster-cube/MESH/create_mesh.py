@@ -9,8 +9,6 @@ import salome
 
 salome.salome_init()
 import salome_notebook
-notebook = salome_notebook.NoteBook()
-sys.path.insert(0, r'C:/Users/MaximeGueguin/Downloads')
 
 ###
 ### GEOM component
@@ -68,8 +66,6 @@ import  SMESH, SALOMEDS
 from salome.smesh import smeshBuilder
 
 smesh = smeshBuilder.New()
-#smesh.SetEnablePublish( False ) # Set to False to avoid publish in study if not needed or in some particular situations:
-                                 # multiples meshes built in parallel, complex and numerous mesh edition (performance)
 
 Mesh_1 = smesh.Mesh(box,'Mesh_1')
 NETGEN_1D_2D_3D = Mesh_1.Tetrahedron(algo=smeshBuilder.NETGEN_1D2D3D)
@@ -122,7 +118,3 @@ smesh.SetName(y_0_1, 'y=0')
 smesh.SetName(NETGEN_1D_2D_3D.GetAlgorithm(), 'NETGEN 1D-2D-3D')
 smesh.SetName(Number_of_Segments_1, 'Number of Segments_1')
 smesh.SetName(Quadrangle_2D.GetAlgorithm(), 'Quadrangle_2D')
-
-
-if salome.sg.hasDesktop():
-  salome.sg.updateObjBrowser()

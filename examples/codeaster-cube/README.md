@@ -21,13 +21,15 @@ codeaster_cube/
 ├── csauto.toml                    ← runtime configuration (Docker)
 ├── doe.csv                        ← 9 cases
 ├── TEMPLATE/
-│   ├── DATA/
-│   └── SRC/
+│   ├── study.comm                 ← a code_aster command file
+│   └── study.export               ← a code_aster export file
 └── MESH/
     ├── create_mesh.py             ← a Salome script to get the MED files
     ├── mesh1.med                  ← first mesh variant
     └── mesh2.med                  ← second mesh variant
 ```
+
+> **WARNING**: As the project currently stands, in an `export` file contained in `TEMPLATE`, the paths specified for the input meshes must be prefixed with the `MESH/` path, and the output files to be saved must be prefixed with the `RESU/` path.
 
 ## Prerequisites
 
@@ -76,8 +78,8 @@ RUNS/
 ├── registry.json
 ├── case0001/
 │   ├── MESH/              ← selected mesh copied from single-case/MESH/
-│   ├── aaa
-│   ├── aaa
+│   ├── study.comm         ← a copy of the code_aster command file with the input values
+│   ├── study.comm         ← a copy of the code_aster export file with the input values
 │   └── doe_row.csv
 ├── case0002/
 │   └── ...
@@ -119,6 +121,6 @@ csauto run RUNS --n 1 --nt 1
 ## Explore the results
 
 From the web UI:
-- **Residuals Plot** — TODO
+- **Residuals Plot** — not in the current version `#TODO`
+- **Probes** — not in the current version `#TODO`
 - **Log Tail** — live solver output
-- **Probes** — TODO
