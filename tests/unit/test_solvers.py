@@ -6,6 +6,7 @@ from csauto.execution import RuntimeSelection, build_runtime_run_command
 from csauto.registry import STATUS_DONE, STATUS_FAILED
 from csauto.solvers import DEFAULT_SOLVER, SolverAdapter, available_solvers, get_solver_adapter
 from csauto.solvers.code_saturne import CodeSaturneAdapter
+from csauto.solvers.code_aster import CodeAsterAdapter
 from csauto.solvers.stub import StubAdapter
 
 
@@ -17,10 +18,12 @@ class TestFactory:
 
     def test_explicit_names(self):
         assert isinstance(get_solver_adapter("code_saturne"), CodeSaturneAdapter)
+        assert isinstance(get_solver_adapter("code_aster"), CodeAsterAdapter)
         assert isinstance(get_solver_adapter("stub"), StubAdapter)
 
     def test_instances_are_memoized(self):
         assert get_solver_adapter("code_saturne") is get_solver_adapter(None)
+        assert get_solver_adapter("code_aster") is get_solver_adapter("code_aster")
         assert get_solver_adapter("stub") is get_solver_adapter("stub")
 
     def test_name_is_normalized(self):
@@ -31,10 +34,11 @@ class TestFactory:
             get_solver_adapter("openfoam")
 
     def test_available_solvers(self):
-        assert set(available_solvers()) == {"code_saturne", "stub"}
+        assert set(available_solvers()) == {"code_saturne", "code_aster", "stub"}
 
     def test_adapters_satisfy_protocol(self):
         assert isinstance(get_solver_adapter("code_saturne"), SolverAdapter)
+        assert isinstance(get_solver_adapter("code_aster"), SolverAdapter)
         assert isinstance(get_solver_adapter("stub"), SolverAdapter)
 
 
@@ -131,6 +135,18 @@ class TestCodeSaturneAdapter:
         run_dir.mkdir(parents=True)
         (run_dir / "run_solver.log").write_text("x\n", encoding="utf-8")
         assert adapter.locate_case_file(case_dir, "run_solver.log") == run_dir / "run_solver.log"
+
+class TestCodeAsterAdapter:
+    @pytest.fixture()
+    def adapter(self):
+        return get_solver_adapter("code_aster")
+
+    def test_detect_outcome_done(self, adapter, tmp_path):
+        case_dir = tmp_path / "case1"
+        logpath = case_dir / "RESU/LOGS"
+        logpath.mkdir(parents=True, exist_ok=True)
+        (logpath / "run_solver.log").write_text("DIAGNOSTIC JOB : OK\n", encoding="utf-8")
+        assert adapter.detect_outcome(case_dir) == STATUS_DONE
 
 
 class TestStubAdapter:
