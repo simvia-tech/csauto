@@ -5,8 +5,8 @@ import pytest
 from csauto.execution import RuntimeSelection, build_runtime_run_command
 from csauto.registry import STATUS_DONE, STATUS_FAILED
 from csauto.solvers import DEFAULT_SOLVER, SolverAdapter, available_solvers, get_solver_adapter
-from csauto.solvers.code_saturne import CodeSaturneAdapter
 from csauto.solvers.code_aster import CodeAsterAdapter
+from csauto.solvers.code_saturne import CodeSaturneAdapter
 from csauto.solvers.stub import StubAdapter
 
 
@@ -135,6 +135,7 @@ class TestCodeSaturneAdapter:
         run_dir.mkdir(parents=True)
         (run_dir / "run_solver.log").write_text("x\n", encoding="utf-8")
         assert adapter.locate_case_file(case_dir, "run_solver.log") == run_dir / "run_solver.log"
+
 
 class TestCodeAsterAdapter:
     @pytest.fixture()
