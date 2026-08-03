@@ -160,6 +160,24 @@ class TestCodeAsterAdapter:
         assert f"{resu_target.resolve()}:/home/user/case1/RESU" in script
         assert "/home/user/case1/MESH" not in script
 
+    def test_singularity_command_cleans_case_local_tmp_dirs(self, adapter, tmp_path):
+        case_dir = tmp_path / "RUNS" / "case1"
+        case_dir.mkdir(parents=True)
+        (case_dir / "study.export").write_text("P time_limit 300\n", encoding="utf-8")
+        selection = RuntimeSelection(
+            runtime="singularity",
+            docker_image="img",
+            singularity_image="/images/aster.sif",
+            singularity_bin="apptainer",
+        )
+
+        script = adapter.build_run_command(case_dir, 1, 1, selection)[-1]
+
+        assert script.count("rm -rf") == 1
+        assert f"{case_dir.resolve()}/.apptainer_tmp" in script
+        assert f"{case_dir.resolve()}/TMP" in script
+        assert "~" not in script
+
     def test_relaunch_does_not_duplicate_the_mess_entry(self, adapter, tmp_path):
         case_dir = tmp_path / "RUNS" / "case1"
         case_dir.mkdir(parents=True)

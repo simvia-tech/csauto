@@ -9,6 +9,7 @@ prepare -> run -> status pipeline without any code_saturne convention on disk.
 from __future__ import annotations
 
 import re
+import shlex
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import ClassVar
@@ -64,18 +65,17 @@ class CodeAsterAdapter(SolverAdapterBase):
                 linked = f"{target}:{container_case}/{name}"
                 links.append(f"{linked}:ro" if readonly else linked)
 
-        # TODO: Pour relier le fichier de message temporaire
-        # solverlogfile = Path(f"{runs_root}/{case_dir.name}/{solverlogpath}")
-        # links.append(f"{runs_root}/{case_dir.name}/{solverlogpath}:{container_case}/{tmp_name}/proc.0/fort.6")
-
-        # TODO : Ajouter la suppression de tous les dossiers partagé sauf celui de resultats
-        rmdir = [f"{host_tmpdir}"]
+        rmdir = [host_tmpdir]
+        solver_shell = (
+            f"source /opt/activate.sh && run_aster {shlex.quote(exportfile)} --wrkdir {container_case}/{tmp_name}/"
+        )
+        solver_cmd = f"bash -c {shlex.quote(solver_shell)}"
 
         if selection.runtime == RUNTIME_DOCKER:
-            add_cid = f"--cidfile {cidfile!s}" if cidfile else ""
+            add_cid = f"--cidfile {shlex.quote(str(cidfile))} " if cidfile else ""
 
-            bind_links = " ".join(f"-v {link}" for link in links)
-            removed_dirs = " ".join(f"rm -rf {dire}" for dire in rmdir)
+            bind_links = " ".join(f"-v {shlex.quote(link)}" for link in links)
+            cleanup = "rm -rf " + " ".join(shlex.quote(dire) for dire in rmdir)
 
             cmd = [
                 "nohup",
@@ -85,30 +85,32 @@ class CodeAsterAdapter(SolverAdapterBase):
                 f"{bind_links} "
                 f"-w {container_case} "
                 f"--label csauto.case_id={case_dir.name} "
-                f"{add_cid} "
+                f"{add_cid}"
                 f"{selection.docker_image} "
-                f"bash -c 'source /opt/activate.sh && run_aster {exportfile} --wrkdir {container_case}/{tmp_name}/'; "
-                f"{removed_dirs}",
+                f"{solver_cmd}; "
+                f"{cleanup}",
             ]
         elif selection.runtime == RUNTIME_SINGULARITY:
-            host_apptainer = f"~/apptainer_tmp_{case_dir.name}"
-            rmdir.append(f"{host_apptainer}")
+            if not selection.singularity_bin or not selection.singularity_image:
+                raise ValueError("Incomplete singularity configuration.")
+            host_apptainer = f"{runs_root}/{case_dir.name}/.apptainer_tmp"
+            rmdir.append(host_apptainer)
 
-            bind_links = " ".join(f"--bind {link}" for link in links)
-            removed_dirs = " ".join(f"rm -rf {dire}" for dire in rmdir)
+            bind_links = " ".join(f"--bind {shlex.quote(link)}" for link in links)
+            cleanup = "rm -rf " + " ".join(shlex.quote(dire) for dire in rmdir)
 
             cmd = [
                 "nohup",
                 "bash",
                 "-c",
-                f"mkdir -p {host_apptainer} && "
-                f"export APPTAINER_TMPDIR={host_apptainer} && "
-                f"{selection.singularity_bin} exec "
+                f"mkdir -p {shlex.quote(host_apptainer)} && "
+                f"export APPTAINER_TMPDIR={shlex.quote(host_apptainer)} && "
+                f"{shlex.quote(selection.singularity_bin)} exec "
                 f"{bind_links} "
                 f"--pwd {container_case} "
-                f"{selection.singularity_image} "
-                f"bash -c 'source /opt/activate.sh && run_aster {exportfile} --wrkdir {container_case}/{tmp_name}/'; "
-                f"{removed_dirs}",
+                f"{shlex.quote(selection.singularity_image)} "
+                f"{solver_cmd}; "
+                f"{cleanup}",
             ]
         elif selection.runtime == RUNTIME_NATIVE:
             # TODO
