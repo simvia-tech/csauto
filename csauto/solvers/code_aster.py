@@ -1,9 +1,9 @@
-"""Fake solver adapter used by integration tests.
+"""code_aster solver adapter.
 
-Runs as a short python script (native runtime with ``saturne_bin`` pointing at
-a Python interpreter) that writes ``OUT/run_0001/stub.log`` with one ``step N``
-line per requested step and a final completion marker. It exercises the whole
-prepare -> run -> status pipeline without any code_saturne convention on disk.
+Launches ``run_aster`` on a case's ``.export`` file inside a container
+(docker or apptainer/singularity); the native runtime is not implemented
+yet. Case outcome is read from the ``DIAGNOSTIC JOB`` line that code_aster
+prints at the end of ``RESU/LOGS/run_solver.log``.
 """
 
 from __future__ import annotations
@@ -44,11 +44,11 @@ class CodeAsterAdapter(SolverAdapterBase):
         *,
         cidfile: Path | None = None,
         run_args: Sequence[str] | None = None,
-        cleanenv: bool = True,
+        cleanenv: bool = False,
         env_vars: Mapping[str, str] | None = None,
         tmp_name: str = "TMP",
     ) -> list[str]:
-        """Build the docker command to launch a case."""
+        """Build the container command to launch a case."""
         runs_root = case_dir.parent.resolve()
         container_root = self.container_root
         container_case = f"{container_root}/{case_dir.name}"
@@ -113,11 +113,9 @@ class CodeAsterAdapter(SolverAdapterBase):
                 f"{cleanup}",
             ]
         elif selection.runtime == RUNTIME_NATIVE:
-            # TODO
             raise NotImplementedError(f"{RUNTIME_NATIVE} must be implemented for code_aster.")
         else:
             if selection.runtime in ["cave", "salome_meca"]:
-                # TODO
                 raise NotImplementedError(
                     f"{selection.runtime} could be in the roadmap of code_aster. Please contact support."
                 )
@@ -127,7 +125,8 @@ class CodeAsterAdapter(SolverAdapterBase):
         return cmd
 
     def run_argv(self, case_path: str | Path, nprocs: int, nt: int, run_args: Sequence[str] | None = None) -> list[str]:
-        return [""]
+        """Unused: `build_run_command` composes the full launch command itself."""
+        return []
 
     @staticmethod
     def _ensure_mess_entry(export_path: Path, solverlogpath: str) -> None:
