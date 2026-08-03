@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 
 from csauto.execution import RuntimeSelection, build_runtime_run_command
 from csauto.registry import STATUS_DONE, STATUS_FAILED
 from csauto.solvers import DEFAULT_SOLVER, SolverAdapter, available_solvers, get_solver_adapter
+from csauto.solvers.code_aster import CodeAsterAdapter
 from csauto.solvers.code_saturne import CodeSaturneAdapter
 from csauto.solvers.stub import StubAdapter
 
@@ -17,10 +20,12 @@ class TestFactory:
 
     def test_explicit_names(self):
         assert isinstance(get_solver_adapter("code_saturne"), CodeSaturneAdapter)
+        assert isinstance(get_solver_adapter("code_aster"), CodeAsterAdapter)
         assert isinstance(get_solver_adapter("stub"), StubAdapter)
 
     def test_instances_are_memoized(self):
         assert get_solver_adapter("code_saturne") is get_solver_adapter(None)
+        assert get_solver_adapter("code_aster") is get_solver_adapter("code_aster")
         assert get_solver_adapter("stub") is get_solver_adapter("stub")
 
     def test_name_is_normalized(self):
@@ -31,10 +36,11 @@ class TestFactory:
             get_solver_adapter("openfoam")
 
     def test_available_solvers(self):
-        assert set(available_solvers()) == {"code_saturne", "stub"}
+        assert set(available_solvers()) == {"code_saturne", "code_aster", "stub"}
 
     def test_adapters_satisfy_protocol(self):
         assert isinstance(get_solver_adapter("code_saturne"), SolverAdapter)
+        assert isinstance(get_solver_adapter("code_aster"), SolverAdapter)
         assert isinstance(get_solver_adapter("stub"), SolverAdapter)
 
 
@@ -131,6 +137,92 @@ class TestCodeSaturneAdapter:
         run_dir.mkdir(parents=True)
         (run_dir / "run_solver.log").write_text("x\n", encoding="utf-8")
         assert adapter.locate_case_file(case_dir, "run_solver.log") == run_dir / "run_solver.log"
+
+
+class TestCodeAsterAdapter:
+    @pytest.fixture()
+    def adapter(self):
+        return get_solver_adapter("code_aster")
+
+    def test_shared_dir_mounts_keep_their_names(self, adapter, tmp_path):
+        runs_dir = tmp_path / "RUNS"
+        case_dir = runs_dir / "case1"
+        case_dir.mkdir(parents=True)
+        (case_dir / "study.export").write_text("P time_limit 300\n", encoding="utf-8")
+        (runs_dir / "MESH").mkdir()
+        resu_target = tmp_path / "resu_store"
+        resu_target.mkdir()
+        (runs_dir / "RESU").symlink_to(resu_target, target_is_directory=True)
+
+        selection = RuntimeSelection(runtime="docker", docker_image="img")
+        script = adapter.build_run_command(case_dir, 1, 1, selection)[-1]
+
+        assert f"{resu_target.resolve()}:/home/user/case1/RESU" in script
+        assert "/home/user/case1/MESH" not in script
+
+    def test_singularity_command_cleans_case_local_tmp_dirs(self, adapter, tmp_path):
+        case_dir = tmp_path / "RUNS" / "case1"
+        case_dir.mkdir(parents=True)
+        (case_dir / "study.export").write_text("P time_limit 300\n", encoding="utf-8")
+        selection = RuntimeSelection(
+            runtime="singularity",
+            docker_image="img",
+            singularity_image="/images/aster.sif",
+            singularity_bin="apptainer",
+        )
+
+        script = adapter.build_run_command(case_dir, 1, 1, selection)[-1]
+
+        assert script.count("rm -rf") == 1
+        assert f"{case_dir.resolve()}/.apptainer_tmp" in script
+        assert f"{case_dir.resolve()}/TMP" in script
+        assert "~" not in script
+
+    def test_relaunch_does_not_duplicate_the_mess_entry(self, adapter, tmp_path):
+        case_dir = tmp_path / "RUNS" / "case1"
+        case_dir.mkdir(parents=True)
+        export = case_dir / "cube.export"
+        export.write_text("P time_limit 300\nF comm study.comm D 1", encoding="utf-8")
+
+        selection = RuntimeSelection(runtime="docker", docker_image="img")
+        for _ in range(2):
+            script = adapter.build_run_command(case_dir, 1, 1, selection)[-1]
+
+        assert "run_aster cube.export" in script
+        content = export.read_text(encoding="utf-8")
+        assert content.count("F mess RESU/LOGS/run_solver.log R 6") == 1
+        assert "D 1\nF mess" in content
+
+    def test_build_run_command_requires_an_export_file(self, adapter, tmp_path):
+        case_dir = tmp_path / "RUNS" / "case1"
+        case_dir.mkdir(parents=True)
+        selection = RuntimeSelection(runtime="docker", docker_image="img")
+        with pytest.raises(FileNotFoundError):
+            adapter.build_run_command(case_dir, 1, 1, selection)
+        assert not list(case_dir.iterdir())
+
+    def test_detect_outcome_done(self, adapter, tmp_path):
+        case_dir = tmp_path / "case1"
+        logpath = case_dir / "RESU/LOGS"
+        logpath.mkdir(parents=True, exist_ok=True)
+        (logpath / "run_solver.log").write_text("DIAGNOSTIC JOB : OK\n", encoding="utf-8")
+        assert adapter.detect_outcome(case_dir) == STATUS_DONE
+
+    def test_detect_outcome_failed(self, adapter, tmp_path):
+        case_dir = tmp_path / "case1"
+        logpath = case_dir / "RESU/LOGS"
+        logpath.mkdir(parents=True, exist_ok=True)
+        (logpath / "run_solver.log").write_text("DIAGNOSTIC JOB : <F>_ABNORMAL_ABORT\n", encoding="utf-8")
+        assert adapter.detect_outcome(case_dir) == STATUS_FAILED
+
+    def test_detect_outcome_ignores_logs_from_previous_runs(self, adapter, tmp_path):
+        case_dir = tmp_path / "case1"
+        logpath = case_dir / "RESU/LOGS"
+        logpath.mkdir(parents=True, exist_ok=True)
+        log_file = logpath / "run_solver.log"
+        log_file.write_text("DIAGNOSTIC JOB : OK\n", encoding="utf-8")
+        relaunch = datetime.fromtimestamp(log_file.stat().st_mtime + 60)
+        assert adapter.detect_outcome(case_dir, start_time=relaunch.isoformat()) is None
 
 
 class TestStubAdapter:

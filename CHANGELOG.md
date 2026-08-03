@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-08-03
+
+Add code_aster as a second supported solver: generate, run, and monitor finite-element campaigns alongside Code_Saturne.
+
+### Added
+- code_aster solver adapter (`solver = "code_aster"`): finds the case's `.export` setup file, launches `run_aster` in docker or apptainer/singularity containers (native runtime not implemented yet), routes the solver message file to `RESU/LOGS/run_solver.log`, and derives case status from code_aster's `DIAGNOSTIC JOB` line (OK/alarm → DONE; abort, error, no-convergence, CPU/memory limits → FAILED), ignoring logs left over from previous runs when a case is relaunched
+- code_aster dashboard branding: the header shows the code_aster logo for `code_aster` campaigns, and `favicon-code_aster.svg` ships in `frontend/static/` for the solver-aware favicon introduced in 0.4.1
+- `examples/codeaster-cube`: a complete 9-case demo campaign (cube under triaxial traction, two mesh variants, one deliberately failing case) with template `.comm`/`.export` files and the Salome script that produced the meshes
+
 ## [0.4.1] - 2026-07-17
 
 Deepen the solver adapter boundary (dashboard panels, timing columns, compare kinds, and error files are now adapter-driven), make `mesh_mode = "symlink"` the default with full container-runtime support, and validate DOE specs against the template.

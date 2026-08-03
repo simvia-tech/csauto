@@ -1,0 +1,72 @@
+DEBUT()
+
+imp_x = {depl_x}
+imp_y = {depl_y}
+imp_z = {depl_z}
+
+mesh = LIRE_MAILLAGE(
+    FORMAT='MED',
+    UNITE=20
+)
+
+model = AFFE_MODELE(
+    MAILLAGE=mesh,
+    AFFE=_F(
+        GROUP_MA='box',
+        PHENOMENE='MECANIQUE',
+        MODELISATION='3D'
+    )
+)
+
+mat = DEFI_MATERIAU(
+    ELAS=_F(
+        E=200.0e9,
+        NU=0.3
+    )
+)
+
+matfield = AFFE_MATERIAU(
+    MODELE=model,
+    AFFE=_F(
+        GROUP_MA='box',
+        MATER=mat
+    )
+)
+
+bcds = AFFE_CHAR_MECA(
+    MODELE=model,
+    DDL_IMPO=(
+        _F(GROUP_MA='x=0', DX=0.0),
+        _F(GROUP_MA='y=0', DY=0.0),
+        _F(GROUP_MA='z=0', DZ=0.0)
+    )
+)
+
+if imp_x > 0.1 or imp_y > 0.1 or imp_z > 0.1:
+    raise ValueError("imposed displacement must not exceed 0.1")
+else:
+    loads = AFFE_CHAR_MECA(
+        MODELE=model,
+        DDL_IMPO=(
+            _F(GROUP_MA='x=H', DX=imp_x),
+            _F(GROUP_MA='y=H', DY=imp_y),
+            _F(GROUP_MA='z=H', DZ=imp_z)
+        )
+    )
+
+results = MECA_STATIQUE(
+    MODELE=model,
+    CHAM_MATER=matfield,
+    EXCIT=(
+        _F(CHARGE=bcds),
+        _F(CHARGE=loads)
+    )
+)
+
+IMPR_RESU(
+    FORMAT='MED',
+    UNITE=80,
+    RESU=_F(RESULTAT=results)
+)
+
+FIN()
