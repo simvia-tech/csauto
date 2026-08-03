@@ -280,7 +280,6 @@ def build_runtime_run_command(
         cmd.append(selection.singularity_image)
         cmd.append(adapter.container_bin_name)
         cmd.extend(adapter.run_argv(container_case, nprocs, nt, run_args))
-        print(cmd)
         return cmd
     raise ValueError(f"Unsupported runtime: {selection.runtime}")
 
