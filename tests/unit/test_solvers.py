@@ -160,6 +160,29 @@ class TestCodeAsterAdapter:
         assert f"{resu_target.resolve()}:/home/user/case1/RESU" in script
         assert "/home/user/case1/MESH" not in script
 
+    def test_relaunch_does_not_duplicate_the_mess_entry(self, adapter, tmp_path):
+        case_dir = tmp_path / "RUNS" / "case1"
+        case_dir.mkdir(parents=True)
+        export = case_dir / "cube.export"
+        export.write_text("P time_limit 300\nF comm study.comm D 1", encoding="utf-8")
+
+        selection = RuntimeSelection(runtime="docker", docker_image="img")
+        for _ in range(2):
+            script = adapter.build_run_command(case_dir, 1, 1, selection)[-1]
+
+        assert "run_aster cube.export" in script
+        content = export.read_text(encoding="utf-8")
+        assert content.count("F mess RESU/LOGS/run_solver.log R 6") == 1
+        assert "D 1\nF mess" in content
+
+    def test_build_run_command_requires_an_export_file(self, adapter, tmp_path):
+        case_dir = tmp_path / "RUNS" / "case1"
+        case_dir.mkdir(parents=True)
+        selection = RuntimeSelection(runtime="docker", docker_image="img")
+        with pytest.raises(FileNotFoundError):
+            adapter.build_run_command(case_dir, 1, 1, selection)
+        assert not list(case_dir.iterdir())
+
     def test_detect_outcome_done(self, adapter, tmp_path):
         case_dir = tmp_path / "case1"
         logpath = case_dir / "RESU/LOGS"

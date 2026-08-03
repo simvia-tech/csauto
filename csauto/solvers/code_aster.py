@@ -33,7 +33,6 @@ class CodeAsterAdapter(SolverAdapterBase):
         "MESH",
         "RESU",
     )
-    export_file: ClassVar[str] = "study.export"
 
     def build_run_command(
         self,
@@ -52,12 +51,12 @@ class CodeAsterAdapter(SolverAdapterBase):
         runs_root = case_dir.parent.resolve()
         container_root = self.container_root
         container_case = f"{container_root}/{case_dir.name}"
-        exportfile = str(self.export_file).split("/")[-1]
+        export_path = self.find_setup_file(case_dir)
+        exportfile = export_path.name
         host_tmpdir = f"{runs_root}/{case_dir.name}/{tmp_name}"
         solverlogpath = f"{self.results_dirname}/{self.logs_dirname}/run_solver.log"
 
-        with open(f"{runs_root}/{case_dir.name}/{exportfile}", "a") as f:
-            f.write(f"F mess {solverlogpath} R 6\n")
+        self._ensure_mess_entry(export_path, solverlogpath)
 
         links = [f"{runs_root}:{container_root}"]
         for name in self.shared_dir_names:
@@ -128,10 +127,20 @@ class CodeAsterAdapter(SolverAdapterBase):
     def run_argv(self, case_path: str | Path, nprocs: int, nt: int, run_args: Sequence[str] | None = None) -> list[str]:
         return [""]
 
+    @staticmethod
+    def _ensure_mess_entry(export_path: Path, solverlogpath: str) -> None:
+        """Append the F mess entry that detect_outcome reads, unless the export already declares one."""
+        export_text = export_path.read_text(encoding="utf-8", errors="ignore")
+        if any(line.split()[:2] == ["F", "mess"] for line in export_text.splitlines()):
+            return
+        with export_path.open("a", encoding="utf-8") as f:
+            if export_text and not export_text.endswith("\n"):
+                f.write("\n")
+            f.write(f"F mess {solverlogpath} R 6\n")
+
     def find_setup_file(self, template_dir: Path) -> Path:
         files = list(Path(template_dir).glob(f"*.{CODE_ASTER_EXPORT_EXTENSION}"))
         if len(files) == 1 and files[0].is_file():
-            self.export_file = files[0]
             return files[0]
         raise FileNotFoundError(f".export file not found in template: {template_dir}")
 
