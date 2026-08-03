@@ -43,7 +43,7 @@ bcds = AFFE_CHAR_MECA(
 )
 
 if imp_x > 0.1 or imp_y > 0.1 or imp_z > 0.1:
-    raise
+    raise ValueError("imposed displacement must not exceed 0.1")
 else:
     loads = AFFE_CHAR_MECA(
         MODELE=model,

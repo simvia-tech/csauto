@@ -4,20 +4,20 @@ A complete campaign showcasing the main csauto features with code_aster.
 
 ## What this example does
 
-Simulates a cube under trixial traction. The DOE combines:
+Simulates a cube under triaxial traction. The DOE combines:
 
-- **2 values of imposed displacement along x, y or x** — 1.0e-3 and 0.0
+- **2 values of imposed displacement along x, y or z** — 1.0e-3 and 0.0
 - **2 meshes** — `mesh1.med` and `mesh2.med`
 - **1 additional case** - with non valid values for imposed displacements
 
 This produces **9 cases**. The template demonstrates:
-- **value placeholders** — `{depl_x}`, `{depl_y}`, `{depl_z}`, `{mesh_name}` in both `export` and `comm`files
-- **conditional way in command file** — with an `if` situation related to values of the DOE 
+- **value placeholders** — `{depl_x}`, `{depl_y}`, `{depl_z}`, `{mesh_name}` in both `export` and `comm` files
+- **conditional way in command file** — with an `if` situation related to values of the DOE
 
 ## Files
 
 ```
-codeaster_cube/
+codeaster-cube/
 ├── csauto.toml                    ← runtime configuration (Docker)
 ├── doe.csv                        ← 9 cases
 ├── TEMPLATE/
@@ -68,7 +68,7 @@ token = "your-secret-token"
 ## 2. Generate the case
 
 ```bash
-cd examples/codeaster_cube
+cd examples/codeaster-cube
 csauto prepare doe.csv TEMPLATE RUNS
 ```
 
@@ -77,9 +77,9 @@ Expected output:
 RUNS/
 ├── registry.json
 ├── case0001/
-│   ├── MESH/              ← selected mesh copied from single-case/MESH/
+│   ├── MESH/              ← selected mesh from MESH/
 │   ├── study.comm         ← a copy of the code_aster command file with the input values
-│   ├── study.comm         ← a copy of the code_aster export file with the input values
+│   ├── study.export       ← a copy of the code_aster export file with the input values
 │   └── doe_row.csv
 ├── case0002/
 │   └── ...
