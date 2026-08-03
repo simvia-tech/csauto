@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import ClassVar
 
 from ..execution import RUNTIME_DOCKER, RUNTIME_NATIVE, RUNTIME_SINGULARITY, RuntimeSelection, shared_dir_symlink_mounts
-from ..logs import read_tail_lines
+from ..logs import _is_recent, _parse_start_time, read_tail_lines
 from ..registry import STATUS_DONE, STATUS_FAILED
 from .base import SolverAdapterBase
 
@@ -150,16 +150,14 @@ class CodeAsterAdapter(SolverAdapterBase):
             re.compile(r"DIAGNOSTIC JOB : NO_TEST_RESU", re.IGNORECASE),
             re.compile(r"DIAGNOSTIC JOB : NOOK_TEST_RESU", re.IGNORECASE),
         ]
-        files = list(Path(f"{case_dir}/{self.results_dirname}/{self.logs_dirname}/").glob("run_solver.log"))
-        if len(files) == 0:
+        log_path = case_dir / self.results_dirname / self.logs_dirname / "run_solver.log"
+        if not log_path.is_file():
             return None
-        elif len(files) == 1:
-            lines = read_tail_lines(files[0], lines=40)
-            joined = "\n".join(lines)
-            if any(p.search(joined) for p in success_patterns):
-                return STATUS_DONE
-            if any(p.search(joined) for p in failure_patterns):
-                return STATUS_FAILED
-        else:
-            raise
+        if not _is_recent(log_path, _parse_start_time(start_time)):
+            return None
+        joined = "\n".join(read_tail_lines(log_path, lines=40))
+        if any(p.search(joined) for p in success_patterns):
+            return STATUS_DONE
+        if any(p.search(joined) for p in failure_patterns):
+            return STATUS_FAILED
         return None

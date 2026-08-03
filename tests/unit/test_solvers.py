@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 
 from csauto.execution import RuntimeSelection, build_runtime_run_command
@@ -164,6 +166,22 @@ class TestCodeAsterAdapter:
         logpath.mkdir(parents=True, exist_ok=True)
         (logpath / "run_solver.log").write_text("DIAGNOSTIC JOB : OK\n", encoding="utf-8")
         assert adapter.detect_outcome(case_dir) == STATUS_DONE
+
+    def test_detect_outcome_failed(self, adapter, tmp_path):
+        case_dir = tmp_path / "case1"
+        logpath = case_dir / "RESU/LOGS"
+        logpath.mkdir(parents=True, exist_ok=True)
+        (logpath / "run_solver.log").write_text("DIAGNOSTIC JOB : <F>_ABNORMAL_ABORT\n", encoding="utf-8")
+        assert adapter.detect_outcome(case_dir) == STATUS_FAILED
+
+    def test_detect_outcome_ignores_logs_from_previous_runs(self, adapter, tmp_path):
+        case_dir = tmp_path / "case1"
+        logpath = case_dir / "RESU/LOGS"
+        logpath.mkdir(parents=True, exist_ok=True)
+        log_file = logpath / "run_solver.log"
+        log_file.write_text("DIAGNOSTIC JOB : OK\n", encoding="utf-8")
+        relaunch = datetime.fromtimestamp(log_file.stat().st_mtime + 60)
+        assert adapter.detect_outcome(case_dir, start_time=relaunch.isoformat()) is None
 
 
 class TestStubAdapter:
