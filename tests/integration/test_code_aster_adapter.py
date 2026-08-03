@@ -1,14 +1,18 @@
 """End-to-end tests driving the pipeline with the code_aster solver adapter.
 
-These tests launch real subprocesses (python running the stub script) and
-never create any code_aster convention on disk (no setup.xml, no RESU).
+The launch test drives a real `docker run` of the code_aster image, so it
+only runs when CSAUTO_CODE_ASTER_DOCKER_TESTS=1 is set (docker and the
+image must be available); the generate/doctor/cleanup test is
+filesystem-only and always runs.
 """
 
 from __future__ import annotations
 
-import sys
+import os
 import time
 from pathlib import Path
+
+import pytest
 
 from csauto.registry import STATUS_DONE, STATUS_RUNNING, load_registry
 from csauto.runner import refresh_status, run_cases
@@ -21,15 +25,9 @@ def _make_code_aster_case(runs_dir: Path, case_id: str) -> Path:
     mesh_dir = case_dir / "MESH"
     mesh_dir.mkdir(parents=True)
     (case_dir / "study.export").write_text(
-        "P time_limit 300\n"
-        "P memory_limit 1024\n"
-        "F comm study.comm D 1\n"
-        "F mmed MESH/mesh.med D 20\n",
-        encoding="utf-8")
-    (case_dir / "study.comm").write_text(
-        "DEBUT()\n"
-        "FIN()\n",
-        encoding="utf-8")
+        "P time_limit 300\nP memory_limit 1024\nF comm study.comm D 1\nF mmed MESH/mesh.med D 20\n", encoding="utf-8"
+    )
+    (case_dir / "study.comm").write_text("DEBUT()\nFIN()\n", encoding="utf-8")
     (mesh_dir / "mesh.med").write_text("x\n", encoding="utf-8")
     return case_dir
 
@@ -43,6 +41,10 @@ def _wait_for(predicate, timeout: float = 10.0) -> bool:
     return False
 
 
+@pytest.mark.skipif(
+    os.environ.get("CSAUTO_CODE_ASTER_DOCKER_TESTS") != "1",
+    reason="set CSAUTO_CODE_ASTER_DOCKER_TESTS=1 with docker and the simvia/code_aster image pulled",
+)
 def test_run_cases_launches_code_aster_solver(runs_dir: Path) -> None:
     adapter = get_solver_adapter("code_aster")
     case_dir = _make_code_aster_case(runs_dir, "case0001")
@@ -54,7 +56,6 @@ def test_run_cases_launches_code_aster_solver(runs_dir: Path) -> None:
         max_parallel=1,
         case_filter=["case0001"],
         runtime="docker",
-        saturne_bin=sys.executable,
         resume_only_failed=False,
         source="test",
         adapter=adapter,
@@ -67,8 +68,8 @@ def test_run_cases_launches_code_aster_solver(runs_dir: Path) -> None:
     assert record["pid"]
 
     codeaster_log = case_dir / "RESU" / "LOGS" / "run_solver.log"
-    assert _wait_for(codeaster_log.is_file), "code_aster solver never wrote its log"
-    assert _wait_for(lambda: "DIAGNOSTIC JOB" in codeaster_log.read_text(encoding="utf-8"))
+    assert _wait_for(codeaster_log.is_file, timeout=120.0), "code_aster solver never wrote its log"
+    assert _wait_for(lambda: "DIAGNOSTIC JOB" in codeaster_log.read_text(encoding="utf-8"), timeout=120.0)
     assert "code_aster" in codeaster_log.read_text(encoding="utf-8")
     assert adapter.detect_outcome(case_dir) == STATUS_DONE
     assert (case_dir / "RESU").exists()
@@ -94,16 +95,9 @@ def test_generate_doctor_and_cleanup_with_code_aster_solver(tmp_path: Path) -> N
     resu_dir = tmp_path / "RESU"
     resu_dir.mkdir(parents=True)
     (template_dir / "study.export").write_text(
-        "P time_limit 300\n"
-        "P memory_limit 1024\n"
-        "F comm study.comm D 1\n"
-        "F mmed MESH/mesh.med D 20\n",
-        encoding="utf-8")
-    (template_dir / "study.comm").write_text(
-        "DEBUT()\n"
-        "E = {young}\n"
-        "FIN()\n",
-        encoding="utf-8")
+        "P time_limit 300\nP memory_limit 1024\nF comm study.comm D 1\nF mmed MESH/mesh.med D 20\n", encoding="utf-8"
+    )
+    (template_dir / "study.comm").write_text("DEBUT()\nE = {young}\nFIN()\n", encoding="utf-8")
     (mesh_dir / "mesh.med").write_text("x\n", encoding="utf-8")
     output_dir = tmp_path / "RUNS"
 
