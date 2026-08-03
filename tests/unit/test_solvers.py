@@ -142,6 +142,22 @@ class TestCodeAsterAdapter:
     def adapter(self):
         return get_solver_adapter("code_aster")
 
+    def test_shared_dir_mounts_keep_their_names(self, adapter, tmp_path):
+        runs_dir = tmp_path / "RUNS"
+        case_dir = runs_dir / "case1"
+        case_dir.mkdir(parents=True)
+        (case_dir / "study.export").write_text("P time_limit 300\n", encoding="utf-8")
+        (runs_dir / "MESH").mkdir()
+        resu_target = tmp_path / "resu_store"
+        resu_target.mkdir()
+        (runs_dir / "RESU").symlink_to(resu_target, target_is_directory=True)
+
+        selection = RuntimeSelection(runtime="docker", docker_image="img")
+        script = adapter.build_run_command(case_dir, 1, 1, selection)[-1]
+
+        assert f"{resu_target.resolve()}:/home/user/case1/RESU" in script
+        assert "/home/user/case1/MESH" not in script
+
     def test_detect_outcome_done(self, adapter, tmp_path):
         case_dir = tmp_path / "case1"
         logpath = case_dir / "RESU/LOGS"

@@ -60,10 +60,10 @@ class CodeAsterAdapter(SolverAdapterBase):
             f.write(f"F mess {solverlogpath} R 6\n")
 
         links = [f"{runs_root}:{container_root}"]
-        for i, shared_data in enumerate(shared_dir_symlink_mounts(runs_root, self.shared_dir_names)):
-            readonly = shared_data[1]
-            linked = f"{shared_data[0]}:{container_case}/{list(self.shared_dir_names)[i]}"
-            links.append(f"{linked}:ro" if readonly else f"{linked}")
+        for name in self.shared_dir_names:
+            for target, readonly in shared_dir_symlink_mounts(runs_root, (name,)):
+                linked = f"{target}:{container_case}/{name}"
+                links.append(f"{linked}:ro" if readonly else linked)
 
         # TODO: Pour relier le fichier de message temporaire
         # solverlogfile = Path(f"{runs_root}/{case_dir.name}/{solverlogpath}")
