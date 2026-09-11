@@ -1011,3 +1011,49 @@ def test_refresh_status_include_doe_returns_columns(
     assert "case_id" not in doe_columns
     assert rows[0]["doe"]["density"] == "1.2"
     assert rows[0]["doe"]["velocity"] == "3.5"
+
+
+def _wait_for_zombie(pid: int, timeout: float = 5.0) -> bool:
+    """Poll /proc until the child has exited but is not yet reaped."""
+    import time
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            return False
+        if stat.rpartition(")")[2].split()[0] == "Z":
+            return True
+        time.sleep(0.01)
+    return False
+
+
+@pytest.mark.skipif(not Path("/proc/self/stat").is_file(), reason="requires procfs")
+def test_is_process_alive_reports_a_zombie_as_dead() -> None:
+    """The web server never reaps the runs it launches, so a finished run lingers as a zombie.
+
+    os.kill(pid, 0) succeeds on a zombie, which used to keep the case RUNNING forever.
+    """
+    import contextlib
+    import os
+
+    from csauto.runner import is_process_alive
+
+    pid = os.fork()
+    if pid == 0:  # pragma: no cover - child process
+        os._exit(0)
+    try:
+        assert _wait_for_zombie(pid), "child never became a zombie"
+        assert is_process_alive(pid) is False
+    finally:
+        with contextlib.suppress(ChildProcessError, OSError):
+            os.waitpid(pid, 0)
+
+
+def test_is_process_alive_reports_a_live_process_as_alive() -> None:
+    import os
+
+    from csauto.runner import is_process_alive
+
+    assert is_process_alive(os.getpid()) is True

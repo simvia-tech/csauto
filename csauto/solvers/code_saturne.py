@@ -18,6 +18,8 @@ from ..execution import (
 )
 from ..logs import (
     ANOMALY_FILES_DEFAULT,
+    _is_recent,
+    _parse_start_time,
     detect_run_outcome,
     extract_last_iteration,
     extract_restart_origin,
@@ -29,6 +31,7 @@ from ..logs import (
     parse_performance_log,
 )
 from ..probes import list_probe_files, list_profile_files, locate_probe_files
+from ..registry import STATUS_FAILED
 from ..residuals import find_residuals_files, parse_residuals_from_log
 from ..template import find_run_cfg, find_setup_file
 from .base import CompareKind, PerfColumn, SolverAdapterBase
@@ -40,6 +43,12 @@ if TYPE_CHECKING:
 CHECKPOINT_STATE_RE = re.compile(r"Checkpoint at iteration\s+(?P<iter>\d+),\s+physical time\s+(?P<time>[-+0-9.eE]+)")
 
 CONTROL_FILENAME = "control_file"
+# Status markers code_saturne leaves in RESU/<run>/ when a run stops abnormally.
+# Its own cs_case.py maps run_status.<name> to a case state; only these two mean
+# failure (FAILED and EXCEEDED_TIME_LIMIT). The others it writes are progress
+# states (preparing, prepared, preprocessing, ready, running, saving, finished),
+# and a normal completion removes the marker altogether.
+RUN_STATUS_FAILURE_NAMES = ("run_status.failed", "run_status.exceeded_time_limit")
 # code_saturne prints its configured iteration limit once at startup, into setup.log:
 #   "      nt_max:  500 (final time step)\n" (cs_time_step_log_setup, src/base/cs_time_step.cpp)
 NT_MAX_SETUP_RE = re.compile(r"nt_max:\s*(-?\d+)")
@@ -337,7 +346,20 @@ class CodeSaturneAdapter(SolverAdapterBase):
         return None, None
 
     def detect_outcome(self, case_dir: Path, start_time: str | None = None) -> str | None:
-        return detect_run_outcome(case_dir, start_time)
+        outcome = detect_run_outcome(case_dir, start_time)
+        if outcome:
+            return outcome
+        # The logs gave no verdict. A run that fails before the solver starts (a
+        # missing mesh, say) writes no run_solver.log at all, only a status
+        # marker beside it. Restricted to the current run, so a marker left by a
+        # previous run never overrides the log of this one.
+        start_ts = _parse_start_time(start_time)
+        for run_dir in self.list_run_dirs(case_dir):
+            for name in RUN_STATUS_FAILURE_NAMES:
+                marker = run_dir / name
+                if marker.is_file() and _is_recent(marker, start_ts):
+                    return STATUS_FAILED
+        return None
 
     def read_progress(self, case_dir: Path, start_time: str | None = None) -> int | None:
         run_status_path = locate_run_status_file(case_dir, start_time)
