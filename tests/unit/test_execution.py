@@ -309,3 +309,29 @@ def test_build_singularity_slurm_script_binds_symlinked_shared_dirs(tmp_path: Pa
     script = CodeSaturneAdapter().build_slurm_script(case_dir, nprocs=2, nt=1, selection=selection)
 
     assert f"--bind {mesh.resolve()}:{mesh.resolve()}:ro" in script
+
+
+def test_build_runtime_gui_command_singularity_mounts_shared_dir_symlinks(tmp_path: Path, monkeypatch) -> None:
+    """The GUI must see the same shared dirs as a run, or symlinked meshes break inside the container."""
+    monkeypatch.delenv("DISPLAY", raising=False)
+    runs_dir = tmp_path / "RUNS"
+    case_dir = runs_dir / "case0001"
+    (case_dir / "DATA").mkdir(parents=True)
+    (case_dir / "DATA" / "setup.xml").write_text("<root/>", encoding="utf-8")
+    mesh = tmp_path / "study" / "MESH"
+    post = tmp_path / "study" / "POST"
+    mesh.mkdir(parents=True)
+    post.mkdir(parents=True)
+    (runs_dir / "MESH").symlink_to(mesh, target_is_directory=True)
+    (runs_dir / "POST").symlink_to(post, target_is_directory=True)
+    selection = RuntimeSelection(
+        runtime=RUNTIME_SINGULARITY,
+        docker_image="img",
+        singularity_bin="/usr/bin/apptainer",
+        singularity_image="/images/code_saturne.sif",
+    )
+
+    cmd = build_runtime_gui_command(case_dir, selection)
+
+    assert f"{mesh.resolve()}:{mesh.resolve()}:ro" in cmd
+    assert f"{post.resolve()}:{post.resolve()}" in cmd

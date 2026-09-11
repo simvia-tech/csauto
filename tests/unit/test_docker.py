@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from csauto.docker import build_run_command, read_container_id
+from csauto.docker import build_gui_command, build_run_command, read_container_id
 
 
 def test_build_run_command_without_display(monkeypatch, tmp_path: Path) -> None:
@@ -71,3 +71,36 @@ def test_build_run_command_mounts_symlinked_shared_dirs(monkeypatch, tmp_path: P
     assert f"-v {mesh.resolve()}:{mesh.resolve()}:ro" in joined
     assert f"-v {post.resolve()}:{post.resolve()}" in joined
     assert f"{post.resolve()}:ro" not in joined
+
+
+def test_build_gui_command_mounts_shared_dir_symlinks(monkeypatch, tmp_path: Path) -> None:
+    """The GUI must see the same shared dirs as a run, or symlinked meshes break inside the container."""
+    monkeypatch.delenv("DISPLAY", raising=False)
+    runs_dir = tmp_path / "RUNS"
+    case_dir = runs_dir / "case0001"
+    (case_dir / "DATA").mkdir(parents=True)
+    (case_dir / "DATA" / "setup.xml").write_text("<root/>", encoding="utf-8")
+    mesh = tmp_path / "study" / "MESH"
+    post = tmp_path / "study" / "POST"
+    mesh.mkdir(parents=True)
+    post.mkdir(parents=True)
+    (runs_dir / "MESH").symlink_to(mesh, target_is_directory=True)
+    (runs_dir / "POST").symlink_to(post, target_is_directory=True)
+
+    cmd = build_gui_command(case_dir, "my_image")
+
+    assert f"{mesh.resolve()}:{mesh.resolve()}:ro" in cmd
+    assert f"{post.resolve()}:{post.resolve()}" in cmd
+
+
+def test_build_gui_command_adds_no_mount_without_symlinks(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("DISPLAY", raising=False)
+    runs_dir = tmp_path / "RUNS"
+    case_dir = runs_dir / "case0001"
+    (case_dir / "DATA").mkdir(parents=True)
+    (case_dir / "DATA" / "setup.xml").write_text("<root/>", encoding="utf-8")
+    (runs_dir / "MESH").mkdir()
+
+    cmd = build_gui_command(case_dir, "my_image")
+
+    assert cmd.count("-v") == 1

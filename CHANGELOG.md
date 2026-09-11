@@ -13,6 +13,7 @@ Make the dashboard follow what each solver can actually do: panels and action bu
 - `csauto doctor` reports the panels and capabilities derived for the configured solver
 
 ### Fixed
+- Opening the solver GUI on a case whose shared dirs are symlinks (the default since `mesh_mode = "symlink"` became the default in 0.4.1) left those symlinks dangling inside the container: `build_gui_command` (docker) and the singularity branch of `build_runtime_gui_command` mounted only the runs dir, unlike their `run` counterparts which also bind the symlink targets. Both now bind them the same way, `MESH` read-only and `POST` writable
 - Requesting a restart on a solver without restart support returned HTTP 500 "Launch error", a client error reported as a server fault; it now returns HTTP 400 naming the solver
 - Live control on a solver declaring no control action reported "Invalid action (expected one of [])"; both the API and the CLI now name the solver
 - code_aster's Compare panel offered an empty file selector; it now offers `doe_row.csv`

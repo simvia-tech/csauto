@@ -76,7 +76,11 @@ def build_gui_command(
     except ValueError:
         setup_rel = Path(setup_path.name)
     container_setup = f"{container_case}/{setup_rel.as_posix()}"
+    from .execution import shared_dir_symlink_mounts
+
     cmd: list[str] = ["docker", "run", "-v", f"{runs_root}:{container_root}"]
+    for target, readonly in shared_dir_symlink_mounts(runs_root, adapter.shared_dir_names):
+        cmd.extend(["-v", f"{target}:{target}:ro" if readonly else f"{target}:{target}"])
     if display:
         cmd.extend(
             [
