@@ -308,3 +308,12 @@ def test_default_compare_kind_derives_from_first_compare_kind() -> None:
 
     assert CodeSaturneAdapter().default_compare_kind == "setup.xml"
     assert StubAdapter().default_compare_kind == "stub.toml"
+
+
+def test_code_aster_declares_doe_row_compare_kind() -> None:
+    from csauto.solvers.base import CompareKind
+    from csauto.solvers.code_aster import CodeAsterAdapter
+
+    adapter = CodeAsterAdapter()
+    assert adapter.compare_kinds == (CompareKind("doe_row.csv", "doe_row.csv"),)
+    assert adapter.default_compare_kind == "doe_row.csv"

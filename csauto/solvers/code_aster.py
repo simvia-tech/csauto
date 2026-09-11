@@ -17,7 +17,7 @@ from typing import ClassVar
 from ..execution import RUNTIME_DOCKER, RUNTIME_NATIVE, RUNTIME_SINGULARITY, RuntimeSelection, shared_dir_symlink_mounts
 from ..logs import _is_recent, _parse_start_time, read_tail_lines
 from ..registry import STATUS_DONE, STATUS_FAILED
-from .base import SolverAdapterBase
+from .base import CompareKind, SolverAdapterBase
 
 CODE_ASTER_EXPORT_EXTENSION = "export"
 
@@ -34,6 +34,11 @@ class CodeAsterAdapter(SolverAdapterBase):
         "MESH",
         "RESU",
     )
+    # doe_row.csv is written into every generated case by the generic DOE code,
+    # so it is comparable whatever the solver. The .export file would be a better
+    # candidate but its name varies per case (find_setup_file globs *.export)
+    # while compare_kinds expects fixed names.
+    compare_kinds: ClassVar[tuple[CompareKind, ...]] = (CompareKind("doe_row.csv", "doe_row.csv"),)
 
     def build_run_command(
         self,
