@@ -319,6 +319,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         authorization: str | None = Header(default=None),
     ) -> dict[str, str]:
         ctx.require_auth(x_csauto_token, authorization)
+        ctx.require_capability("control")
         if payload.action not in ctx.adapter.control_actions:
             raise ctx.http_exception_cls(
                 status_code=400, detail=f"Invalid action (expected one of {sorted(ctx.adapter.control_actions)})"
@@ -380,6 +381,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         authorization: str | None = Header(default=None),
     ) -> dict[str, str]:
         ctx.require_auth(x_csauto_token, authorization)
+        ctx.require_capability("gui")
         case_id, case_dir = ctx.validated_case_dir(payload.case)
         if not os.environ.get("DISPLAY"):
             raise ctx.http_exception_cls(status_code=500, detail="DISPLAY not set on server")
@@ -448,6 +450,8 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
             payload,
             ctx.http_exception_cls,
         )
+        if restart:
+            ctx.require_capability("restart")
 
         try:
             runtime_selection = resolve_runtime(

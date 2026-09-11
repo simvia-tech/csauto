@@ -146,6 +146,14 @@ class FastAPIContext:
         if request_token(headers) != self.api_token:
             raise self.http_exception_cls(status_code=401, detail="Unauthorized")
 
+    def require_capability(self, capability: str) -> None:
+        """Refuse an action the selected solver cannot perform, before doing any work."""
+        if capability not in self.adapter.capabilities:
+            raise self.http_exception_cls(
+                status_code=400,
+                detail=f"Solver {self.adapter.name!r} does not support {capability}",
+            )
+
     def validate_case(self, case: object) -> str:
         try:
             return validate_case_id(case, self.runs_dir, self.runs_root)

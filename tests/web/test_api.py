@@ -1266,3 +1266,59 @@ def test_api_app_config_reflects_a_solver_without_analytics(
         httpd.server_close()
         thread.join(timeout=2)
         _ACTIVE_TEST_CLIENT = None
+
+
+@pytest.fixture()
+def aster_env(runs_dir: Path, case_factory, registry_factory):
+    """A server backed by a solver with no control, restart or GUI capability."""
+    global _ACTIVE_TEST_CLIENT
+
+    case_dir = case_factory(runs_dir, "case0001")
+    registry_factory(runs_dir, "case0001", case_dir, status="RUNNING")
+    base_url, thread, httpd = _start_server(runs_dir, solver="code_aster")
+    try:
+        yield base_url, case_dir
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2)
+        _ACTIVE_TEST_CLIENT = None
+
+
+def test_control_case_rejected_when_solver_has_no_control(aster_env) -> None:
+    base_url, _case_dir = aster_env
+    with pytest.raises(HTTPError) as excinfo:
+        _http_post(f"{base_url}/api/control_case", {"cases": ["case0001"], "action": "stop"})
+    assert excinfo.value.code == 400
+    assert "does not support control" in excinfo.value.read().decode("utf-8")
+
+
+def test_open_gui_rejected_when_solver_has_no_gui(aster_env) -> None:
+    base_url, _case_dir = aster_env
+    with pytest.raises(HTTPError) as excinfo:
+        _http_post(f"{base_url}/api/open_gui", {"case": "case0001"})
+    assert excinfo.value.code == 400
+    assert "does not support gui" in excinfo.value.read().decode("utf-8")
+
+
+def test_restart_rejected_when_solver_has_no_restart(aster_env) -> None:
+    """Previously a 500: a client error reported as a server fault."""
+    base_url, _case_dir = aster_env
+    with pytest.raises(HTTPError) as excinfo:
+        _http_post(
+            f"{base_url}/api/run_case",
+            {"cases": ["case0001"], "n": 1, "nt": 1, "restart": True},
+        )
+    assert excinfo.value.code == 400
+    assert "does not support restart" in excinfo.value.read().decode("utf-8")
+
+
+def test_run_without_restart_is_not_blocked_by_the_restart_guard(aster_env) -> None:
+    """The guard must only fire when a restart was actually requested."""
+    base_url, _case_dir = aster_env
+    try:
+        _http_post(f"{base_url}/api/run_case", {"cases": ["case0001"], "n": 1, "nt": 1})
+    except HTTPError as exc:
+        # A launch failure (no runtime available in CI) is acceptable here;
+        # a capability rejection is not.
+        assert "does not support restart" not in exc.read().decode("utf-8")
