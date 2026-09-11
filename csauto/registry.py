@@ -116,11 +116,20 @@ def mutate_registry(
 
 @contextmanager
 def registry_transaction(runs_dir: Path) -> Iterable[dict[str, dict[str, Any]]]:
-    """Load/update/save registry.json under a single lock."""
+    """Load/update/save registry.json under a single lock.
+
+    The save also runs when the body raises. Callers that record an outcome and
+    then raise (a launch that writes status=FAILED before reporting the failure,
+    for one) would otherwise lose that write and leave the case in its previous
+    state forever. Discarding it buys no atomicity anyway, since the filesystem
+    side effects of those same bodies are not rolled back either.
+    """
     with registry_lock(runs_dir):
         registry = _load_registry_unlocked(runs_dir)
-        yield registry
-        _save_registry_unlocked(runs_dir, registry)
+        try:
+            yield registry
+        finally:
+            _save_registry_unlocked(runs_dir, registry)
 
 
 def update_case(registry: dict[str, dict[str, Any]], case_id: str, **updates: Any) -> None:

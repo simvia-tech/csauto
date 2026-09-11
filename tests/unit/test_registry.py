@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from csauto.registry import append_history, load_registry, read_history, registry_transaction, update_case
 
 
@@ -82,3 +84,26 @@ def test_registry_transaction_keeps_valid_json(tmp_path: Path) -> None:
         pass
     registry = load_registry(runs_dir)
     assert "case0001" in registry
+
+
+def test_registry_transaction_persists_writes_made_before_an_exception(runs_dir: Path) -> None:
+    """A launch that fails writes status=FAILED and then raises; that write must survive.
+
+    Filesystem side effects are not rolled back either, so discarding the registry
+    write buys no atomicity, only an inconsistent state.
+    """
+    with registry_transaction(runs_dir) as registry:
+        update_case(registry, "case0001", status="PENDING")
+
+    with pytest.raises(RuntimeError, match="launch failed"), registry_transaction(runs_dir) as registry:
+        update_case(registry, "case0001", status="FAILED")
+        raise RuntimeError("launch failed")
+
+    assert load_registry(runs_dir)["case0001"]["status"] == "FAILED"
+
+
+def test_registry_transaction_saves_normally_without_an_exception(runs_dir: Path) -> None:
+    with registry_transaction(runs_dir) as registry:
+        update_case(registry, "case0001", status="DONE")
+
+    assert load_registry(runs_dir)["case0001"]["status"] == "DONE"

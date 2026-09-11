@@ -1057,3 +1057,32 @@ def test_is_process_alive_reports_a_live_process_as_alive() -> None:
     from csauto.runner import is_process_alive
 
     assert is_process_alive(os.getpid()) is True
+
+
+def test_failed_launch_leaves_the_case_failed_not_pending(monkeypatch, runs_dir: Path, case_factory) -> None:
+    """A case whose launch never started must not stay PENDING forever.
+
+    _launch_local writes status=FAILED and then raises; that write used to be
+    discarded, leaving the case PENDING with no way to tell it never ran.
+    """
+    case_factory(runs_dir, "case0001")
+
+    def popen_stub(*_args, **_kwargs):
+        raise OSError("docker not found")
+
+    monkeypatch.setattr("subprocess.Popen", popen_stub)
+    monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
+
+    with pytest.raises(RuntimeError, match="Failed to launch case0001"):
+        run_cases(
+            runs_dir,
+            nprocs=1,
+            nt=1,
+            max_parallel=1,
+            case_filter=["case0001"],
+            docker_image="image",
+            resume_only_failed=False,
+            source="test",
+        )
+
+    assert load_registry(runs_dir)["case0001"]["status"] == STATUS_FAILED
