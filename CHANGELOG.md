@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+Make the dashboard follow what each solver can actually do: panels and action buttons are now derived from the solver adapter instead of being shown for every solver.
+
+### Changed
+- Dashboard panels and action buttons are derived from what the solver adapter implements, rather than declared: a panel appears when the adapter provides what feeds it (`find_residuals_files`, `list_probe_files`, or a non-empty `compare_kinds` / `performance_columns` / `control_actions`), and the Restart, Stop, control and Open GUI controls follow the same rule. Solvers other than code_saturne lose the panels and buttons they could never feed: code_aster and the stub solver now show Status, Compare, Log Tail and Recent Errors only. code_saturne is unchanged. Adapters can no longer declare `dashboard_panels`, which now raises `TypeError` at import time
+- `csauto doctor` reports the panels and capabilities derived for the configured solver
+
+### Fixed
+- Requesting a restart on a solver without restart support returned HTTP 500 "Launch error", a client error reported as a server fault; it now returns HTTP 400 naming the solver
+- Live control on a solver declaring no control action reported "Invalid action (expected one of [])"; both the API and the CLI now name the solver
+- code_aster's Compare panel offered an empty file selector; it now offers `doe_row.csv`
+
 ## [0.5.0] - 2026-08-03
 
 Add code_aster as a second supported solver: generate, run, and monitor finite-element campaigns alongside Code_Saturne.
