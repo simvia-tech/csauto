@@ -691,8 +691,29 @@ def _start_case_with_launch_slot(
         start_case()
 
 
+def _is_zombie(pid: int) -> bool:
+    """True when the process has exited but its parent has not reaped it yet.
+
+    Without procfs (non-Linux), report False and let the os.kill() answer stand.
+    """
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return False
+    # The comm field is parenthesized and may itself contain spaces or
+    # parentheses, so the state is the first token after the last ")".
+    fields = stat.rpartition(")")[2].split()
+    return bool(fields) and fields[0] == "Z"
+
+
 def is_process_alive(pid: int) -> bool:
-    """Check if a PID is alive (best effort, POSIX-oriented)."""
+    """Check if a PID is alive (best effort, POSIX-oriented).
+
+    A zombie counts as dead. `os.kill(pid, 0)` still succeeds for a process that
+    exited but was never reaped, which is what every run launched by the
+    long-lived web server becomes: `run_cases` spawns it with Popen and never
+    waits. Treating that as alive kept finished cases RUNNING forever.
+    """
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -700,6 +721,12 @@ def is_process_alive(pid: int) -> bool:
     except PermissionError:
         return True
     except OSError:
+        return False
+    if _is_zombie(pid):
+        # Reap it when we are the parent, so the entry stops lingering in the
+        # process table for the lifetime of the server.
+        with contextlib.suppress(ChildProcessError, OSError):
+            os.waitpid(pid, os.WNOHANG)
         return False
     return True
 

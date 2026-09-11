@@ -394,3 +394,55 @@ def test_control_implementation_implies_declared_actions() -> None:
         adapter = get_solver_adapter(name)
         if adapter._provides("apply_control"):
             assert adapter.control_actions, f"{name} implements apply_control but declares no actions"
+
+
+def test_code_saturne_detect_outcome_reads_the_run_status_failure_marker(tmp_path) -> None:
+    """A crash before the solver starts (missing mesh) writes no solver log, only run_status.failed."""
+    adapter = get_solver_adapter("code_saturne")
+    case_dir = tmp_path / "case0001"
+    run_dir = case_dir / "RESU" / "20260911-1326"
+    run_dir.mkdir(parents=True)
+    (run_dir / "run_status.failed").write_text("", encoding="utf-8")
+
+    assert adapter.detect_outcome(case_dir) == STATUS_FAILED
+
+
+def test_code_saturne_detect_outcome_reads_the_time_limit_marker(tmp_path) -> None:
+    adapter = get_solver_adapter("code_saturne")
+    case_dir = tmp_path / "case0001"
+    run_dir = case_dir / "RESU" / "20260911-1326"
+    run_dir.mkdir(parents=True)
+    (run_dir / "run_status.exceeded_time_limit").write_text("", encoding="utf-8")
+
+    assert adapter.detect_outcome(case_dir) == STATUS_FAILED
+
+
+def test_code_saturne_detect_outcome_ignores_progress_markers(tmp_path) -> None:
+    """run_status.running and friends are progress states, not failures."""
+    adapter = get_solver_adapter("code_saturne")
+    case_dir = tmp_path / "case0001"
+    run_dir = case_dir / "RESU" / "20260911-1326"
+    run_dir.mkdir(parents=True)
+    for name in ("run_status.running", "run_status.preprocessing", "run_status.saving"):
+        (run_dir / name).write_text("", encoding="utf-8")
+
+    assert adapter.detect_outcome(case_dir) is None
+
+
+def test_code_saturne_detect_outcome_ignores_a_stale_failure_marker(tmp_path) -> None:
+    """A marker left by a previous run must not override the current run's log."""
+    import os
+    import time
+
+    adapter = get_solver_adapter("code_saturne")
+    case_dir = tmp_path / "case0001"
+    old_run = case_dir / "RESU" / "20260101-0000"
+    old_run.mkdir(parents=True)
+    (old_run / "run_status.failed").write_text("", encoding="utf-8")
+    os.utime(old_run / "run_status.failed", (1000, 1000))
+    new_run = case_dir / "RESU" / "20260911-1326"
+    new_run.mkdir(parents=True)
+    (new_run / "run_solver.log").write_text("END OF CALCULATION\n", encoding="utf-8")
+    start_time = datetime.fromtimestamp(time.time() - 60).isoformat(timespec="seconds")
+
+    assert adapter.detect_outcome(case_dir, start_time) == STATUS_DONE
