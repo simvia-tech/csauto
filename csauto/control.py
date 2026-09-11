@@ -29,6 +29,8 @@ def control_case(
     solver-specific and applied by the adapter.
     """
     adapter = adapter or _default_adapter()
+    if not adapter.control_actions:
+        raise ValueError(f"Solver {adapter.name!r} does not support live control.")
     if action not in adapter.control_actions:
         raise ValueError(f"Invalid control action: {action!r} (expected one of {sorted(adapter.control_actions)})")
 

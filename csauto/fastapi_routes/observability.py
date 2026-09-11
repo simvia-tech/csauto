@@ -83,8 +83,10 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
     class AppConfigModel(BaseModel):
         solver: str
         panels: list[str]
+        capabilities: list[str]
         compare_kinds: list[CompareKindModel]
         error_files: list[str]
+        control_actions: list[str]
 
     class RecentErrorItemModel(BaseModel):
         case_id: str
@@ -144,8 +146,10 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
         return {
             "solver": ctx.adapter.name,
             "panels": list(ctx.adapter.dashboard_panels),
+            "capabilities": sorted(ctx.adapter.capabilities),
             "compare_kinds": [{"value": kind.value, "label": kind.label} for kind in ctx.adapter.compare_kinds],
             "error_files": list(ctx.adapter.anomaly_file_names),
+            "control_actions": sorted(ctx.adapter.control_actions),
         }
 
     @app.get("/api/restart_origin", response_model=RestartOriginResponse)

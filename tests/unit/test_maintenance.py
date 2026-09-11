@@ -478,3 +478,41 @@ def test_cleanup_runs_unlinks_symlink_without_following_target(tmp_path: Path) -
     assert real_resu.is_dir()
     assert sentinel.read_text(encoding="utf-8") == "data"
     assert report.resu_removed == 1
+
+
+def test_doctor_reports_derived_panels_and_capabilities(tmp_path: Path) -> None:
+    from csauto.solvers.code_aster import CodeAsterAdapter
+
+    runs_dir = _make_runs_dir(tmp_path)
+    _add_case(runs_dir, "case0001", with_setup=False)
+
+    items = run_doctor(runs_dir, check_setup=False, check_display=False, adapter=CodeAsterAdapter())
+    assert _has_item(items, "ok", "solver code_aster: panels status, compare, tail, errors")
+    assert _has_item(items, "ok", "solver code_aster: capabilities compare")
+
+
+def test_doctor_says_none_when_the_solver_has_no_capability(tmp_path: Path) -> None:
+    from csauto.solvers.base import SolverAdapterBase
+
+    class BareAdapter(SolverAdapterBase):
+        name = "bare"
+        native_bin_name = "bare"
+        container_bin_name = "bare"
+        container_root = "/bare"
+        default_docker_image = ""
+        results_dirname = "OUT"
+
+        def run_argv(self, case_path, nprocs, nt, run_args=None):
+            return []
+
+        def detect_outcome(self, case_dir, start_time=None):
+            return None
+
+        def find_setup_file(self, template_dir):
+            raise FileNotFoundError(template_dir)
+
+    runs_dir = _make_runs_dir(tmp_path)
+    _add_case(runs_dir, "case0001", with_setup=False)
+
+    items = run_doctor(runs_dir, check_setup=False, check_display=False, adapter=BareAdapter())
+    assert _has_item(items, "ok", "solver bare: capabilities none")

@@ -52,6 +52,10 @@
     triggerGlobalRefresh,
   } from "$lib/stores/refresh.svelte";
   import {
+    hasCapability,
+    hasControlAction,
+  } from "$lib/stores/appConfig.svelte";
+  import {
     openRunDialog,
     openRestartDialog,
     openCleanDialog,
@@ -283,6 +287,7 @@
     );
   });
   let canRestart = $derived.by(() => {
+    if (!hasCapability("restart")) return false;
     const statuses = getSelectedStatuses();
     return (
       statuses.size > 0 &&
@@ -295,9 +300,39 @@
     return statuses.size > 0 && statuses.has("RUNNING");
   });
   let canControl = $derived.by(() => {
+    if (!hasCapability("control")) return false;
     const statuses = getSelectedStatuses();
     return statuses.size > 0 && statuses.has("RUNNING");
   });
+
+  /* Live control directives the solver declares, so unsupported ones are
+     removed from the More menu rather than shown disabled. */
+  const CONTROL_MENU = [
+    {
+      label: "Extend",
+      icon: FastForward,
+      onClick: extendSelected,
+      action: "extend",
+    },
+    {
+      label: "Checkpoint",
+      icon: Save,
+      onClick: checkpointSelected,
+      action: "checkpoint",
+    },
+    { label: "Flush", icon: Droplets, onClick: flushSelected, action: "flush" },
+  ];
+
+  let moreControlItems = $derived(
+    CONTROL_MENU.filter((item) => hasControlAction(item.action)).map(
+      (item) => ({
+        label: item.label,
+        icon: item.icon,
+        onClick: item.onClick,
+        disabled: !canControl,
+      }),
+    ),
+  );
   let canClean = $derived(hasSelectedWithResu());
 
   /* Search */
@@ -439,40 +474,25 @@
         <Button variant="run" size="sm" onclick={runSelected} disabled={!canRun}
           ><Icon icon={Play} /> Run</Button
         >
-        <Button
-          variant="warning"
-          size="sm"
-          onclick={restartSelected}
-          disabled={!canRestart}><Icon icon={RotateCcw} /> Restart</Button
-        >
-        <Button
-          variant="warning"
-          size="sm"
-          onclick={stopSelected}
-          disabled={!canControl}><Icon icon={CircleStop} /> Stop</Button
-        >
-        <ActionMenuButton
-          items={[
-            {
-              label: "Extend",
-              icon: FastForward,
-              onClick: extendSelected,
-              disabled: !canControl,
-            },
-            {
-              label: "Checkpoint",
-              icon: Save,
-              onClick: checkpointSelected,
-              disabled: !canControl,
-            },
-            {
-              label: "Flush",
-              icon: Droplets,
-              onClick: flushSelected,
-              disabled: !canControl,
-            },
-          ]}
-        />
+        {#if hasCapability("restart")}
+          <Button
+            variant="warning"
+            size="sm"
+            onclick={restartSelected}
+            disabled={!canRestart}><Icon icon={RotateCcw} /> Restart</Button
+          >
+        {/if}
+        {#if hasCapability("control")}
+          <Button
+            variant="warning"
+            size="sm"
+            onclick={stopSelected}
+            disabled={!canControl}><Icon icon={CircleStop} /> Stop</Button
+          >
+        {/if}
+        {#if moreControlItems.length > 0}
+          <ActionMenuButton items={moreControlItems} />
+        {/if}
         <Button
           variant="danger"
           size="sm"
