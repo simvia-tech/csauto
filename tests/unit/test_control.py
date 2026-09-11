@@ -224,3 +224,13 @@ def test_control_case_logs_history(runs_dir: Path, case_factory) -> None:
     entry = json.loads(history_path.read_text(encoding="utf-8").splitlines()[-1])
     assert entry["action"] == "control_stop"
     assert entry["source"] == "cli"
+
+
+def test_control_case_reports_the_solver_when_it_supports_nothing(runs_dir: Path, case_factory) -> None:
+    from csauto.solvers.code_aster import CodeAsterAdapter
+
+    case_dir = case_factory(runs_dir, "case0001")
+    save_registry(runs_dir, {"case0001": {"case_id": "case0001", "path": str(case_dir), "status": "RUNNING"}})
+
+    with pytest.raises(ValueError, match="does not support live control"):
+        control_case(runs_dir, "case0001", "stop", adapter=CodeAsterAdapter())
