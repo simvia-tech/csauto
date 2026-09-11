@@ -1228,3 +1228,41 @@ def test_api_app_config_exposes_solver_and_panels(web_env) -> None:
     ]
     assert data["compare_kinds"][0]["label"] == "setup.xml"
     assert data["error_files"] == ["csauto.stderr", "run_solver.log", "listing", "csauto.stdout"]
+    assert data["capabilities"] == [
+        "compare",
+        "control",
+        "gui",
+        "performance",
+        "probes",
+        "residuals",
+        "restart",
+    ]
+    assert data["control_actions"] == ["checkpoint", "extend", "flush", "stop"]
+
+
+def test_api_app_config_reflects_a_solver_without_analytics(
+    runs_dir: Path,
+    case_factory,
+    registry_factory,
+) -> None:
+    global _ACTIVE_TEST_CLIENT
+
+    case_dir = case_factory(runs_dir, "case0001")
+    registry_factory(runs_dir, "case0001", case_dir, status="PREPARED")
+    base_url, thread, httpd = _start_server(runs_dir, solver="code_aster")
+    try:
+        status, body = _http_get(f"{base_url}/api/app_config")
+        assert status == 200
+        data = json.loads(body)
+        assert data["solver"] == "code_aster"
+        assert data["capabilities"] == ["compare"]
+        assert data["control_actions"] == []
+        assert "residuals" not in data["panels"]
+        assert "probes" not in data["panels"]
+        assert "performance" not in data["panels"]
+        assert data["panels"] == ["status", "compare", "tail", "errors"]
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2)
+        _ACTIVE_TEST_CLIENT = None
