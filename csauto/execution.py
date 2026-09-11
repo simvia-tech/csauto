@@ -315,6 +315,8 @@ def build_runtime_gui_command(
             "--pwd",
             container_case,
         ]
+        for target, readonly in shared_dir_symlink_mounts(runs_root, adapter.shared_dir_names):
+            cmd.extend(["--bind", f"{target}:{target}:ro" if readonly else f"{target}:{target}"])
         if os.environ.get("DISPLAY") and Path("/tmp/.X11-unix").exists():
             cmd.extend(["--bind", "/tmp/.X11-unix:/tmp/.X11-unix"])
         cmd.append(selection.singularity_image)

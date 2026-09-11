@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- Opening the solver GUI on a case whose shared dirs are symlinks (the default since `mesh_mode = "symlink"` became the default in 0.4.1) left those symlinks dangling inside the container: `build_gui_command` (docker) and the singularity branch of `build_runtime_gui_command` mounted only the runs dir, unlike their `run` counterparts which also bind the symlink targets. Both now bind them the same way, `MESH` read-only and `POST` writable
+
 ## [0.5.0] - 2026-08-03
 
 Add code_aster as a second supported solver: generate, run, and monitor finite-element campaigns alongside Code_Saturne.
