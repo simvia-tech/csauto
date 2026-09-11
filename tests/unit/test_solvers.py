@@ -374,3 +374,23 @@ def test_adapter_cannot_declare_capabilities() -> None:
 
         class BadAdapter(SolverAdapterBase):
             capabilities = frozenset({"residuals"})
+
+
+def test_performance_parser_implies_declared_columns() -> None:
+    """A parser without columns is dead code: the UI needs columns to draw the table."""
+    from csauto.solvers import available_solvers, get_solver_adapter
+
+    for name in available_solvers():
+        adapter = get_solver_adapter(name)
+        if adapter._provides("parse_performance"):
+            assert adapter.performance_columns, f"{name} parses performance but declares no columns"
+
+
+def test_control_implementation_implies_declared_actions() -> None:
+    """apply_control without control_actions can never be reached: every route checks the set first."""
+    from csauto.solvers import available_solvers, get_solver_adapter
+
+    for name in available_solvers():
+        adapter = get_solver_adapter(name)
+        if adapter._provides("apply_control"):
+            assert adapter.control_actions, f"{name} implements apply_control but declares no actions"
