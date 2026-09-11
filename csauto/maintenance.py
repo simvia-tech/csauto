@@ -87,6 +87,10 @@ def run_doctor(
             )
         )
 
+    add("ok", f"solver {adapter.name}: panels {', '.join(adapter.dashboard_panels)}")
+    capability_names = sorted(adapter.capabilities)
+    add("ok", f"solver {adapter.name}: capabilities {', '.join(capability_names) if capability_names else 'none'}")
+
     solver_bin_name = adapter.native_bin_name
     _rt = (runtime or "auto").strip().lower()
     # Override legacy flags with explicit runtime when provided

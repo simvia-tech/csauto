@@ -37,6 +37,18 @@ class PerfColumn(NamedTuple):
 
 ALL_DASHBOARD_PANELS = ("status", "residuals", "probes", "performance", "compare", "tail", "errors")
 
+CAPABILITY_RESIDUALS = "residuals"
+CAPABILITY_PROBES = "probes"
+CAPABILITY_PERFORMANCE = "performance"
+CAPABILITY_COMPARE = "compare"
+CAPABILITY_CONTROL = "control"
+CAPABILITY_RESTART = "restart"
+CAPABILITY_GUI = "gui"
+
+# Panels any run feeds, whatever the solver: status comes from the registry,
+# tail and errors from the csauto.stdout / csauto.stderr launcher logs.
+ALWAYS_ON_PANELS = ("status", "tail", "errors")
+
 
 @runtime_checkable
 class SolverAdapter(Protocol):
@@ -55,6 +67,7 @@ class SolverAdapter(Protocol):
     performance_fields: tuple[str, ...]
     performance_columns: tuple[PerfColumn, ...]
     dashboard_panels: tuple[str, ...]
+    capabilities: frozenset[str]
     compare_kinds: tuple[CompareKind, ...]
     default_compare_kind: str
     control_actions: frozenset[str]
@@ -171,9 +184,51 @@ class SolverAdapterBase(ABC):
     anomaly_file_names: ClassVar[tuple[str, ...]] = ("csauto.stderr", "csauto.stdout")
     cleanup_log_names: ClassVar[frozenset[str]] = frozenset({"csauto.stdout", "csauto.stderr"})
     performance_columns: ClassVar[tuple[PerfColumn, ...]] = ()
-    dashboard_panels: ClassVar[tuple[str, ...]] = ALL_DASHBOARD_PANELS
     compare_kinds: ClassVar[tuple[CompareKind, ...]] = ()
     control_actions: ClassVar[frozenset[str]] = frozenset()
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        for reserved in ("dashboard_panels", "capabilities"):
+            if reserved in cls.__dict__:
+                raise TypeError(
+                    f"{cls.__name__} must not declare {reserved!r}: it is derived "
+                    f"from what the adapter implements (see docs/adding-a-solver.md)."
+                )
+
+    def _provides(self, method_name: str) -> bool:
+        """True when the adapter defines its own version instead of the empty base default."""
+        return getattr(type(self), method_name) is not getattr(SolverAdapterBase, method_name)
+
+    @property
+    def capabilities(self) -> frozenset[str]:
+        """What this adapter can actually do, derived from what it provides.
+
+        Two forms, chosen per capability according to what the UI consumes:
+        a redefined method, or an existing declaration that is no longer empty.
+        """
+        caps: set[str] = set()
+        if self._provides("find_residuals_files"):
+            caps.add(CAPABILITY_RESIDUALS)
+        if self._provides("list_probe_files"):
+            caps.add(CAPABILITY_PROBES)
+        if self._provides("build_restart_args"):
+            caps.add(CAPABILITY_RESTART)
+        if self._provides("gui_argv"):
+            caps.add(CAPABILITY_GUI)
+        if self.compare_kinds:
+            caps.add(CAPABILITY_COMPARE)
+        if self.performance_columns:
+            caps.add(CAPABILITY_PERFORMANCE)
+        if self.control_actions:
+            caps.add(CAPABILITY_CONTROL)
+        return frozenset(caps)
+
+    @property
+    def dashboard_panels(self) -> tuple[str, ...]:
+        """Feedable panels, in ALL_DASHBOARD_PANELS display order."""
+        caps = self.capabilities
+        return tuple(panel for panel in ALL_DASHBOARD_PANELS if panel in ALWAYS_ON_PANELS or panel in caps)
 
     @property
     def default_compare_kind(self) -> str:

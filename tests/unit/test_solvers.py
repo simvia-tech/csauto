@@ -293,18 +293,104 @@ def test_code_saturne_performance_fields_derive_from_columns() -> None:
     assert {c.kind for c in adapter.performance_columns} <= {"time", "int", "float", "text"}
 
 
-def test_adapter_base_defaults_expose_all_dashboard_panels() -> None:
-    from csauto.solvers.base import ALL_DASHBOARD_PANELS
-    from csauto.solvers.stub import StubAdapter
-
-    adapter = StubAdapter()
-    assert adapter.dashboard_panels == ALL_DASHBOARD_PANELS
-    assert adapter.performance_fields == ()
-
-
 def test_default_compare_kind_derives_from_first_compare_kind() -> None:
     from csauto.solvers.code_saturne import CodeSaturneAdapter
     from csauto.solvers.stub import StubAdapter
 
     assert CodeSaturneAdapter().default_compare_kind == "setup.xml"
     assert StubAdapter().default_compare_kind == "stub.toml"
+
+
+def test_code_aster_declares_doe_row_compare_kind() -> None:
+    from csauto.solvers.base import CompareKind
+    from csauto.solvers.code_aster import CodeAsterAdapter
+
+    adapter = CodeAsterAdapter()
+    assert adapter.compare_kinds == (CompareKind("doe_row.csv", "doe_row.csv"),)
+    assert adapter.default_compare_kind == "doe_row.csv"
+
+
+def test_code_saturne_exposes_every_capability_and_panel() -> None:
+    """Regression guard: the production solver must not lose anything."""
+    from csauto.solvers.base import ALL_DASHBOARD_PANELS
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    adapter = CodeSaturneAdapter()
+    assert adapter.capabilities == frozenset(
+        {"residuals", "probes", "performance", "compare", "control", "restart", "gui"}
+    )
+    assert adapter.dashboard_panels == ALL_DASHBOARD_PANELS
+
+
+def test_code_aster_capabilities_are_limited_to_compare() -> None:
+    from csauto.solvers.code_aster import CodeAsterAdapter
+
+    adapter = CodeAsterAdapter()
+    assert adapter.capabilities == frozenset({"compare"})
+    assert adapter.dashboard_panels == ("status", "compare", "tail", "errors")
+
+
+def test_stub_capabilities_cover_compare_and_control() -> None:
+    from csauto.solvers.stub import StubAdapter
+
+    adapter = StubAdapter()
+    assert adapter.capabilities == frozenset({"compare", "control"})
+    assert adapter.dashboard_panels == ("status", "compare", "tail", "errors")
+    assert adapter.performance_fields == ()
+
+
+def test_always_on_panels_are_present_for_every_adapter() -> None:
+    from csauto.solvers import available_solvers, get_solver_adapter
+    from csauto.solvers.base import ALWAYS_ON_PANELS
+
+    for name in available_solvers():
+        panels = get_solver_adapter(name).dashboard_panels
+        assert set(ALWAYS_ON_PANELS) <= set(panels), name
+
+
+def test_dashboard_panels_follow_declaration_order() -> None:
+    """Panels are ordered by ALL_DASHBOARD_PANELS, not by capability name."""
+    from csauto.solvers.base import ALL_DASHBOARD_PANELS
+    from csauto.solvers.stub import StubAdapter
+
+    panels = StubAdapter().dashboard_panels
+    assert list(panels) == [p for p in ALL_DASHBOARD_PANELS if p in panels]
+
+
+def test_adapter_cannot_declare_dashboard_panels() -> None:
+    """A class attribute would shadow the derived property and silently reintroduce the bug."""
+    from csauto.solvers.base import SolverAdapterBase
+
+    with pytest.raises(TypeError, match="must not declare 'dashboard_panels'"):
+
+        class BadAdapter(SolverAdapterBase):
+            dashboard_panels = ("status",)
+
+
+def test_adapter_cannot_declare_capabilities() -> None:
+    from csauto.solvers.base import SolverAdapterBase
+
+    with pytest.raises(TypeError, match="must not declare 'capabilities'"):
+
+        class BadAdapter(SolverAdapterBase):
+            capabilities = frozenset({"residuals"})
+
+
+def test_performance_parser_implies_declared_columns() -> None:
+    """A parser without columns is dead code: the UI needs columns to draw the table."""
+    from csauto.solvers import available_solvers, get_solver_adapter
+
+    for name in available_solvers():
+        adapter = get_solver_adapter(name)
+        if adapter._provides("parse_performance"):
+            assert adapter.performance_columns, f"{name} parses performance but declares no columns"
+
+
+def test_control_implementation_implies_declared_actions() -> None:
+    """apply_control without control_actions can never be reached: every route checks the set first."""
+    from csauto.solvers import available_solvers, get_solver_adapter
+
+    for name in available_solvers():
+        adapter = get_solver_adapter(name)
+        if adapter._provides("apply_control"):
+            assert adapter.control_actions, f"{name} implements apply_control but declares no actions"

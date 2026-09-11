@@ -55,8 +55,10 @@ export interface CompareKindOption {
 export interface AppConfig {
   solver: string;
   panels: string[];
+  capabilities: string[];
   compare_kinds: CompareKindOption[];
   error_files: string[];
+  control_actions: string[];
 }
 
 /* Shared */

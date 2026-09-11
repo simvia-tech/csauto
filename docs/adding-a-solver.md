@@ -55,12 +55,39 @@ Then declare the conventions that differ from the base defaults:
   do not declare those either.
 - `control_actions` — the live-control directives your `apply_control`
   implements (code_saturne declares `stop`, `extend`, `checkpoint`, `flush`).
-- `dashboard_panels` — which dashboard panels the UI renders. Defaults to all
-  of them; trim it when a panel cannot be fed by your solver.
+## Dashboard panels are derived, not declared
 
-The web UI reads `dashboard_panels`, `compare_kinds`, and `anomaly_file_names`
-from `/api/app_config` and the timing columns from `/api/perf`, so these
-declarations reshape the dashboard without any frontend change.
+You never declare which panels your solver gets: `dashboard_panels` and
+`capabilities` are computed from what your adapter actually provides, and
+declaring either of them raises `TypeError` at import time.
+
+| Capability | Granted when your adapter |
+|---|---|
+| `residuals` | overrides `find_residuals_files` |
+| `probes` | overrides `list_probe_files` |
+| `restart` | overrides `build_restart_args` |
+| `gui` | overrides `gui_argv` |
+| `compare` | declares a non-empty `compare_kinds` |
+| `performance` | declares a non-empty `performance_columns` |
+| `control` | declares a non-empty `control_actions` |
+
+The `status`, `tail` and `errors` panels are always present: they are fed by the
+registry and by the `csauto.stdout` / `csauto.stderr` launcher logs, which exist
+for every solver.
+
+Implement what your solver can feed and the panel appears; implement nothing and
+the panel, along with its action buttons, is absent from the dashboard and
+refused by the API with a 400. Run `csauto doctor RUNS` to see what was derived:
+
+```
+[OK] solver code_aster: panels status, compare, tail, errors
+[OK] solver code_aster: capabilities compare
+```
+
+The web UI reads `panels`, `capabilities`, `control_actions`, `compare_kinds`
+and `anomaly_file_names` from `/api/app_config`, and the timing columns from
+`/api/perf`, so these declarations reshape the dashboard without any frontend
+change.
 
 Everything else is optional. Useful overrides, from most to least common:
 

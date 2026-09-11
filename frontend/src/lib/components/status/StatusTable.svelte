@@ -26,6 +26,7 @@
     getVisibleCaseIds,
     updateSort,
   } from "$lib/stores/status.svelte";
+  import { hasCapability } from "$lib/stores/appConfig.svelte";
   import { setCaseNote, openGui } from "$lib/api/endpoints";
   import { appPrompt, appAlert } from "$lib/actions/dialog.svelte";
   import Icon from "$lib/components/shared/Icon.svelte";
@@ -91,9 +92,9 @@
       { key: "resu_size_mb", label: "RESU Size (MB)", kind: "calc" },
     ];
     const trailing = allTrailing.filter((c) => visibleBase.has(c.key));
-    const actions: Column[] = [
-      { key: "_actions", label: "", kind: "meta", sticky: "right" },
-    ];
+    const actions: Column[] = hasCapability("gui")
+      ? [{ key: "_actions", label: "", kind: "meta", sticky: "right" }]
+      : [];
     return [...leading, ...doeColumns, ...trailing, ...actions];
   });
 
