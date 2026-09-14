@@ -110,3 +110,38 @@ def test_backend_intervals_are_read_and_validated(tmp_path) -> None:
     config_path.write_text("backend_poll_interval_s = 0\n", encoding="utf-8")
     with pytest.raises(ValueError, match="backend_poll_interval_s"):
         load_config(config_path)
+
+
+def test_qarnot_settings_have_defaults(tmp_path: Path) -> None:
+    (tmp_path / "csauto.toml").write_text("solver = 'stub'\n", encoding="utf-8")
+    config = load_config(tmp_path / "csauto.toml")
+
+    assert config.qarnot_profile == "docker-batch"
+    assert config.qarnot_snapshot_interval_s == 60
+    assert config.qarnot_max_upload_mb == 512
+
+
+def test_qarnot_settings_are_read_from_their_table(tmp_path: Path) -> None:
+    (tmp_path / "csauto.toml").write_text(
+        "[qarnot]\nprofile = 'docker-batch'\nsnapshot_interval_s = 120\nmax_upload_mb = 64\n",
+        encoding="utf-8",
+    )
+    config = load_config(tmp_path / "csauto.toml")
+
+    assert config.qarnot_snapshot_interval_s == 120
+    assert config.qarnot_max_upload_mb == 64
+
+
+def test_a_qarnot_token_in_the_config_file_is_rejected(tmp_path: Path) -> None:
+    """The campaign file is shared, committed and archived. The token is not."""
+    (tmp_path / "csauto.toml").write_text("[qarnot]\ntoken = 'secret'\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="QARNOT_TOKEN"):
+        load_config(tmp_path / "csauto.toml")
+
+
+def test_a_bad_qarnot_interval_is_rejected(tmp_path: Path) -> None:
+    (tmp_path / "csauto.toml").write_text("[qarnot]\nsnapshot_interval_s = 0\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="snapshot_interval_s"):
+        load_config(tmp_path / "csauto.toml")

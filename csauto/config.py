@@ -24,6 +24,9 @@ class Config:
     max_parallel: int = 1
     backend_poll_interval_s: int = 15
     backend_sync_interval_s: int = 60
+    qarnot_profile: str = "docker-batch"
+    qarnot_snapshot_interval_s: int = 60
+    qarnot_max_upload_mb: int = 512
     mesh_mode: str = "symlink"
     host: str = "127.0.0.1"
     port: int = 8000
@@ -214,6 +217,38 @@ def load_config(path: Path | None = None) -> Config:
     token = api_section.get("token") if isinstance(api_section, dict) else None
     if token is not None:
         config.api_token = _coerce_str(token, "").strip() or None
+
+    qarnot_section = data.get("qarnot")
+    if qarnot_section is not None and not isinstance(qarnot_section, dict):
+        raise ValueError(f"Invalid [qarnot] section in {config_path}: expected table")
+    if isinstance(qarnot_section, dict):
+        # The token is deliberately not a setting: this file is shared,
+        # committed and sometimes archived. Fail loudly rather than read it.
+        for secret_key in ("token", "client_token", "api_token"):
+            if secret_key in qarnot_section:
+                raise ValueError(
+                    f"Invalid [qarnot] section in {config_path}: {secret_key!r} must not be "
+                    f"stored in a config file. Set the QARNOT_TOKEN environment variable instead."
+                )
+        if "profile" in qarnot_section:
+            profile = _coerce_str(qarnot_section.get("profile"), "").strip()
+            if not profile:
+                raise ValueError(f"Invalid [qarnot].profile in {config_path}: value must not be empty")
+            config.qarnot_profile = profile
+        if "snapshot_interval_s" in qarnot_section:
+            config.qarnot_snapshot_interval_s = _parse_required_int(
+                qarnot_section.get("snapshot_interval_s"),
+                field="[qarnot].snapshot_interval_s",
+                config_path=config_path,
+                min_value=1,
+            )
+        if "max_upload_mb" in qarnot_section:
+            config.qarnot_max_upload_mb = _parse_required_int(
+                qarnot_section.get("max_upload_mb"),
+                field="[qarnot].max_upload_mb",
+                config_path=config_path,
+                min_value=1,
+            )
     return config
 
 
