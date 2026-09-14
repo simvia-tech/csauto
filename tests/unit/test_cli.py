@@ -321,3 +321,20 @@ def test_prepare_without_strict_only_warns_on_unused_column(tmp_path: Path, caps
     assert exit_code == 0
     assert "extra_col" in capsys.readouterr().err
     assert (tmp_path / "RUNS" / "case0001").is_dir()
+
+
+def test_status_runs_one_throttled_backend_sync(monkeypatch, runs_dir: Path, case_factory) -> None:
+    """The sync loop lives in the server; the CLI must not be useless without it."""
+    calls = {"count": 0}
+
+    def fake_sync(*_args, **_kwargs):
+        calls["count"] += 1
+        return 0
+
+    monkeypatch.setattr("csauto.backend_sync.sync_backend_cases", fake_sync)
+    case_factory(runs_dir, "case0001")
+
+    main(["status", str(runs_dir)])
+    main(["status", str(runs_dir)])
+
+    assert calls["count"] == 1, "the second call within the throttle window must be skipped"

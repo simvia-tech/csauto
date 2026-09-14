@@ -314,15 +314,29 @@ def kill_case(
         start_time = record.get("start_time")
         previous_end_time = record.get("end_time")
         pid_raw = record.get("pid")
+        backend_name = str(record.get("backend") or "")
+        task_id = str(record.get("task_id") or "")
 
-    if pid_raw is None and not container_id and not job_id:
-        raise ValueError(f"No PID, container_id or job_id for {case_id}")
+    if pid_raw is None and not container_id and not job_id and not task_id:
+        raise ValueError(f"No PID, container_id, job_id or task_id for {case_id}")
 
     details: dict[str, Any] = {
         "pid": pid_raw,
         "container_id": container_id,
         "job_id": job_id,
     }
+    if task_id:
+        details["task_id"] = task_id
+
+    backend_error: Exception | None = None
+    if backend_name and task_id:
+        try:
+            from .backends import get_backend
+
+            get_backend(backend_name).cancel(task_id)
+            details["backend_cancelled"] = True
+        except Exception as exc:
+            backend_error = exc
 
     container_error: Exception | None = None
     if container_id:
@@ -352,6 +366,8 @@ def kill_case(
         except Exception as exc:
             job_error = exc
 
+    if backend_error and pid_raw is None and not container_id and not job_id:
+        raise backend_error
     if container_error and pid_raw is None and job_id is None:
         raise container_error
     if job_error and pid_raw is None and not container_id:

@@ -1352,3 +1352,31 @@ def test_the_server_runs_a_backend_sync_pass(runs_dir: Path, case_factory, regis
             time.sleep(0.2)
 
     assert calls["count"] >= 1
+
+
+def test_kill_cancels_a_backend_task(runs_dir: Path, case_factory, monkeypatch) -> None:
+    from csauto.backends.fake import FakeBackend
+    from csauto.web_support import kill_case
+
+    case_dir = case_factory(runs_dir, "case0001")
+    backend = FakeBackend(script=["RUNNING"])
+    task_id = backend.submit(case_dir, ["run"], "img", 1, 1)
+    monkeypatch.setattr("csauto.backends.get_backend", lambda _name: backend)
+    save_registry(
+        runs_dir,
+        {
+            "case0001": {
+                "case_id": "case0001",
+                "path": str(case_dir),
+                "status": "RUNNING",
+                "backend": "fake",
+                "task_id": task_id,
+                "pid": None,
+            }
+        },
+    )
+
+    kill_case(runs_dir, "case0001", actor=None, job_id_patterns=())
+
+    assert backend.poll(task_id).status == "FAILED"
+    assert load_registry(runs_dir)["case0001"]["status"] == "FAILED"

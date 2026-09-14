@@ -302,7 +302,7 @@ def test_fastapi_server_cleanup_and_kill_error_paths(fastapi_server_env) -> None
         _http_post(f"{base_url}/api/kill_case", {"cases": ["case0001"]})
     assert excinfo.value.code == 500
     payload = json.loads(excinfo.value.read().decode("utf-8"))
-    assert payload["detail"] == "case0001: No PID, container_id or job_id for case0001"
+    assert payload["detail"] == "case0001: No PID, container_id, job_id or task_id for case0001"
 
 
 def test_fastapi_server_open_gui_without_display_returns_500(fastapi_server_env) -> None:

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -410,6 +412,35 @@ def _preparse_config(argv: Sequence[str]) -> Path | None:
     return known.config
 
 
+CLI_BACKEND_SYNC_THROTTLE_S = 10.0
+
+
+def _throttled_backend_sync(runs_dir: Path, sync: Callable[..., int]) -> None:
+    """Run one backend sync pass, at most once every 10 s.
+
+    The background loop lives in `csauto serve`; this keeps `csauto status`
+    honest for a CLI-only workflow without duplicating the loop. The marker
+    lives under a reserved `_backend` key at the top of registry.json, which no
+    case id can collide with: _resolve_case_id rejects ids not matching
+    ^[A-Za-z0-9][A-Za-z0-9_.-]*$.
+    """
+    from .registry import load_registry, mutate_registry, timestamp_now
+
+    marker = load_registry(runs_dir).get("_backend", {}).get("last_sync")
+    if marker:
+        with contextlib.suppress(ValueError):
+            if (datetime.now() - datetime.fromisoformat(str(marker))).total_seconds() < CLI_BACKEND_SYNC_THROTTLE_S:
+                return
+
+    def stamp(registry: dict[str, dict[str, Any]]) -> bool:
+        registry.setdefault("_backend", {})["last_sync"] = timestamp_now()
+        return True
+
+    mutate_registry(runs_dir, stamp)
+    with contextlib.suppress(Exception):
+        sync(runs_dir)
+
+
 def _print_doctor(items: Sequence[object]) -> bool:
     failed = False
     for item in items:
@@ -509,6 +540,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 adapter=adapter,
             )
         elif args.command == "status":
+            from . import backend_sync
+
+            _throttled_backend_sync(args.runs_dir, backend_sync.sync_backend_cases)
             rows = refresh_status(args.runs_dir, adapter=adapter)
             print_status_table(rows)
         elif args.command == "residuals":
