@@ -1086,3 +1086,60 @@ def test_failed_launch_leaves_the_case_failed_not_pending(monkeypatch, runs_dir:
         )
 
     assert load_registry(runs_dir)["case0001"]["status"] == STATUS_FAILED
+
+
+def test_run_cases_with_a_backend_records_backend_and_task_id(monkeypatch, runs_dir: Path, case_factory) -> None:
+    case_factory(runs_dir, "case0001")
+
+    def no_popen(*_args, **_kwargs):
+        raise AssertionError("Popen must not be used for a backend launch")
+
+    monkeypatch.setattr("subprocess.Popen", no_popen)
+    monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
+
+    run_cases(
+        runs_dir,
+        nprocs=2,
+        nt=3,
+        max_parallel=1,
+        case_filter=["case0001"],
+        docker_image="my_image",
+        resume_only_failed=False,
+        source="test",
+        backend="fake",
+    )
+
+    record = load_registry(runs_dir)["case0001"]
+    assert record["status"] == STATUS_RUNNING
+    assert record["backend"] == "fake"
+    assert record["task_id"].startswith("fake-")
+    assert record["pid"] is None
+    assert record["job_id"] is None
+    assert record["nprocs"] == 2
+    assert record["nt"] == 3
+
+
+def test_local_launch_records_no_backend(monkeypatch, runs_dir: Path, case_factory) -> None:
+    """Non-regression: a local run must not gain a backend field."""
+    case_factory(runs_dir, "case0001")
+
+    class DummyProc:
+        pid = 4242
+
+    monkeypatch.setattr("subprocess.Popen", lambda *_a, **_k: DummyProc())
+    monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
+
+    run_cases(
+        runs_dir,
+        nprocs=1,
+        nt=1,
+        max_parallel=1,
+        case_filter=["case0001"],
+        docker_image="image",
+        resume_only_failed=False,
+        source="test",
+    )
+
+    record = load_registry(runs_dir)["case0001"]
+    assert record.get("backend") is None
+    assert record["pid"]

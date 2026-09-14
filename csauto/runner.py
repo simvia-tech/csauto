@@ -293,6 +293,7 @@ def _start_case(
     restart_path: str | None,
     mpi_exec_options: str | None,
     source: str,
+    backend_name: str | None = None,
 ) -> bool:
     """Launch a single case. Returns True if launched, False if skipped."""
     case_id = case_dir.name
@@ -350,7 +351,20 @@ def _start_case(
             env_vars=container_env,
         )
 
-        if use_slurm_scheduler:
+        if backend_name:
+            _launch_backend(
+                case_dir,
+                case_id,
+                adapter.run_argv(case_dir, nprocs, nt, restart_args),
+                selection.docker_image,
+                nprocs,
+                nt,
+                backend_name,
+                getattr(adapter, "observability_globs", ()),
+                registry,
+                base_update,
+            )
+        elif use_slurm_scheduler:
             _launch_slurm(
                 case_dir,
                 case_id,
@@ -458,6 +472,58 @@ def _launch_slurm(
     )
 
 
+def _launch_backend(
+    case_dir: Path,
+    case_id: str,
+    argv: Sequence[str],
+    image: str,
+    nprocs: int,
+    nt: int,
+    backend_name: str,
+    observability_globs: Sequence[str],
+    registry: dict[str, Any],
+    base_update: dict[str, Any],
+) -> None:
+    """Submit the case to a remote execution backend.
+
+    No PID and no scheduler job: the case is identified by backend and task_id,
+    and the synchronisation pass owns its status from here on.
+    """
+    from .backends import get_backend
+
+    backend = get_backend(backend_name)
+    try:
+        print(f"Submitting {case_id} to backend {backend_name}.")
+        task_id = backend.submit(case_dir, argv, image, nprocs, nt, observability_globs)
+    except Exception as exc:
+        update_case(
+            registry,
+            case_id,
+            **base_update,
+            status=STATUS_FAILED,
+            start_time=None,
+            end_time=timestamp_now(),
+            pid=None,
+            job_id=None,
+            backend=backend_name,
+            task_id=None,
+        )
+        raise RuntimeError(f"Failed to submit {case_id}: {exc}") from exc
+
+    update_case(
+        registry,
+        case_id,
+        **base_update,
+        status=STATUS_RUNNING,
+        start_time=timestamp_now(),
+        end_time=None,
+        pid=None,
+        job_id=None,
+        backend=backend_name,
+        task_id=task_id,
+    )
+
+
 def _launch_local(
     case_dir: Path,
     case_id: str,
@@ -541,6 +607,7 @@ def run_cases(
     mpi_exec_options: str | None = None,
     source: str = "cli",
     adapter: SolverAdapter | None = None,
+    backend: str | None = None,
 ) -> None:
     """Launch solver runs for each case directory."""
     if nprocs <= 0 or nt <= 0:
@@ -613,6 +680,7 @@ def run_cases(
                 restart_path=restart_path,
                 mpi_exec_options=mpi_exec_options,
                 source=source,
+                backend_name=backend,
             ):
                 launched += 1
 
