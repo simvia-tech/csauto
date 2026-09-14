@@ -1143,3 +1143,56 @@ def test_local_launch_records_no_backend(monkeypatch, runs_dir: Path, case_facto
     record = load_registry(runs_dir)["case0001"]
     assert record.get("backend") is None
     assert record["pid"]
+
+
+def test_refresh_status_does_not_finalize_a_backend_case(runs_dir: Path, case_factory) -> None:
+    """A backend case has no PID and no job id; the sync pass owns its status.
+
+    Without the guard, should_finalize is True on the first refresh and the
+    STATUS_FAILED fallback marks the case failed before it has started.
+    """
+    case_dir = case_factory(runs_dir, "case0001")
+    save_registry(
+        runs_dir,
+        {
+            "case0001": {
+                "case_id": "case0001",
+                "path": str(case_dir),
+                "status": STATUS_RUNNING,
+                "backend": "fake",
+                "task_id": "fake-0001",
+                "pid": None,
+                "job_id": None,
+                "start_time": datetime.now().isoformat(timespec="seconds"),
+            }
+        },
+    )
+
+    rows = refresh_status(runs_dir)
+
+    assert rows[0]["status"] == STATUS_RUNNING
+    assert load_registry(runs_dir)["case0001"]["status"] == STATUS_RUNNING
+
+
+def test_refresh_status_still_finalizes_a_local_case_whose_process_is_gone(
+    runs_dir: Path, case_factory
+) -> None:
+    """Non-regression: the guard must not disable finalisation for local cases."""
+    case_dir = case_factory(runs_dir, "case0001")
+    save_registry(
+        runs_dir,
+        {
+            "case0001": {
+                "case_id": "case0001",
+                "path": str(case_dir),
+                "status": STATUS_RUNNING,
+                "pid": None,
+                "job_id": None,
+                "start_time": datetime.now().isoformat(timespec="seconds"),
+            }
+        },
+    )
+
+    rows = refresh_status(runs_dir)
+
+    assert rows[0]["status"] == STATUS_FAILED

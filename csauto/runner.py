@@ -879,8 +879,12 @@ def _compute_refresh_result(
     end_time = record.get("end_time")
     has_started = bool(start_time)
     job_id = _normalize_job_id(record.get("job_id"))
+    # A case a remote backend owns has neither a PID nor a scheduler job, so the
+    # finalisation below would mark it FAILED on the first refresh, before the
+    # service had even started it. The synchronisation pass owns its status.
+    backend_name = str(record.get("backend") or "")
 
-    if status == STATUS_RUNNING:
+    if status == STATUS_RUNNING and not backend_name:
         pid_alive = False
         if pid is not None:
             try:
@@ -897,7 +901,7 @@ def _compute_refresh_result(
             end_time = end_time or timestamp_now()
             pid = None
             job_id = None
-    if status == STATUS_RUNNING and has_started:
+    if status == STATUS_RUNNING and has_started and not backend_name:
         # Even if the PID is stale, trust the log end markers.
         outcome = adapter.detect_outcome(case_dir, start_time)
         if outcome:
@@ -906,7 +910,7 @@ def _compute_refresh_result(
                 end_time = timestamp_now()
             pid = None
             job_id = None
-    elif status != STATUS_DONE and has_started:
+    elif status != STATUS_DONE and has_started and not backend_name:
         # Only check for completion if a run was actually started.
         outcome = adapter.detect_outcome(case_dir, start_time)
         if outcome:
