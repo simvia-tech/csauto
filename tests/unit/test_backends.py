@@ -31,3 +31,86 @@ def test_available_backends_lists_fake() -> None:
 
 def test_fake_backend_satisfies_the_protocol() -> None:
     assert isinstance(get_backend("fake"), ExecutionBackend)
+
+
+def test_fake_backend_walks_its_scripted_states(tmp_path) -> None:
+    from csauto.backends.fake import FakeBackend
+
+    case_dir = tmp_path / "case0001"
+    case_dir.mkdir()
+    backend = FakeBackend(script=["PENDING", "RUNNING", "DONE"])
+
+    task_id = backend.submit(case_dir, ["run"], "image", 1, 1)
+    assert backend.poll(task_id).status == "PENDING"
+    assert backend.poll(task_id).status == "RUNNING"
+    assert backend.poll(task_id).status == "DONE"
+    assert backend.poll(task_id).status == "DONE"  # stays on the last state
+
+
+def test_fake_backend_emits_output_deltas_once(tmp_path) -> None:
+    from csauto.backends.fake import FakeBackend
+
+    case_dir = tmp_path / "case0001"
+    case_dir.mkdir()
+    backend = FakeBackend(script=["RUNNING", "DONE"], stdout_lines=["step 1", "step 2"])
+
+    task_id = backend.submit(case_dir, ["run"], "image", 1, 1)
+    first = backend.poll(task_id)
+    second = backend.poll(task_id)
+
+    assert first.stdout_delta == "step 1\n"
+    assert second.stdout_delta == "step 2\n"
+    assert backend.poll(task_id).stdout_delta == ""
+
+
+def test_fake_backend_sync_writes_observability_files(tmp_path) -> None:
+    from csauto.backends.fake import FakeBackend
+
+    case_dir = tmp_path / "case0001"
+    case_dir.mkdir()
+    backend = FakeBackend(script=["RUNNING"], sync_files={"OUT/run_0001/progress.csv": "it,res\n1,1e-2\n"})
+
+    task_id = backend.submit(case_dir, ["run"], "image", 1, 1)
+    backend.sync(task_id, case_dir)
+
+    assert (case_dir / "OUT" / "run_0001" / "progress.csv").read_text() == "it,res\n1,1e-2\n"
+
+
+def test_fake_backend_fetch_final_writes_the_result_marker(tmp_path) -> None:
+    from csauto.backends.fake import FakeBackend
+
+    case_dir = tmp_path / "case0001"
+    case_dir.mkdir()
+    backend = FakeBackend(script=["DONE"], final_files={"OUT/run_0001/result.dat": "done\n"})
+
+    task_id = backend.submit(case_dir, ["run"], "image", 1, 1)
+    backend.fetch_final(task_id, case_dir)
+
+    assert (case_dir / "OUT" / "run_0001" / "result.dat").read_text() == "done\n"
+
+
+def test_fake_backend_cancel_forces_the_failed_state(tmp_path) -> None:
+    from csauto.backends.fake import FakeBackend
+
+    case_dir = tmp_path / "case0001"
+    case_dir.mkdir()
+    backend = FakeBackend(script=["RUNNING", "RUNNING", "RUNNING"])
+
+    task_id = backend.submit(case_dir, ["run"], "image", 1, 1)
+    backend.cancel(task_id)
+
+    assert backend.poll(task_id).status == "FAILED"
+
+
+def test_fake_backend_can_be_told_to_fail_a_poll(tmp_path) -> None:
+    """The sync pass must survive a transient failure; the fake can produce one."""
+    from csauto.backends.fake import FakeBackend
+
+    case_dir = tmp_path / "case0001"
+    case_dir.mkdir()
+    backend = FakeBackend(script=["RUNNING"], fail_polls=1)
+
+    task_id = backend.submit(case_dir, ["run"], "image", 1, 1)
+    with pytest.raises(RuntimeError, match="fake poll failure"):
+        backend.poll(task_id)
+    assert backend.poll(task_id).status == "RUNNING"
