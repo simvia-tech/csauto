@@ -32,6 +32,7 @@ from .registry import (
     STATUS_PREPARED,
     STATUS_RUNNING,
     append_history,
+    case_records,
     load_registry,
     mutate_registry,
     registry_transaction,
@@ -841,7 +842,7 @@ def refresh_status(
     results: list[RefreshResult] = []
     doe_columns: list[str] = []
     seen_doe_columns: set[str] = set()
-    for case_id in sorted(registry):
+    for case_id in sorted(case_records(registry)):
         result = _compute_refresh_result(
             runs_dir,
             case_id,

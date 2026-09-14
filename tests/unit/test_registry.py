@@ -107,3 +107,14 @@ def test_registry_transaction_saves_normally_without_an_exception(runs_dir: Path
         update_case(registry, "case0001", status="DONE")
 
     assert load_registry(runs_dir)["case0001"]["status"] == "DONE"
+
+
+def test_case_records_drops_reserved_keys() -> None:
+    from csauto.registry import case_records
+
+    registry = {
+        "_backend": {"last_sync": "2026-09-14T10:00:00"},
+        "case0001": {"case_id": "case0001", "status": "PREPARED"},
+    }
+
+    assert list(case_records(registry)) == ["case0001"]

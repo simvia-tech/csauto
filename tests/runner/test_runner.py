@@ -1194,3 +1194,19 @@ def test_refresh_status_still_finalizes_a_local_case_whose_process_is_gone(runs_
     rows = refresh_status(runs_dir)
 
     assert rows[0]["status"] == STATUS_FAILED
+
+
+def test_refresh_status_ignores_the_reserved_backend_key(runs_dir, case_factory) -> None:
+    """The _backend marker is campaign state, not a case; it must not be listed."""
+    case_factory(runs_dir, "case0001")
+    save_registry(
+        runs_dir,
+        {
+            "_backend": {"last_sync": "2026-09-14T10:00:00"},
+            "case0001": {"case_id": "case0001", "path": str(runs_dir / "case0001"), "status": "PREPARED"},
+        },
+    )
+
+    rows = refresh_status(runs_dir)
+
+    assert [row["case_id"] for row in rows] == ["case0001"]

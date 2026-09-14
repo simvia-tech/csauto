@@ -18,6 +18,17 @@ STATUS_RUNNING = "RUNNING"
 STATUS_DONE = "DONE"
 STATUS_FAILED = "FAILED"
 
+# Keys at the top of registry.json that hold campaign state rather than a case.
+# Everything that iterates the registry as a list of cases must go through
+# case_records, or a marker is reported as a phantom case.
+RESERVED_REGISTRY_KEYS = frozenset({"_backend"})
+
+
+def case_records(registry: dict[str, Any]) -> dict[str, Any]:
+    """The registry entries that are cases, with the reserved markers removed."""
+    return {key: value for key, value in registry.items() if key not in RESERVED_REGISTRY_KEYS}
+
+
 REGISTRY_FILENAME = "registry.json"
 REGISTRY_LOCKFILE = f"{REGISTRY_FILENAME}.lock"
 REGISTRY_THREAD_LOCK = threading.RLock()
