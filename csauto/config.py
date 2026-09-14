@@ -22,6 +22,8 @@ class Config:
     use_slurm: bool | None = None
     mpi_exec_options: str | None = None
     max_parallel: int = 1
+    backend_poll_interval_s: int = 15
+    backend_sync_interval_s: int = 60
     mesh_mode: str = "symlink"
     host: str = "127.0.0.1"
     port: int = 8000
@@ -179,6 +181,18 @@ def load_config(path: Path | None = None) -> Config:
             config_path=config_path,
             min_value=1,
         )
+    for interval_field in ("backend_poll_interval_s", "backend_sync_interval_s"):
+        if interval_field in data:
+            setattr(
+                config,
+                interval_field,
+                _parse_required_int(
+                    data.get(interval_field),
+                    field=interval_field,
+                    config_path=config_path,
+                    min_value=1,
+                ),
+            )
     if "mesh_mode" in data:
         config.mesh_mode = _parse_mesh_mode(data.get("mesh_mode"), config_path=config_path)
     if "host" in data:

@@ -85,3 +85,28 @@ def test_load_config_invalid_mesh_mode_raises(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="mesh_mode"):
         load_config(cfg)
+
+
+def test_backend_intervals_have_defaults(tmp_path) -> None:
+    from csauto.config import load_config
+
+    config_path = tmp_path / "csauto.toml"
+    config_path.write_text("runtime = 'native'\n", encoding="utf-8")
+    config = load_config(config_path)
+
+    assert config.backend_poll_interval_s == 15
+    assert config.backend_sync_interval_s == 60
+
+
+def test_backend_intervals_are_read_and_validated(tmp_path) -> None:
+    from csauto.config import load_config
+
+    config_path = tmp_path / "csauto.toml"
+    config_path.write_text("backend_poll_interval_s = 30\nbackend_sync_interval_s = 120\n", encoding="utf-8")
+    config = load_config(config_path)
+    assert config.backend_poll_interval_s == 30
+    assert config.backend_sync_interval_s == 120
+
+    config_path.write_text("backend_poll_interval_s = 0\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="backend_poll_interval_s"):
+        load_config(config_path)

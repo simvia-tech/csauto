@@ -1322,3 +1322,33 @@ def test_run_without_restart_is_not_blocked_by_the_restart_guard(aster_env) -> N
         # A launch failure (no runtime available in CI) is acceptable here;
         # a capability rejection is not.
         assert "does not support restart" not in exc.read().decode("utf-8")
+
+
+def test_the_server_runs_a_backend_sync_pass(runs_dir: Path, case_factory, registry_factory, monkeypatch) -> None:
+    """The loop lives outside refresh_status, which runs about twice a second.
+
+    Uses TestClient as a context manager on purpose: the shared _start_server
+    helper does not, so the FastAPI lifespan (and therefore the loop) never
+    starts there.
+    """
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    calls = {"count": 0}
+
+    def fake_sync(_runs_dir, **_kwargs):
+        calls["count"] += 1
+        return 0
+
+    monkeypatch.setattr("csauto.backend_sync.sync_backend_cases", fake_sync)
+    case_dir = case_factory(runs_dir, "case0001")
+    registry_factory(runs_dir, "case0001", case_dir, status="PREPARED")
+
+    app = create_fastapi_app(runs_dir, backend_poll_interval_s=1)
+    with TestClient(app) as client:
+        client.get("/api/status")
+        deadline = time.time() + 8.0
+        while time.time() < deadline and calls["count"] == 0:
+            time.sleep(0.2)
+
+    assert calls["count"] >= 1
