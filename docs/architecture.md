@@ -130,6 +130,16 @@ Two invariants the implementation depends on:
 - **A failed poll never changes a status.** A flaky network must not mark a
   whole campaign as failed; consecutive failures are counted instead.
 
+`QarnotBackend` (`backend = "qarnot"`) is the first real implementation. It runs
+any docker image through Qarnot's generic `docker-batch` profile, uploads the
+shared directories once per campaign and the case inputs once per case, and
+turns `adapter.observability_globs` into the regex whitelist Qarnot's periodic
+snapshot expects. Everything Qarnot-specific (the SDK, the buckets, the
+`DOCKER_*` constants, the state table) lives in `csauto/backends/qarnot.py`;
+`csauto/backends/qarnot_support.py` holds the parts that are decisions rather
+than API calls, so they are testable with no SDK. See
+[Running a campaign on Qarnot](./qarnot.md).
+
 `local` and Slurm are not behind this contract. They predate it and work; porting
 them is a later, mechanical refactor.
 

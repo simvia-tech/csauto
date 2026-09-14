@@ -331,6 +331,11 @@ def parse_arguments(
 
     doctor_parser = subparsers.add_parser("doctor", help="Check configuration and cases.")
     doctor_parser.add_argument("runs_dir", type=Path, help="Directory containing generated cases")
+    doctor_parser.add_argument(
+        "--backend",
+        default=None,
+        help="Also check the prerequisites of an execution backend (for example: qarnot).",
+    )
 
     cleanup_parser = subparsers.add_parser("cleanup", help="Clean up runs (results/logs/cache).")
     cleanup_parser.add_argument("runs_dir", type=Path, help="Directory containing generated cases")
@@ -592,6 +597,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 singularity_image=config.singularity_image,
                 singularity_bin=config.singularity_bin,
                 adapter=adapter,
+                backend=args.backend,
             )
             if _print_doctor(items):
                 return 1

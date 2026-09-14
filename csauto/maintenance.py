@@ -41,6 +41,37 @@ def _check_web_deps(add: object) -> None:
         add("ok", "web dependencies available (fastapi, uvicorn, pydantic)")
 
 
+def _check_qarnot(add: object, adapter: object) -> None:
+    """Report each Qarnot prerequisite separately, and never the token itself."""
+    import importlib
+
+    try:
+        importlib.import_module("qarnot")
+    except ImportError:
+        add("fail", "qarnot SDK missing: install csauto with the [qarnot] extra")
+    else:
+        add("ok", "qarnot SDK available")
+
+    if os.environ.get("QARNOT_TOKEN", "").strip():
+        add("ok", "QARNOT_TOKEN is set")
+    else:
+        add("fail", "QARNOT_TOKEN is not set (the token belongs in the environment, never in csauto.toml)")
+
+    image = getattr(adapter, "default_docker_image", "")
+    if image:
+        add("ok", f"cloud image: {image}")
+    else:
+        add("fail", f"solver {adapter.name}: no docker image configured, and qarnot only runs docker images")
+
+    if adapter.run_argv(".", 1, 1):
+        add("ok", f"solver {adapter.name}: builds a remote command")
+    else:
+        add(
+            "fail",
+            f"solver {adapter.name}: builds no remote command (run_argv is empty), so it cannot run on qarnot yet",
+        )
+
+
 def run_doctor(
     runs_dir: Path,
     require_docker: bool = False,
@@ -53,6 +84,7 @@ def run_doctor(
     singularity_image: str | None = None,
     singularity_bin: str | None = None,
     adapter=None,
+    backend: str | None = None,
 ) -> list[DoctorItem]:
     adapter = adapter or _default_adapter()
     items: list[DoctorItem] = []
@@ -161,6 +193,9 @@ def run_doctor(
                 add("ok", f"DISPLAY={display}")
             else:
                 add("warn", "DISPLAY is set but /tmp/.X11-unix is missing")
+
+    if str(backend or "").strip().lower() == "qarnot":
+        _check_qarnot(add, adapter)
 
     _check_web_deps(add)
 

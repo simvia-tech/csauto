@@ -120,6 +120,9 @@ token = "your-secret-token"
 | `max_parallel` | `1` | Maximum simultaneous case launches |
 | `backend_poll_interval_s` | `15` | Seconds between two execution-backend polls |
 | `backend_sync_interval_s` | `60` | Seconds between two observability file syncs |
+| `[qarnot].profile` | `docker-batch` | Qarnot profile used for cloud runs |
+| `[qarnot].snapshot_interval_s` | `60` | Seconds between two remote captures of the observability files |
+| `[qarnot].max_upload_mb` | `512` | Refuse to submit a case whose own inputs exceed this |
 | `mesh_mode` | `symlink` | How `prepare` places the shared `MESH`/`POST` dirs into `RUNS/`: `symlink` or `copy` (see [concepts.md](./concepts.md#shared-meshpost-directories)) |
 | `host` | `127.0.0.1` | Bind address for `serve` |
 | `port` | `8000` | Bind port for `serve` |

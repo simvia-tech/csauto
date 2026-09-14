@@ -183,6 +183,7 @@ To re-enable: `csauto enable-telemetry`
 - [Web UI guide](docs/web-ui.md)
 - [CLI reference](docs/cli.md)
 - [Configuration](docs/config.md)
+- [Running on Qarnot](docs/qarnot.md)
 - [DOE format](docs/doe-format.md)
 - [Run lifecycle](docs/run-lifecycle.md)
 - [HTTP API](docs/api.md)
