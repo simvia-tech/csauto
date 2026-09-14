@@ -163,3 +163,22 @@ def test_a_relaunched_case_is_not_overwritten(runs_dir: Path, case_factory) -> N
     record = load_registry(runs_dir)["case0001"]
     assert record["task_id"] == "fake-9999"
     assert record["status"] == STATUS_RUNNING
+
+
+def test_sync_records_the_timing_figures(runs_dir: Path, case_factory) -> None:
+    """execution_time and running_core_count come free from the backend."""
+    from csauto.backends.base import BackendState
+
+    case_dir = case_factory(runs_dir, "case0001")
+    backend = FakeBackend(script=["RUNNING"])
+    task_id = backend.submit(case_dir, ["run"], "img", 1, 1)
+    _register(runs_dir, case_dir, task_id)
+    backend.poll = lambda _task_id: BackendState(  # type: ignore[method-assign]
+        status=STATUS_RUNNING, execution_time_s=42.0, running_core_count=8
+    )
+
+    sync_backend_cases(runs_dir, backend_factory=lambda _name: backend)
+
+    record = load_registry(runs_dir)["case0001"]
+    assert record["backend_execution_time_s"] == 42.0
+    assert record["backend_core_count"] == 8

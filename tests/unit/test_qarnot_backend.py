@@ -197,3 +197,127 @@ def test_a_missing_token_is_reported_without_leaking_anything(monkeypatch: pytes
 
     with pytest.raises(RuntimeError, match="QARNOT_TOKEN"):
         QarnotBackend()._connect()
+
+
+class PolledTask(FakeTask):
+    def __init__(self, state: str, progress: float = 50.0) -> None:
+        super().__init__("t", "docker-batch", 1)
+        self.state = state
+        self.progress = progress
+        self.execution_time = 12.5
+        self.running_core_count = 4
+        self.aborted = False
+        self.downloaded: list[str] = []
+        self.results = FakeBucket("out")
+        self._stdout = "iteration 1\n"
+        self._stderr = ""
+
+    def fresh_stdout(self, instanceId: int | None = None) -> str:
+        out, self._stdout = self._stdout, ""
+        return out
+
+    def fresh_stderr(self, instanceId: int | None = None) -> str:
+        out, self._stderr = self._stderr, ""
+        return out
+
+    def download_results(self, output_dir: str, progress: Any = None) -> None:
+        self.downloaded.append(output_dir)
+
+    def abort(self) -> None:
+        self.aborted = True
+
+
+def _backend_with(task: PolledTask) -> QarnotBackend:
+    connection = FakeConnection()
+    task.uuid = "task-0001"
+    connection.tasks.append(task)
+    return QarnotBackend(connection=connection)
+
+
+@pytest.mark.parametrize(
+    ("qarnot_state", "expected"),
+    [
+        ("Submitted", "PENDING"),
+        ("PartiallyDispatched", "PENDING"),
+        ("FullyDispatched", "PENDING"),
+        ("PartiallyExecuting", "RUNNING"),
+        ("FullyExecuting", "RUNNING"),
+        ("UploadingResults", "RUNNING"),
+        ("DownloadingResults", "RUNNING"),
+        ("PendingCancel", "RUNNING"),
+        ("Success", "DONE"),
+        ("Failure", "FAILED"),
+        ("Cancelled", "FAILED"),
+        ("PendingDelete", "FAILED"),
+    ],
+)
+def test_poll_translates_every_qarnot_state(qarnot_state: str, expected: str) -> None:
+    backend = _backend_with(PolledTask(qarnot_state))
+
+    assert backend.poll("task-0001").status == expected
+
+
+def test_an_unknown_state_is_reported_pending_not_failed() -> None:
+    """A state name csauto has never seen must not fail a running campaign."""
+    backend = _backend_with(PolledTask("SomeNewState"))
+
+    assert backend.poll("task-0001").status == "PENDING"
+
+
+def test_poll_returns_progress_as_a_fraction() -> None:
+    """Qarnot reports a percentage; BackendState.progress is 0..1."""
+    backend = _backend_with(PolledTask("FullyExecuting", progress=50.0))
+
+    assert backend.poll("task-0001").progress == 0.5
+
+
+def test_poll_returns_only_the_new_output() -> None:
+    task = PolledTask("FullyExecuting")
+    backend = _backend_with(task)
+
+    assert backend.poll("task-0001").stdout_delta == "iteration 1\n"
+    assert backend.poll("task-0001").stdout_delta == ""
+
+
+def test_poll_reports_the_timing_figures() -> None:
+    backend = _backend_with(PolledTask("FullyExecuting"))
+
+    state = backend.poll("task-0001")
+
+    assert state.execution_time_s == 12.5
+    assert state.running_core_count == 4
+
+
+def test_sync_downloads_into_the_case_directory(tmp_path: Path) -> None:
+    task = PolledTask("FullyExecuting")
+    backend = _backend_with(task)
+
+    backend.sync("task-0001", tmp_path / "case0001")
+
+    assert task.downloaded == [str(tmp_path / "case0001")]
+
+
+def test_fetch_final_pulls_the_whole_results_bucket(tmp_path: Path) -> None:
+    task = PolledTask("Success")
+    pulled: list[str] = []
+    task.results.get_all_files = lambda output_dir, progress=None: pulled.append(output_dir)  # type: ignore[attr-defined]
+    backend = _backend_with(task)
+
+    backend.fetch_final("task-0001", tmp_path / "case0001")
+
+    assert pulled == [str(tmp_path / "case0001")]
+
+
+def test_cancel_aborts_the_task() -> None:
+    task = PolledTask("FullyExecuting")
+    backend = _backend_with(task)
+
+    backend.cancel("task-0001")
+
+    assert task.aborted is True
+
+
+def test_qarnot_is_a_registered_backend() -> None:
+    from csauto.backends import available_backends
+
+    assert "qarnot" in available_backends()

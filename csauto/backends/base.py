@@ -23,6 +23,8 @@ class BackendState:
     progress: float | None = None
     stdout_delta: str = ""
     stderr_delta: str = ""
+    execution_time_s: float | None = None
+    running_core_count: int | None = None
 
 
 @runtime_checkable

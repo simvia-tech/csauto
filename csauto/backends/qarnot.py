@@ -27,6 +27,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+from .base import BackendState
 from .qarnot_support import (
     bucket_name,
     directory_signature,
@@ -37,6 +38,26 @@ from .qarnot_support import (
 )
 
 TOKEN_ENV = "QARNOT_TOKEN"
+
+# Qarnot's own vocabulary, translated here and nowhere else. Taken from
+# qarnot.task.Task.state, not guessed. An unlisted name maps to PENDING: a
+# state csauto has never seen must not fail a running campaign.
+_STATES = {
+    "submitted": "PENDING",
+    "partiallydispatched": "PENDING",
+    "fullydispatched": "PENDING",
+    "unsubmitted": "PENDING",
+    "partiallyexecuting": "RUNNING",
+    "fullyexecuting": "RUNNING",
+    "uploadingresults": "RUNNING",
+    "downloadingresults": "RUNNING",
+    "pendingcancel": "RUNNING",
+    "success": "DONE",
+    "failure": "FAILED",
+    "cancelled": "FAILED",
+    "pendingdelete": "FAILED",
+    "deleted": "FAILED",
+}
 
 
 class QarnotBackend:
@@ -158,6 +179,44 @@ class QarnotBackend:
         mutate_registry(runs_dir, stamp)
         return bucket
 
+    def poll(self, task_id: str) -> BackendState:
+        task = self._task(task_id)
+        progress = getattr(task, "progress", None)
+        return BackendState(
+            status=_STATES.get(str(getattr(task, "state", "")).strip().lower(), "PENDING"),
+            progress=None if progress is None else float(progress) / 100.0,
+            stdout_delta=task.fresh_stdout() or "",
+            stderr_delta=task.fresh_stderr() or "",
+            execution_time_s=_as_float(getattr(task, "execution_time", None)),
+            running_core_count=_as_int(getattr(task, "running_core_count", None)),
+        )
+
+    def sync(self, task_id: str, case_dir: Path) -> None:
+        """Pull whatever the snapshot whitelist has captured so far.
+
+        download_results only transfers when the task is dirty, so calling it
+        on a quiet task costs one request. The results bucket only ever holds
+        whitelisted paths under the results directory, so the case inputs are
+        never overwritten.
+        """
+        Path(case_dir).mkdir(parents=True, exist_ok=True)
+        self._task(task_id).download_results(str(case_dir))
+
+    def fetch_final(self, task_id: str, case_dir: Path) -> None:
+        """Pull the complete results, once, unconditionally.
+
+        Not download_results: that one skips the transfer when the SDK thinks
+        nothing changed, and DONE must mean the results really are on disk.
+        """
+        Path(case_dir).mkdir(parents=True, exist_ok=True)
+        self._task(task_id).results.get_all_files(str(case_dir))
+
+    def cancel(self, task_id: str) -> None:
+        self._task(task_id).abort()
+
+    def _task(self, task_id: str) -> Any:
+        return self._connect().retrieve_task(str(task_id))
+
 
 def _campaign_config(runs_dir: Path) -> Any:
     """The campaign's own csauto.toml when it has one, the ambient config otherwise."""
@@ -165,3 +224,17 @@ def _campaign_config(runs_dir: Path) -> Any:
 
     candidate = runs_dir / "csauto.toml"
     return load_config(candidate if candidate.is_file() else None)
+
+
+def _as_float(value: Any) -> float | None:
+    try:
+        return None if value is None else float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _as_int(value: Any) -> int | None:
+    try:
+        return None if value is None else int(value)
+    except (TypeError, ValueError):
+        return None

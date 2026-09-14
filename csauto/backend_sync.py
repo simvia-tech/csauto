@@ -93,6 +93,10 @@ def _observe(
     fields: dict[str, Any] = {"backend_poll_failures": 0}
     if state.progress is not None:
         fields["backend_progress"] = state.progress
+    if state.execution_time_s is not None:
+        fields["backend_execution_time_s"] = state.execution_time_s
+    if state.running_core_count is not None:
+        fields["backend_core_count"] = state.running_core_count
     _append(case_dir / "csauto.stdout", state.stdout_delta)
     _append(case_dir / "csauto.stderr", state.stderr_delta)
 

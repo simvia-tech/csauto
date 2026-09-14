@@ -11,7 +11,7 @@ import functools
 
 from .base import BackendState, ExecutionBackend
 
-_BACKEND_NAMES = ("fake",)
+_BACKEND_NAMES = ("fake", "qarnot")
 
 
 def available_backends() -> tuple[str, ...]:
@@ -29,6 +29,10 @@ def _backend_for(normalized: str) -> ExecutionBackend:
         from .fake import FakeBackend
 
         return FakeBackend()
+    if normalized == "qarnot":
+        from .qarnot import QarnotBackend
+
+        return QarnotBackend()
     choices = ", ".join(available_backends())
     raise ValueError(f"Unknown backend: {normalized!r}. Choices: {choices}")
 
