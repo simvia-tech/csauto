@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 Make the dashboard follow what each solver can actually do: panels and action buttons are now derived from the solver adapter instead of being shown for every solver.
 
+### Added
+- `ExecutionBackend` boundary (`csauto/backends/`): a case can be launched on a remote execution service instead of a local process or a Slurm job. A backend implements five verbs (`submit`, `poll`, `sync`, `fetch_final`, `cancel`) and translates its own state names into csauto statuses; the core never sees a provider's API. The shipped `fake` backend covers the whole lifecycle in tests with no network, the way the `stub` solver does without a solver. Two new settings, `backend_poll_interval_s` and `backend_sync_interval_s`
+
 ### Changed
 - Dashboard panels and action buttons are derived from what the solver adapter implements, rather than declared: a panel appears when the adapter provides what feeds it (`find_residuals_files`, `list_probe_files`, or a non-empty `compare_kinds` / `performance_columns` / `control_actions`), and the Restart, Stop, control and Open GUI controls follow the same rule. Solvers other than code_saturne lose the panels and buttons they could never feed: code_aster and the stub solver now show Status, Compare, Log Tail and Recent Errors only. code_saturne is unchanged. Adapters can no longer declare `dashboard_panels`, which now raises `TypeError` at import time
 - `csauto doctor` reports the panels and capabilities derived for the configured solver
