@@ -40,6 +40,7 @@ class StubAdapter(SolverAdapterBase):
     container_root: ClassVar[str] = "/stub"
     default_docker_image: ClassVar[str] = ""
     results_dirname: ClassVar[str] = "OUT"
+    observability_globs: ClassVar[tuple[str, ...]] = (f"OUT/*/{STUB_LOG_FILENAME}",)
     template_input_names: ClassVar[frozenset[str]] = frozenset({STUB_SETUP_FILENAME})
     anomaly_file_names: ClassVar[tuple[str, ...]] = ("csauto.stderr", "csauto.stdout", STUB_LOG_FILENAME)
     cleanup_log_names: ClassVar[frozenset[str]] = frozenset({STUB_LOG_FILENAME, "csauto.stdout", "csauto.stderr"})

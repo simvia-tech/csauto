@@ -63,6 +63,7 @@ class SolverAdapter(Protocol):
     shared_dir_names: tuple[str, ...]
     template_input_names: frozenset[str]
     anomaly_file_names: tuple[str, ...]
+    observability_globs: tuple[str, ...]
     cleanup_log_names: frozenset[str]
     performance_fields: tuple[str, ...]
     performance_columns: tuple[PerfColumn, ...]
@@ -182,6 +183,12 @@ class SolverAdapterBase(ABC):
     shared_dir_names: ClassVar[tuple[str, ...]] = ()
     template_input_names: ClassVar[frozenset[str]] = frozenset()
     anomaly_file_names: ClassVar[tuple[str, ...]] = ("csauto.stderr", "csauto.stdout")
+    # Patterns, relative to the case directory, naming the few files a remote
+    # execution backend should pull back *while the run is in progress*. They
+    # exist because find_residuals_files and friends inspect a local directory
+    # and so cannot describe a task running on someone else's machine.
+    # Keep the list narrow: Qarnot advises a snapshot stays under 1 GB.
+    observability_globs: ClassVar[tuple[str, ...]] = ()
     cleanup_log_names: ClassVar[frozenset[str]] = frozenset({"csauto.stdout", "csauto.stderr"})
     performance_columns: ClassVar[tuple[PerfColumn, ...]] = ()
     compare_kinds: ClassVar[tuple[CompareKind, ...]] = ()

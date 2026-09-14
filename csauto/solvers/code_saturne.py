@@ -82,6 +82,14 @@ class CodeSaturneAdapter(SolverAdapterBase):
     default_docker_image: ClassVar[str] = "simvia/code_saturne"
     results_dirname: ClassVar[str] = "RESU"
     shared_dir_names: ClassVar[tuple[str, ...]] = ("MESH", "POST")
+    observability_globs: ClassVar[tuple[str, ...]] = (
+        "RESU/*/residuals.csv",
+        "RESU/*/listing",
+        "RESU/*/run_solver.log",
+        "RESU/*/performance.log",
+        "RESU/*/monitoring/*.csv",
+        "RESU/*/run_status.*",
+    )
     template_input_names: ClassVar[frozenset[str]] = frozenset({"setup.xml", "run.cfg"})
     anomaly_file_names: ClassVar[tuple[str, ...]] = ANOMALY_FILES_DEFAULT
     cleanup_log_names: ClassVar[frozenset[str]] = frozenset(

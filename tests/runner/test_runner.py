@@ -1210,3 +1210,38 @@ def test_refresh_status_ignores_the_reserved_backend_key(runs_dir, case_factory)
     rows = refresh_status(runs_dir)
 
     assert [row["case_id"] for row in rows] == ["case0001"]
+
+
+def test_backend_argv_uses_a_relative_case_path(monkeypatch, runs_dir, case_factory) -> None:
+    """The remote container has no idea where the case lives on this machine."""
+    from csauto.backends.fake import FakeBackend
+
+    case_factory(runs_dir, "case0001")
+    backend = FakeBackend(script=["RUNNING"])
+    submitted: dict[str, object] = {}
+    original_submit = backend.submit
+
+    def record(case_dir, argv, image, nprocs, nt, observability_globs=()):
+        submitted["argv"] = list(argv)
+        submitted["globs"] = tuple(observability_globs)
+        return original_submit(case_dir, argv, image, nprocs, nt, observability_globs)
+
+    backend.submit = record  # type: ignore[method-assign]
+    monkeypatch.setattr("csauto.backends.get_backend", lambda _name: backend)
+    monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
+
+    run_cases(
+        runs_dir,
+        nprocs=1,
+        nt=1,
+        max_parallel=1,
+        case_filter=["case0001"],
+        docker_image="image",
+        resume_only_failed=False,
+        source="test",
+        backend="fake",
+    )
+
+    assert str(runs_dir) not in " ".join(str(part) for part in submitted["argv"])
+    assert "." in submitted["argv"]
+    assert submitted["globs"], "the adapter's observability patterns must reach the backend"

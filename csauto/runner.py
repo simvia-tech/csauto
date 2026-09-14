@@ -356,12 +356,14 @@ def _start_case(
             _launch_backend(
                 case_dir,
                 case_id,
-                adapter.run_argv(case_dir, nprocs, nt, restart_args),
+                # A relative path: the remote task's working directory is the
+                # case directory, and the host path means nothing over there.
+                adapter.run_argv(".", nprocs, nt, restart_args),
                 selection.docker_image,
                 nprocs,
                 nt,
                 backend_name,
-                getattr(adapter, "observability_globs", ()),
+                adapter.observability_globs,
                 registry,
                 base_update,
             )

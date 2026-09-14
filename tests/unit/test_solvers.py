@@ -446,3 +446,18 @@ def test_code_saturne_detect_outcome_ignores_a_stale_failure_marker(tmp_path) ->
     start_time = datetime.fromtimestamp(time.time() - 60).isoformat(timespec="seconds")
 
     assert adapter.detect_outcome(case_dir, start_time) == STATUS_DONE
+
+
+def test_code_saturne_declares_observability_globs() -> None:
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    globs = CodeSaturneAdapter().observability_globs
+
+    assert "RESU/*/listing" in globs
+    assert all(not pattern.startswith("/") for pattern in globs), "patterns are relative to the case dir"
+
+
+def test_an_adapter_that_declares_nothing_has_no_observability_globs() -> None:
+    from csauto.solvers.base import SolverAdapterBase
+
+    assert SolverAdapterBase.observability_globs == ()
