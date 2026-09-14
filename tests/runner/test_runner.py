@@ -1174,9 +1174,7 @@ def test_refresh_status_does_not_finalize_a_backend_case(runs_dir: Path, case_fa
     assert load_registry(runs_dir)["case0001"]["status"] == STATUS_RUNNING
 
 
-def test_refresh_status_still_finalizes_a_local_case_whose_process_is_gone(
-    runs_dir: Path, case_factory
-) -> None:
+def test_refresh_status_still_finalizes_a_local_case_whose_process_is_gone(runs_dir: Path, case_factory) -> None:
     """Non-regression: the guard must not disable finalisation for local cases."""
     case_dir = case_factory(runs_dir, "case0001")
     save_registry(
