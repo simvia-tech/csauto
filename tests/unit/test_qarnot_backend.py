@@ -1,0 +1,199 @@
+"""The Qarnot backend, driven by a fake connection.
+
+No SDK, no token, no network: the tests assert what csauto asks Qarnot to do,
+which is the part csauto owns.
+"""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from csauto.backends.qarnot import QarnotBackend
+
+
+class FakeBucket:
+    def __init__(self, name: str) -> None:
+        self.uuid = name
+        self.files: dict[str, str] = {}
+        self.directories: list[tuple[str, str]] = []
+
+    def add_file(self, local: str, remote: str) -> None:
+        self.files[remote] = local
+
+    def sync_directory(self, directory: str, verbose: bool = False, remote: str | None = None) -> None:
+        self.directories.append((directory, remote or ""))
+
+
+class FakeTask:
+    def __init__(self, name: str, profile: str, instancecount: int) -> None:
+        self.name = name
+        self.profile = profile
+        self.instancecount = instancecount
+        self.constants: dict[str, str] = {}
+        self.resources: list[FakeBucket] = []
+        self.results: FakeBucket | None = None
+        self.snapshot_whitelist: str | None = None
+        self.snapshot_calls: list[tuple[int, str | None]] = []
+        self.submitted = False
+        self.uuid = "task-0001"
+
+    def submit(self) -> None:
+        self.submitted = True
+
+    def snapshot(self, interval: int, whitelist: str | None = None, **_: Any) -> None:
+        self.snapshot_calls.append((interval, whitelist))
+
+
+class FakeConnection:
+    def __init__(self) -> None:
+        self.buckets: dict[str, FakeBucket] = {}
+        self.tasks: list[FakeTask] = []
+
+    def retrieve_or_create_bucket(self, name: str) -> FakeBucket:
+        return self.buckets.setdefault(name, FakeBucket(name))
+
+    def create_task(self, name: str, profile: str, instancecount: int = 1) -> FakeTask:
+        task = FakeTask(name, profile, instancecount)
+        self.tasks.append(task)
+        return task
+
+    def retrieve_task(self, uuid: str) -> FakeTask:
+        for task in self.tasks:
+            if task.uuid == uuid:
+                return task
+        raise KeyError(uuid)
+
+
+@pytest.fixture
+def campaign(tmp_path: Path) -> Path:
+    runs_dir = tmp_path / "RUNS"
+    (runs_dir / "MESH").mkdir(parents=True)
+    (runs_dir / "MESH" / "m.med").write_text("mesh", encoding="utf-8")
+    case_dir = runs_dir / "case0001"
+    (case_dir / "DATA").mkdir(parents=True)
+    (case_dir / "DATA" / "setup.xml").write_text("<x/>", encoding="utf-8")
+    (case_dir / "doe_row.csv").write_text("a\n1\n", encoding="utf-8")
+    (runs_dir / "csauto.toml").write_text("solver = 'code_saturne'\n", encoding="utf-8")
+    return case_dir
+
+
+def _submit(backend: QarnotBackend, case_dir: Path, **kwargs: Any) -> str:
+    defaults: dict[str, Any] = {
+        "argv": ["run", "--case", ".", "-n", "4", "--nt", "1"],
+        "image": "simvia/code_saturne:9.0",
+        "nprocs": 4,
+        "nt": 1,
+        "observability_globs": ("RESU/*/listing",),
+    }
+    defaults.update(kwargs)
+    return backend.submit(case_dir, **defaults)
+
+
+def test_submit_returns_the_task_uuid(campaign: Path) -> None:
+    connection = FakeConnection()
+
+    task_id = _submit(QarnotBackend(connection=connection), campaign)
+
+    assert task_id == "task-0001"
+    assert connection.tasks[0].submitted is True
+
+
+def test_submit_sets_the_docker_batch_constants(campaign: Path) -> None:
+    connection = FakeConnection()
+
+    _submit(QarnotBackend(connection=connection), campaign)
+
+    task = connection.tasks[0]
+    assert task.profile == "docker-batch"
+    assert task.constants["DOCKER_REPO"] == "simvia/code_saturne"
+    assert task.constants["DOCKER_TAG"] == "9.0"
+    assert task.constants["DOCKER_CMD"] == "run --case . -n 4 --nt 1"
+
+
+def test_submit_asks_for_one_instance_not_one_per_process(campaign: Path) -> None:
+    """Qarnot instances are separate machines. nprocs would run four copies."""
+    connection = FakeConnection()
+
+    _submit(QarnotBackend(connection=connection), campaign, nprocs=4)
+
+    assert connection.tasks[0].instancecount == 1
+
+
+def test_submit_uploads_the_case_inputs_but_not_the_mesh(campaign: Path) -> None:
+    connection = FakeConnection()
+
+    _submit(QarnotBackend(connection=connection), campaign)
+
+    case_bucket = next(b for b in connection.buckets.values() if b.uuid.endswith("-case0001"))
+    assert set(case_bucket.files) == {"DATA/setup.xml", "doe_row.csv"}
+
+
+def test_submit_uploads_the_shared_directories_once_per_campaign(campaign: Path) -> None:
+    connection = FakeConnection()
+    backend = QarnotBackend(connection=connection)
+
+    _submit(backend, campaign)
+    shared = next(b for b in connection.buckets.values() if b.uuid.endswith("-shared"))
+    assert shared.directories == [(str(campaign.parent / "MESH"), "MESH")]
+
+    _submit(backend, campaign)
+    assert len(shared.directories) == 1, "unchanged shared dirs must not be re-uploaded"
+
+
+def test_the_shared_bucket_is_re_uploaded_when_the_mesh_changes(campaign: Path) -> None:
+    connection = FakeConnection()
+    backend = QarnotBackend(connection=connection)
+
+    _submit(backend, campaign)
+    (campaign.parent / "MESH" / "m.med").write_text("a different mesh", encoding="utf-8")
+    _submit(backend, campaign)
+
+    shared = next(b for b in connection.buckets.values() if b.uuid.endswith("-shared"))
+    assert len(shared.directories) == 2
+
+
+def test_submit_whitelists_only_the_observability_files(campaign: Path) -> None:
+    connection = FakeConnection()
+
+    _submit(QarnotBackend(connection=connection), campaign)
+
+    task = connection.tasks[0]
+    assert re.match(task.snapshot_whitelist, "RESU/r1/listing")
+    assert task.snapshot_calls == [(60, task.snapshot_whitelist)]
+
+
+def test_submit_does_not_snapshot_when_the_adapter_declares_nothing(campaign: Path) -> None:
+    connection = FakeConnection()
+
+    _submit(QarnotBackend(connection=connection), campaign, observability_globs=())
+
+    assert connection.tasks[0].snapshot_calls == []
+
+
+def test_submit_refuses_a_solver_that_builds_no_remote_argv(campaign: Path) -> None:
+    connection = FakeConnection()
+
+    with pytest.raises(ValueError, match="does not build a remote command"):
+        _submit(QarnotBackend(connection=connection), campaign, argv=[])
+
+
+def test_submit_refuses_an_oversized_case(campaign: Path) -> None:
+    (campaign.parent / "csauto.toml").write_text(
+        "solver = 'code_saturne'\n[qarnot]\nmax_upload_mb = 1\n", encoding="utf-8"
+    )
+    (campaign / "DATA" / "big.dat").write_text("x" * (2 * 1024 * 1024), encoding="utf-8")
+    connection = FakeConnection()
+
+    with pytest.raises(ValueError, match="over the 1 MB limit"):
+        _submit(QarnotBackend(connection=connection), campaign)
+
+
+def test_a_missing_token_is_reported_without_leaking_anything(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("QARNOT_TOKEN", raising=False)
+
+    with pytest.raises(RuntimeError, match="QARNOT_TOKEN"):
+        QarnotBackend()._connect()
