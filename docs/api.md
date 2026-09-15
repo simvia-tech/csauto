@@ -99,6 +99,41 @@ Response:
 
 - `{ "records": [...] }`
 
+## `GET /api/launch_options`
+
+Purpose:
+
+- list what an execution backend lets a user choose at launch time, for the Run
+  dialog
+
+Query parameters:
+
+- `backend` (required): a name from the `backends` list in `GET /api/app_config`
+
+Response:
+
+```json
+{
+  "backend": "qarnot",
+  "degraded": false,
+  "options": [
+    {"key": "scheduling", "label": "Priority", "default": "Flex",
+     "choices": [["Flex", "Flex - cheaper, may wait for spare capacity"]]}
+  ]
+}
+```
+
+Rules:
+
+- an unknown backend is rejected with HTTP 400
+- the route never fails otherwise: when the provider cannot be reached it
+  returns `degraded: true` with whatever it could build, so the dialog still
+  opens and a launch remains possible with the defaults
+- it never returns a credential of any kind
+- call it when the dialog opens, not on page load: it may talk to the provider
+
+---
+
 ## `GET /api/residuals`
 
 Purpose:

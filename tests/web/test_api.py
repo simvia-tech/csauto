@@ -1477,3 +1477,51 @@ def test_run_case_without_options_forwards_none(monkeypatch, web_env) -> None:
     _http_post(f"{base_url}/api/run_case", {"cases": ["case0001"], "n": 1, "nt": 1})
 
     assert seen.get("options") is None
+
+
+def test_launch_options_returns_a_backend_catalogue(web_env) -> None:
+    base_url, _case_dir = web_env
+    _status, body = _http_get(f"{base_url}/api/launch_options?backend=fake")
+    data = json.loads(body)
+
+    assert data["backend"] == "fake"
+    assert data["degraded"] is False
+    assert data["options"][0]["key"] == "speed"
+    assert data["options"][0]["default"] == "slow"
+    assert data["options"][0]["choices"] == [["slow", "Slow"], ["fast", "Fast"]]
+
+
+def test_launch_options_rejects_an_unknown_backend(web_env) -> None:
+    base_url, _case_dir = web_env
+
+    with pytest.raises(HTTPError) as excinfo:
+        _http_get(f"{base_url}/api/launch_options?backend=not-a-backend")
+
+    assert excinfo.value.code == 400
+
+
+def test_launch_options_reports_a_backend_that_fails_as_degraded(monkeypatch, web_env) -> None:
+    """The dialog must open even when the provider is unreachable."""
+    base_url, _case_dir = web_env
+
+    class Broken:
+        name = "fake"
+
+        def launch_options(self):
+            raise RuntimeError("provider is down")
+
+    monkeypatch.setattr("csauto.backends.get_backend", lambda _name: Broken())
+
+    _status, body = _http_get(f"{base_url}/api/launch_options?backend=fake")
+    data = json.loads(body)
+
+    assert data["degraded"] is True
+    assert data["options"] == []
+
+
+def test_launch_options_never_returns_a_credential(web_env) -> None:
+    base_url, _case_dir = web_env
+    _status, body = _http_get(f"{base_url}/api/launch_options?backend=fake")
+
+    assert "token" not in body.lower()
+    assert "secret" not in body.lower()

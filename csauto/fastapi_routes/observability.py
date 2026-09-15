@@ -90,6 +90,20 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
         control_actions: list[str]
         backends: list[str]
 
+    class LaunchOptionModel(BaseModel):
+        key: str
+        label: str
+        choices: list[tuple[str, str]]
+        default: str
+
+    class LaunchOptionsModel(BaseModel):
+        backend: str
+        degraded: bool
+        options: list[LaunchOptionModel]
+
+    class LaunchOptionsQuery(BaseModel):
+        backend: str
+
     class RecentErrorItemModel(BaseModel):
         case_id: str
         file: str
@@ -153,6 +167,50 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
             "error_files": list(ctx.adapter.anomaly_file_names),
             "control_actions": sorted(ctx.adapter.control_actions),
             "backends": list(available_backends()),
+        }
+
+    @app.get("/api/launch_options", response_model=LaunchOptionsModel)
+    def api_launch_options(
+        query: Annotated[LaunchOptionsQuery, Query()],
+        x_csauto_token: str | None = Header(default=None),
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        """What a backend lets a user choose, for the Run dialog.
+
+        Deliberately not part of /api/app_config: that route is polled on every
+        page load, and a provider call there is what froze the server before.
+        This one is called when the dialog opens, and never fails: a provider
+        that is down yields an empty, degraded catalogue so the dialog still
+        opens and the launch still works with defaults.
+        """
+        ctx.require_auth(x_csauto_token, authorization)
+        from ..backends import get_backend
+
+        name = str(query.backend or "").strip().lower()
+        if name not in available_backends():
+            raise ctx.http_exception_cls(
+                status_code=400,
+                detail=f"Unknown execution backend: {name!r}. Choices: {', '.join(available_backends())}",
+            )
+        try:
+            catalogue = get_backend(name).launch_options()
+        except Exception:
+            # Never surface the provider's own error here: it can carry
+            # connection details, and the dialog only needs to know it is
+            # working without a catalogue.
+            return {"backend": name, "degraded": True, "options": []}
+        return {
+            "backend": name,
+            "degraded": catalogue.degraded,
+            "options": [
+                {
+                    "key": option.key,
+                    "label": option.label,
+                    "choices": [list(choice) for choice in option.choices],
+                    "default": option.default,
+                }
+                for option in catalogue.options
+            ],
         }
 
     @app.get("/api/restart_origin", response_model=RestartOriginResponse)
