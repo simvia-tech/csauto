@@ -63,6 +63,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         n: int | None = None
         nt: int | None = None
         max_parallel: int | None = None
+        backend: str | None = None
         restart: bool = False
         restart_mode: str = ""
         restart_value: int | float | None = None
@@ -446,6 +447,16 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         else:
             max_parallel = payload.max_parallel
 
+        backend = (payload.backend or "").strip().lower() or None
+        if backend is not None:
+            from ..backends import available_backends
+
+            if backend not in available_backends():
+                raise ctx.http_exception_cls(
+                    status_code=400,
+                    detail=f"Unknown execution backend: {backend!r}. Choices: {', '.join(available_backends())}",
+                )
+
         restart, restart_mode, restart_value, restart_path = _parse_restart_params(
             payload,
             ctx.http_exception_cls,
@@ -486,6 +497,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
                 mpi_exec_options=ctx.mpi_exec_options,
                 source="web",
                 adapter=ctx.adapter,
+                backend=backend,
             )
         except ctx.http_exception_cls:
             raise

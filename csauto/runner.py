@@ -944,6 +944,13 @@ def _compute_refresh_result(
         "duration": duration,
         "last_mod": last_mod,
         "resu_size_mb": resu_size_mb,
+        # A case a remote backend owns has no local duration to speak of, so
+        # the dashboard shows what the backend reports instead. Empty and None
+        # for every local case, which is every case today.
+        "backend": backend_name,
+        "backend_progress": record.get("backend_progress"),
+        "backend_execution_time_s": record.get("backend_execution_time_s"),
+        "backend_core_count": record.get("backend_core_count"),
     }
 
     doe_cols: tuple[str, ...] = ()

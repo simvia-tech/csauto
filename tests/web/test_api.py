@@ -1398,3 +1398,50 @@ def test_app_config_never_returns_a_credential(web_env) -> None:
 
     assert "token" not in body.lower()
     assert "secret" not in body.lower()
+
+
+def test_run_case_passes_the_chosen_backend_through(monkeypatch, web_env) -> None:
+    """The runtime is chosen per launch, so the choice must reach run_cases."""
+    base_url, _case_dir = web_env
+    seen: dict[str, object] = {}
+
+    def fake_run_cases(*args, **kwargs):
+        seen.update(kwargs)
+
+    monkeypatch.setattr("csauto.fastapi_routes.actions.run_cases", fake_run_cases)
+
+    status, _body = _http_post(
+        f"{base_url}/api/run_case",
+        {"cases": ["case0001"], "n": 1, "nt": 1, "backend": "fake"},
+    )
+
+    assert status == 200
+    assert seen["backend"] == "fake"
+
+
+def test_run_case_defaults_to_no_backend(monkeypatch, web_env) -> None:
+    """Omitting the field must keep the local behaviour exactly as before."""
+    base_url, _case_dir = web_env
+    seen: dict[str, object] = {}
+
+    def fake_run_cases(*args, **kwargs):
+        seen.update(kwargs)
+
+    monkeypatch.setattr("csauto.fastapi_routes.actions.run_cases", fake_run_cases)
+
+    _http_post(f"{base_url}/api/run_case", {"cases": ["case0001"], "n": 1, "nt": 1})
+
+    assert seen.get("backend") is None
+
+
+def test_run_case_rejects_an_unknown_backend(web_env) -> None:
+    base_url, _case_dir = web_env
+
+    with pytest.raises(HTTPError) as excinfo:
+        _http_post(
+            f"{base_url}/api/run_case",
+            {"cases": ["case0001"], "n": 1, "nt": 1, "backend": "not-a-backend"},
+        )
+
+    assert excinfo.value.code == 400
+    assert "not-a-backend" in json.loads(excinfo.value.read())["detail"]

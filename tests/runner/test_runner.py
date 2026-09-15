@@ -1245,3 +1245,43 @@ def test_backend_argv_uses_a_relative_case_path(monkeypatch, runs_dir, case_fact
     assert str(runs_dir) not in " ".join(str(part) for part in submitted["argv"])
     assert "." in submitted["argv"]
     assert submitted["globs"], "the adapter's observability patterns must reach the backend"
+
+
+def test_status_row_carries_the_backend_figures(runs_dir, case_factory) -> None:
+    """The dashboard shows what a cloud case costs; the figures live in the registry."""
+    case_factory(runs_dir, "case0001")
+    save_registry(
+        runs_dir,
+        {
+            "case0001": {
+                "case_id": "case0001",
+                "path": str(runs_dir / "case0001"),
+                "status": STATUS_RUNNING,
+                "backend": "fake",
+                "task_id": "fake-0001",
+                "backend_progress": 0.25,
+                "backend_execution_time_s": 42.0,
+                "backend_core_count": 8,
+            }
+        },
+    )
+
+    row = refresh_status(runs_dir)[0]
+
+    assert row["backend"] == "fake"
+    assert row["backend_progress"] == 0.25
+    assert row["backend_execution_time_s"] == 42.0
+    assert row["backend_core_count"] == 8
+
+
+def test_status_row_of_a_local_case_has_no_backend_figures(runs_dir, case_factory) -> None:
+    case_factory(runs_dir, "case0001")
+    save_registry(
+        runs_dir,
+        {"case0001": {"case_id": "case0001", "path": str(runs_dir / "case0001"), "status": "PREPARED"}},
+    )
+
+    row = refresh_status(runs_dir)[0]
+
+    assert row["backend"] == ""
+    assert row["backend_execution_time_s"] is None
