@@ -90,6 +90,12 @@
       { key: "duration", label: "Duration", kind: "calc" },
       { key: "last_mod", label: "Last Modified", kind: "calc" },
       { key: "resu_size_mb", label: "RESU Size (MB)", kind: "calc" },
+      {
+        key: "backend_execution_time_s",
+        label: "Cloud Time (s)",
+        kind: "calc",
+      },
+      { key: "backend_core_count", label: "Cloud Cores", kind: "calc" },
     ];
     const trailing = allTrailing.filter((c) => visibleBase.has(c.key));
     const actions: Column[] = hasCapability("gui")
@@ -209,6 +215,14 @@
     if (col.key === "last_mod") return formatLastMod(row.last_mod);
     if (col.key === "resu_size_mb")
       return row.resu_size_mb != null ? String(row.resu_size_mb) : "";
+    if (col.key === "backend_execution_time_s")
+      return row.backend_execution_time_s != null
+        ? row.backend_execution_time_s.toFixed(1)
+        : "";
+    if (col.key === "backend_core_count")
+      return row.backend_core_count != null
+        ? String(row.backend_core_count)
+        : "";
     /* DOE value */
     if (col.kind === "doe")
       return row.doe?.[col.key] != null && String(row.doe[col.key]) !== ""

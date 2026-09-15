@@ -23,6 +23,8 @@ export const BASE_COLUMNS: { key: string; label: string }[] = [
   { key: "duration", label: "Duration" },
   { key: "last_mod", label: "Last Modified" },
   { key: "resu_size_mb", label: "RESU Size (MB)" },
+  { key: "backend_execution_time_s", label: "Cloud Time (s)" },
+  { key: "backend_core_count", label: "Cloud Cores" },
 ];
 
 /* Named view snapshot */
@@ -212,6 +214,9 @@ function getSortValue(row: StatusRow, key: string): string | number {
   if (key === "duration") return row.duration_s ?? 0;
   if (key === "last_mod") return row.last_mod ?? "";
   if (key === "resu_size_mb") return row.resu_size_mb ?? 0;
+  if (key === "backend_execution_time_s")
+    return row.backend_execution_time_s ?? 0;
+  if (key === "backend_core_count") return row.backend_core_count ?? 0;
   /* DOE column */
   const doeVal = row.doe?.[key];
   if (doeVal !== undefined) return normalizeValue(doeVal);
