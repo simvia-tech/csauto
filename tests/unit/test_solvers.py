@@ -571,3 +571,57 @@ def test_progress_of_a_live_run_still_prefers_the_running_marker(tmp_path: Path)
     case_dir = _case_with_stale_running_marker(tmp_path)
 
     assert CodeSaturneAdapter().read_progress(case_dir) == 9479
+
+
+def _finished_looking_log() -> str:
+    return "===============================\n                 FINAL STAGE OF THE CALCULATION\n                      END OF CALCULATION\n"
+
+
+def test_an_explicit_failure_marker_beats_a_log_that_looks_finished(tmp_path: Path) -> None:
+    """code_saturne prints its final stage even when it then aborts.
+
+    The runaway-computation check kills the solver after that banner, and the
+    real message goes to `error`, not to the log, so the log heuristic alone
+    calls a diverged run a success. The marker the solver writes is explicit.
+    """
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    run_dir = tmp_path / "RESU" / "20260101-0000"
+    run_dir.mkdir(parents=True)
+    (run_dir / "run_solver.log").write_text(_finished_looking_log(), encoding="utf-8")
+    (run_dir / "run_status.failed").write_text("", encoding="utf-8")
+
+    assert CodeSaturneAdapter().detect_outcome(tmp_path) == "FAILED"
+
+
+def test_a_finished_run_without_a_failure_marker_is_done(tmp_path: Path) -> None:
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    run_dir = tmp_path / "RESU" / "20260101-0000"
+    run_dir.mkdir(parents=True)
+    (run_dir / "run_solver.log").write_text(_finished_looking_log(), encoding="utf-8")
+
+    assert CodeSaturneAdapter().detect_outcome(tmp_path) == "DONE"
+
+
+def test_a_failure_marker_from_an_earlier_run_does_not_win(tmp_path: Path) -> None:
+    """Only this run's marker counts; an old one must not fail a good run."""
+    import os
+    from datetime import datetime, timedelta
+
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    now = datetime.now()
+    old_dir = tmp_path / "RESU" / "old-run"
+    old_dir.mkdir(parents=True)
+    stale = old_dir / "run_status.failed"
+    stale.write_text("", encoding="utf-8")
+    long_ago = (now - timedelta(days=1)).timestamp()
+    os.utime(stale, (long_ago, long_ago))
+
+    run_dir = tmp_path / "RESU" / "this-run"
+    run_dir.mkdir(parents=True)
+    (run_dir / "run_solver.log").write_text(_finished_looking_log(), encoding="utf-8")
+
+    started = (now - timedelta(minutes=1)).isoformat(timespec="seconds")
+    assert CodeSaturneAdapter().detect_outcome(tmp_path, started) == "DONE"

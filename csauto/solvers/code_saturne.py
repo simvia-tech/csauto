@@ -355,20 +355,20 @@ class CodeSaturneAdapter(SolverAdapterBase):
         return None, None
 
     def detect_outcome(self, case_dir: Path, start_time: str | None = None) -> str | None:
-        outcome = detect_run_outcome(case_dir, start_time)
-        if outcome:
-            return outcome
-        # The logs gave no verdict. A run that fails before the solver starts (a
-        # missing mesh, say) writes no run_solver.log at all, only a status
-        # marker beside it. Restricted to the current run, so a marker left by a
-        # previous run never overrides the log of this one.
+        # The marker the solver writes comes first, because the log is only a
+        # heuristic and it can be read wrong in both directions: a run that
+        # fails before the solver starts writes no log at all, and a run killed
+        # by the runaway-computation check prints its closing banner first and
+        # puts the real message in `error`, so the log reads as a success.
+        # Restricted to the current run, so a marker left by a previous one
+        # never fails a good run.
         start_ts = _parse_start_time(start_time)
         for run_dir in self.list_run_dirs(case_dir):
             for name in RUN_STATUS_FAILURE_NAMES:
                 marker = run_dir / name
                 if marker.is_file() and _is_recent(marker, start_ts):
                     return STATUS_FAILED
-        return None
+        return detect_run_outcome(case_dir, start_time)
 
     def read_progress(self, case_dir: Path, start_time: str | None = None, *, running: bool = True) -> int | None:
         # run_status.running is only trustworthy while the run is running.
