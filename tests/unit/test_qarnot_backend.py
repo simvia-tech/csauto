@@ -40,6 +40,19 @@ class FakeTask:
         self.snapshot_calls: list[tuple[int, str | None]] = []
         self.submitted = False
         self.uuid = "task-0001"
+        self._hardware_constraints: list[Any] = []
+        self.constraints_set_while_unsubmitted: bool | None = None
+
+    @property
+    def hardware_constraints(self) -> list[Any]:
+        return self._hardware_constraints
+
+    @hardware_constraints.setter
+    def hardware_constraints(self, value: list[Any]) -> None:
+        # The real SDK raises once the task is launched; record the ordering
+        # instead so a test can assert it.
+        self.constraints_set_while_unsubmitted = not self.submitted
+        self._hardware_constraints = value
 
     def submit(self) -> None:
         self.submitted = True
@@ -357,3 +370,36 @@ def test_cancel_still_reports_a_real_failure() -> None:
 
     with pytest.raises(RuntimeError, match="invalid credentials"):
         backend.cancel("task-0001")
+
+
+def test_submit_demands_enough_cores_for_the_requested_ranks(campaign: Path) -> None:
+    """Qarnot allocates any machine unless told otherwise.
+
+    -n and --nt only reach code_saturne, inside DOCKER_CMD. Without a hardware
+    constraint the task can land on a node with fewer cores than the run asks
+    for, oversubscribing MPI on compute the user pays for.
+    """
+    connection = FakeConnection()
+
+    _submit(QarnotBackend(connection=connection), campaign, nprocs=4, nt=2)
+
+    constraints = [c.to_json() for c in connection.tasks[0].hardware_constraints]
+    assert constraints == [{"discriminator": "MinimumCoreHardwareConstraint", "coreCount": 8}]
+
+
+def test_submit_never_demands_fewer_than_one_core(campaign: Path) -> None:
+    connection = FakeConnection()
+
+    _submit(QarnotBackend(connection=connection), campaign, nprocs=0, nt=0)
+
+    assert connection.tasks[0].hardware_constraints[0].to_json()["coreCount"] == 1
+
+
+def test_the_core_constraint_is_set_before_submission(campaign: Path) -> None:
+    """The SDK refuses hardware_constraints once the task is launched."""
+    connection = FakeConnection()
+
+    _submit(QarnotBackend(connection=connection), campaign)
+
+    task = connection.tasks[0]
+    assert task.constraints_set_while_unsubmitted is True

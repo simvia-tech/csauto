@@ -32,6 +32,7 @@ from .qarnot_support import (
     bucket_name,
     directory_signature,
     ensure_upload_within,
+    minimum_core_constraint,
     snapshot_whitelist,
     split_image,
     upload_plan,
@@ -136,6 +137,12 @@ class QarnotBackend:
         task.constants["DOCKER_CMD"] = shlex.join(command)
         task.resources = resources
         task.results = connection.retrieve_or_create_bucket(f"{campaign}-{case_dir.name}-out")
+        # -n and --nt only reach the solver, inside DOCKER_CMD. Without this,
+        # Qarnot allocates any available machine and the run can land on fewer
+        # cores than it asks for, oversubscribing MPI on paid compute. The SDK
+        # refuses hardware_constraints once a task is launched, so it is set
+        # here, before submit().
+        task.hardware_constraints = [minimum_core_constraint(int(nprocs) * int(nt))]
 
         whitelist = snapshot_whitelist(observability_globs)
         if whitelist:

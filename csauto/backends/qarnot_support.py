@@ -132,6 +132,29 @@ def directory_signature(paths: Sequence[Path]) -> str:
     return digest.hexdigest()
 
 
+@dataclass(frozen=True)
+class MinimumCoreConstraint:
+    """Ask Qarnot for a machine with at least this many cores.
+
+    Built by hand rather than imported from `qarnot.hardware_constraint`, so
+    the rest of this module, and the tests, stay runnable without the optional
+    extra. The SDK only ever calls `to_json()` on a constraint, so a plain
+    object of the same shape is interchangeable with its own class.
+    `test_minimum_core_constraint_matches_the_sdk` guards the discriminator
+    against a rename whenever the SDK happens to be installed.
+    """
+
+    core_count: int
+
+    def to_json(self) -> dict[str, object]:
+        return {"discriminator": "MinimumCoreHardwareConstraint", "coreCount": self.core_count}
+
+
+def minimum_core_constraint(cores: int) -> MinimumCoreConstraint:
+    """The hardware constraint matching a run's total core count."""
+    return MinimumCoreConstraint(core_count=max(1, int(cores)))
+
+
 def split_image(image: str) -> tuple[str, str]:
     """Split `repo[:tag]` into the DOCKER_REPO and DOCKER_TAG constants."""
     text = str(image or "").strip()
@@ -147,10 +170,12 @@ def split_image(image: str) -> tuple[str, str]:
 
 
 __all__ = [
+    "MinimumCoreConstraint",
     "UploadPlan",
     "bucket_name",
     "directory_signature",
     "ensure_upload_within",
+    "minimum_core_constraint",
     "snapshot_whitelist",
     "split_image",
     "upload_plan",

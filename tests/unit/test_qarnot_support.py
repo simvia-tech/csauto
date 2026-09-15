@@ -137,3 +137,26 @@ def test_split_image(image: str, expected: tuple[str, str]) -> None:
 def test_split_image_refuses_an_empty_image() -> None:
     with pytest.raises(ValueError, match="no docker image"):
         split_image("")
+
+
+def test_minimum_core_constraint_shape() -> None:
+    from csauto.backends.qarnot_support import minimum_core_constraint
+
+    assert minimum_core_constraint(4).to_json() == {
+        "discriminator": "MinimumCoreHardwareConstraint",
+        "coreCount": 4,
+    }
+
+
+def test_minimum_core_constraint_matches_the_sdk() -> None:
+    """Guards the hand-written discriminator against an SDK rename.
+
+    The constraint is built without importing the SDK, so the unit tests stay
+    runnable without the optional extra. This test is the price of that: when
+    the SDK is installed, the two must agree.
+    """
+    sdk = pytest.importorskip("qarnot.hardware_constraint")
+
+    from csauto.backends.qarnot_support import minimum_core_constraint
+
+    assert minimum_core_constraint(7).to_json() == sdk.MinimumCoreHardware(7).to_json()
