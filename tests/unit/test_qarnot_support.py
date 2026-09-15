@@ -160,3 +160,49 @@ def test_minimum_core_constraint_matches_the_sdk() -> None:
     from csauto.backends.qarnot_support import minimum_core_constraint
 
     assert minimum_core_constraint(7).to_json() == sdk.MinimumCoreHardware(7).to_json()
+
+
+def test_scheduling_choices_are_the_three_qarnot_values() -> None:
+    from csauto.backends.qarnot_support import SCHEDULING_CHOICES
+
+    assert [value for value, _label in SCHEDULING_CHOICES] == ["Flex", "OnDemand", "Reserved"]
+
+
+def test_scheduling_choice_carries_the_attribute_the_sdk_reads() -> None:
+    """Task._to_json reads `.schedulingType` off whatever object is set."""
+    from csauto.backends.qarnot_support import scheduling_choice
+
+    assert scheduling_choice("OnDemand").schedulingType == "OnDemand"
+
+
+def test_scheduling_choice_matches_the_sdk() -> None:
+    sdk = pytest.importorskip("qarnot.scheduling_type")
+
+    from csauto.backends.qarnot_support import SCHEDULING_CHOICES, scheduling_choice
+
+    for value, _label in SCHEDULING_CHOICES:
+        assert scheduling_choice(value).schedulingType == sdk.SchedulingType.from_string(value).schedulingType
+
+
+def test_scheduling_choice_rejects_an_unknown_value() -> None:
+    from csauto.backends.qarnot_support import scheduling_choice
+
+    with pytest.raises(ValueError, match="Nope"):
+        scheduling_choice("Nope")
+
+
+def test_specific_hardware_constraint_shape() -> None:
+    from csauto.backends.qarnot_support import specific_hardware_constraint
+
+    assert specific_hardware_constraint("r640-a").to_json() == {
+        "discriminator": "SpecificHardwareConstraint",
+        "specificationKey": "r640-a",
+    }
+
+
+def test_specific_hardware_constraint_matches_the_sdk() -> None:
+    sdk = pytest.importorskip("qarnot.hardware_constraint")
+
+    from csauto.backends.qarnot_support import specific_hardware_constraint
+
+    assert specific_hardware_constraint("r640-a").to_json() == sdk.SpecificHardware("r640-a").to_json()

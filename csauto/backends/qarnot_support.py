@@ -155,6 +155,54 @@ def minimum_core_constraint(cores: int) -> MinimumCoreConstraint:
     return MinimumCoreConstraint(core_count=max(1, int(cores)))
 
 
+# Qarnot's scheduling classes, from qarnot.scheduling_type. A closed set, so it
+# is declared rather than fetched. Labels say what the choice costs, because
+# that is the part a user is actually deciding.
+SCHEDULING_CHOICES: tuple[tuple[str, str], ...] = (
+    ("Flex", "Flex - cheaper, may wait for spare capacity"),
+    ("OnDemand", "OnDemand - starts sooner, costs more"),
+    ("Reserved", "Reserved - uses capacity reserved on your account"),
+)
+
+
+@dataclass(frozen=True)
+class SchedulingChoice:
+    """A scheduling class, in the shape `Task._to_json` reads.
+
+    Built by hand rather than imported from `qarnot.scheduling_type`, so this
+    module stays usable without the optional extra. The SDK only ever reads the
+    `schedulingType` attribute off it (`task.py:2169`), so a plain object of
+    the same shape is interchangeable with its own classes.
+    """
+
+    # Not snake_case on purpose: the SDK reads this exact attribute name.
+    schedulingType: str
+
+
+def scheduling_choice(value: str) -> SchedulingChoice:
+    """Validate a scheduling value and wrap it for the SDK."""
+    text = str(value or "").strip()
+    known = [known_value for known_value, _label in SCHEDULING_CHOICES]
+    if text not in known:
+        raise ValueError(f"Unknown scheduling {text!r}. Choices: {', '.join(known)}")
+    return SchedulingChoice(schedulingType=text)
+
+
+@dataclass(frozen=True)
+class SpecificHardwareConstraint:
+    """Pin a task to one hardware specification, Qarnot's notion of a node."""
+
+    specification_key: str
+
+    def to_json(self) -> dict[str, object]:
+        return {"discriminator": "SpecificHardwareConstraint", "specificationKey": self.specification_key}
+
+
+def specific_hardware_constraint(key: str) -> SpecificHardwareConstraint:
+    """The hardware constraint pinning a run to one node type."""
+    return SpecificHardwareConstraint(specification_key=str(key).strip())
+
+
 def split_image(image: str) -> tuple[str, str]:
     """Split `repo[:tag]` into the DOCKER_REPO and DOCKER_TAG constants."""
     text = str(image or "").strip()
@@ -170,13 +218,18 @@ def split_image(image: str) -> tuple[str, str]:
 
 
 __all__ = [
+    "SCHEDULING_CHOICES",
     "MinimumCoreConstraint",
+    "SchedulingChoice",
+    "SpecificHardwareConstraint",
     "UploadPlan",
     "bucket_name",
     "directory_signature",
     "ensure_upload_within",
     "minimum_core_constraint",
+    "scheduling_choice",
     "snapshot_whitelist",
+    "specific_hardware_constraint",
     "split_image",
     "upload_plan",
 ]
