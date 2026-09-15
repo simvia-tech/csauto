@@ -16,8 +16,12 @@ the task is still running, and that the full results land on local disk.
 
 from __future__ import annotations
 
+import contextlib
 import os
+import shutil
+import tempfile
 import time
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -26,6 +30,11 @@ LIVE = os.environ.get("CSAUTO_QARNOT_LIVE", "").strip() == "1"
 TIMEOUT_S = 600
 POLL_S = 10
 
+# A stable directory, deliberately not pytest's tmp_path. Bucket names derive
+# from the campaign's absolute path, so a fresh tmp_path per run would create a
+# new set of buckets every time and eat the account's bucket quota.
+LIVE_ROOT = Path(tempfile.gettempdir()) / "csauto-qarnot-live"
+
 pytestmark = pytest.mark.skipif(
     not LIVE,
     reason="set CSAUTO_QARNOT_LIVE=1 and QARNOT_TOKEN to run against the real Qarnot API",
@@ -33,18 +42,40 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.fixture
-def tiny_case(tmp_path: Path) -> Path:
+def tiny_case() -> Iterator[Path]:
     """A case that needs no solver: a shell loop writing into the results dir.
 
     Deliberately not code_saturne. This test answers questions about Qarnot,
     not about the solver, and a real mesh would make it slow and expensive.
+
+    The remote buckets are deleted afterwards. A Qarnot account has a finite
+    bucket count and a finite storage quota, and a test that leaks a bucket per
+    run exhausts both, which is exactly how this cleanup came to be written.
     """
-    runs_dir = tmp_path / "RUNS"
+    runs_dir = LIVE_ROOT / "RUNS"
+    if runs_dir.exists():
+        shutil.rmtree(runs_dir)
     case_dir = runs_dir / "case0001"
     (case_dir / "DATA").mkdir(parents=True)
     (case_dir / "DATA" / "input.txt").write_text("hello from csauto\n", encoding="utf-8")
     (runs_dir / "csauto.toml").write_text("solver = 'stub'\n", encoding="utf-8")
-    return case_dir
+
+    yield case_dir
+
+    _delete_remote_buckets(runs_dir, case_dir.name)
+
+
+def _delete_remote_buckets(runs_dir: Path, case_id: str) -> None:
+    """Remove what this test created on the account. Never fails the test."""
+    from csauto.backends.qarnot import QarnotBackend
+    from csauto.backends.qarnot_support import bucket_name
+
+    campaign = bucket_name(runs_dir)
+    with contextlib.suppress(Exception):
+        connection = QarnotBackend()._connect()
+        for suffix in (case_id, f"{case_id}-out", "shared"):
+            with contextlib.suppress(Exception):
+                connection.retrieve_bucket(f"{campaign}-{suffix}").delete()
 
 
 def test_a_real_task_round_trips(tiny_case: Path) -> None:

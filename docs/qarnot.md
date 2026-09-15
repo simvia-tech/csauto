@@ -17,6 +17,21 @@ export QARNOT_TOKEN="<the token from your Qarnot console>"
 csauto doctor RUNS --backend qarnot
 ```
 
+`doctor` reports the SDK, the token, the image, whether the configured solver
+can build a remote command, and what the account still has room for:
+
+```
+[OK]   qarnot SDK available
+[OK]   QARNOT_TOKEN is set
+[OK]   qarnot buckets 4/100
+[OK]   qarnot storage 1.2/40.0 GB used
+```
+
+The quota lines matter. An exhausted bucket or storage quota surfaces as a
+`QuotaExceeded` in the middle of an upload, after you have chosen a campaign and
+pressed the button. `doctor` warns before that, and never prints the token
+itself, only what it buys.
+
 **The token goes in the environment, never in `csauto.toml`.** That file lives in
 the campaign directory, which gets shared, committed and archived. csauto
 refuses to start if it finds a token in there.
