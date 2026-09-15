@@ -40,21 +40,49 @@ except ImportError:  # pragma: no cover - fallback for non-POSIX platforms
     fcntl = None
 
 
+# Which lock files this thread already holds. REGISTRY_THREAD_LOCK is an RLock,
+# so a thread re-entering the lock passes straight through it, but flock applies
+# per file descriptor: reopening the lock file would make the second descriptor
+# wait on the first, held by this very thread. That deadlock is silent and
+# permanent, and it takes the whole process with it, so a re-entry is tracked
+# here and simply passes through.
+_HELD_LOCKS = threading.local()
+
+
+def _held_lock_paths() -> set[str]:
+    paths = getattr(_HELD_LOCKS, "paths", None)
+    if paths is None:
+        paths = set()
+        _HELD_LOCKS.paths = paths
+    return paths
+
+
 @contextmanager
 def registry_lock(runs_dir: Path) -> Iterable[None]:
-    """Serialize registry access across threads and processes."""
+    """Serialize registry access across threads and processes.
+
+    Re-entrant within a thread: a nested call passes through instead of
+    deadlocking on a second descriptor of the same lock file.
+    """
     if not runs_dir.is_dir():
         with REGISTRY_THREAD_LOCK:
             yield
         return
     lock_path = runs_dir / REGISTRY_LOCKFILE
+    key = str(lock_path.parent.resolve() / lock_path.name)
     with REGISTRY_THREAD_LOCK:
+        held = _held_lock_paths()
+        if key in held:
+            yield
+            return
         handle = lock_path.open("a+")
+        held.add(key)
         try:
             if fcntl:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
             yield
         finally:
+            held.discard(key)
             if fcntl:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
             handle.close()

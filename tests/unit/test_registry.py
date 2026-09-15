@@ -118,3 +118,28 @@ def test_case_records_drops_reserved_keys() -> None:
     }
 
     assert list(case_records(registry)) == ["case0001"]
+
+
+def test_registry_lock_is_reentrant_within_a_thread(runs_dir: Path) -> None:
+    """flock is per descriptor: reopening the file deadlocks against ourselves.
+
+    REGISTRY_THREAD_LOCK is an RLock, which advertises re-entrancy, so a nested
+    read looks safe and instead froze the whole process for ever.
+    """
+    import threading
+
+    from csauto.registry import registry_transaction, save_registry
+
+    save_registry(runs_dir, {"case0001": {"case_id": "case0001", "status": "PREPARED"}})
+    done = threading.Event()
+    seen: list[str] = []
+
+    def nested() -> None:
+        with registry_transaction(runs_dir):
+            seen.append(load_registry(runs_dir)["case0001"]["status"])
+        done.set()
+
+    threading.Thread(target=nested, daemon=True).start()
+
+    assert done.wait(timeout=5), "a nested registry read deadlocked"
+    assert seen == ["PREPARED"]
