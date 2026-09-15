@@ -1380,3 +1380,21 @@ def test_kill_cancels_a_backend_task(runs_dir: Path, case_factory, monkeypatch) 
 
     assert backend.poll(task_id).status == "FAILED"
     assert load_registry(runs_dir)["case0001"]["status"] == "FAILED"
+
+
+def test_app_config_lists_the_execution_backends(web_env) -> None:
+    """The dashboard asks what is on offer; it never hardcodes a provider name."""
+    base_url, _case_dir = web_env
+    _status, body = _http_get(f"{base_url}/api/app_config")
+    data = json.loads(body)
+
+    assert "qarnot" in data["backends"]
+    assert "fake" in data["backends"]
+
+
+def test_app_config_never_returns_a_credential(web_env) -> None:
+    base_url, _case_dir = web_env
+    _status, body = _http_get(f"{base_url}/api/app_config")
+
+    assert "token" not in body.lower()
+    assert "secret" not in body.lower()
