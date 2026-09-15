@@ -537,3 +537,37 @@ def test_code_saturne_prepare_survives_a_case_without_a_setup(tmp_path: Path) ->
     from csauto.solvers.code_saturne import CodeSaturneAdapter
 
     CodeSaturneAdapter().prepare_remote_case(tmp_path)
+
+
+def _case_with_stale_running_marker(tmp_path: Path) -> Path:
+    """A finished run whose progress marker was left behind mid-run.
+
+    A backend sync downloads run_status.running during the run and only ever
+    adds files, so the marker survives the end of the calculation and keeps
+    reporting the iteration it was captured at.
+    """
+    run_dir = tmp_path / "RESU" / "20260101-0000"
+    run_dir.mkdir(parents=True)
+    (run_dir / "run_status.running").write_text("time step: 9479\n", encoding="utf-8")
+    (run_dir / "run_solver.log").write_text(
+        " INSTANT      100.000000000    TIME STEP NUMBER           10000\n                      END OF CALCULATION\n",
+        encoding="utf-8",
+    )
+    return tmp_path
+
+
+def test_progress_of_a_finished_run_ignores_the_running_marker(tmp_path: Path) -> None:
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    case_dir = _case_with_stale_running_marker(tmp_path)
+
+    assert CodeSaturneAdapter().read_progress(case_dir, running=False) == 10000
+
+
+def test_progress_of_a_live_run_still_prefers_the_running_marker(tmp_path: Path) -> None:
+    """While a run is in progress the marker is fresher than the log."""
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    case_dir = _case_with_stale_running_marker(tmp_path)
+
+    assert CodeSaturneAdapter().read_progress(case_dir) == 9479

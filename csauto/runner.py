@@ -960,7 +960,9 @@ def _compute_refresh_result(
             pid = None
             job_id = None
 
-    last_iter = adapter.read_progress(case_dir, start_time)
+    # A terminal case reads its progress from the log: a live marker left
+    # behind by a run that is over would pin the figure to its last capture.
+    last_iter = adapter.read_progress(case_dir, start_time, running=status not in (STATUS_DONE, STATUS_FAILED))
 
     duration_record = dict(record)
     duration_record["end_time"] = end_time

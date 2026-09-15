@@ -118,7 +118,7 @@ class SolverAdapter(Protocol):
 
     def detect_outcome(self, case_dir: Path, start_time: str | None = None) -> str | None: ...
 
-    def read_progress(self, case_dir: Path, start_time: str | None = None) -> int | None: ...
+    def read_progress(self, case_dir: Path, start_time: str | None = None, *, running: bool = True) -> int | None: ...
 
     def read_restart_origin(self, case_dir: Path) -> dict[str, int | float]: ...
 
@@ -323,8 +323,14 @@ class SolverAdapterBase(ABC):
     def detect_outcome(self, case_dir: Path, start_time: str | None = None) -> str | None:
         """Read solver output to decide STATUS_DONE / STATUS_FAILED / None (still unknown)."""
 
-    def read_progress(self, case_dir: Path, start_time: str | None = None) -> int | None:
-        """Best-effort current iteration / time step of a run."""
+    def read_progress(self, case_dir: Path, start_time: str | None = None, *, running: bool = True) -> int | None:
+        """Best-effort current iteration / time step of a run.
+
+        `running` says whether the run is still going. A solver that reads a
+        live progress marker must ignore it once the run is over: such a marker
+        can outlive the run, and then reports forever the iteration it was last
+        written at.
+        """
         return None
 
     def read_restart_origin(self, case_dir: Path) -> dict[str, int | float]:

@@ -370,10 +370,15 @@ class CodeSaturneAdapter(SolverAdapterBase):
                     return STATUS_FAILED
         return None
 
-    def read_progress(self, case_dir: Path, start_time: str | None = None) -> int | None:
-        run_status_path = locate_run_status_file(case_dir, start_time)
-        if run_status_path:
-            return extract_run_status_iteration(run_status_path)
+    def read_progress(self, case_dir: Path, start_time: str | None = None, *, running: bool = True) -> int | None:
+        # run_status.running is only trustworthy while the run is running.
+        # code_saturne removes it when the calculation ends, but a copy pulled
+        # back by an execution backend's snapshot survives, and would report
+        # the iteration it was captured at for the rest of the campaign.
+        if running:
+            run_status_path = locate_run_status_file(case_dir, start_time)
+            if run_status_path:
+                return extract_run_status_iteration(run_status_path)
         log_path = locate_log_file(case_dir, start_time)
         return extract_last_iteration(log_path) if log_path else None
 

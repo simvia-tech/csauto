@@ -100,7 +100,7 @@ class StubAdapter(SolverAdapterBase):
         (run_dir / "stub_control").write_text("stop\n", encoding="utf-8")
         return {"action": "stop"}
 
-    def read_progress(self, case_dir: Path, start_time: str | None = None) -> int | None:
+    def read_progress(self, case_dir: Path, start_time: str | None = None, *, running: bool = True) -> int | None:
         log_path = self.locate_case_file(case_dir, STUB_LOG_FILENAME)
         if not log_path:
             return None

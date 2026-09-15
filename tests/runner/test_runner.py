@@ -1540,3 +1540,33 @@ def test_resu_size_is_not_recomputed_within_its_cache_window(monkeypatch, runs_d
     _cached_resu_size_mb(case_dir, adapter)
 
     assert len(walks) == 1
+
+
+def test_a_finished_case_reports_the_iteration_its_log_ends_on(runs_dir, case_factory) -> None:
+    """A stale run_status.running must not freeze LAST ITER at its capture point."""
+    from csauto.registry import save_registry
+
+    case_dir = case_factory(runs_dir, "case0001")
+    run_dir = case_dir / "RESU" / "20260101-0000"
+    run_dir.mkdir(parents=True)
+    (run_dir / "run_status.running").write_text("time step: 9479\n", encoding="utf-8")
+    (run_dir / "run_solver.log").write_text(
+        " INSTANT      100.000000000    TIME STEP NUMBER           10000\n                      END OF CALCULATION\n",
+        encoding="utf-8",
+    )
+    save_registry(
+        runs_dir,
+        {
+            "case0001": {
+                "case_id": "case0001",
+                "path": str(case_dir),
+                "status": STATUS_DONE,
+                "start_time": "2026-01-01T00:00:00",
+                "end_time": "2026-01-01T01:00:00",
+            }
+        },
+    )
+
+    row = refresh_status(runs_dir, adapter=CodeSaturneAdapter())[0]
+
+    assert row["last_iter"] == 10000
