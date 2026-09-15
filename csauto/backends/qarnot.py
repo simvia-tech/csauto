@@ -100,12 +100,32 @@ class QarnotBackend:
         self._connection = Connection(client_token=token, cluster_timeout=CLUSTER_TIMEOUT_S)
         return self._connection
 
-    _node_cache: ClassVar[tuple[float, tuple[tuple[str, str], ...]] | None] = None
+    _catalogue_cache: ClassVar[tuple[float, tuple[dict[str, Any], ...]] | None] = None
 
     @classmethod
     def clear_options_cache(cls) -> None:
-        """Forget the cached node list. Used by tests and after a token change."""
-        cls._node_cache = None
+        """Forget the cached catalogue. Used by tests and after a token change."""
+        cls._catalogue_cache = None
+
+    def _catalogue(self) -> tuple[tuple[dict[str, Any], ...], bool]:
+        """The hardware constraints this account may ask for, as raw payloads.
+
+        Qarnot validates a task's constraints against this catalogue and
+        rejects anything else with "Some constraints don't exist", so a
+        constraint csauto invents on its own breaks the launch outright.
+        """
+        cached = type(self)._catalogue_cache
+        if cached is not None and (time.monotonic() - cached[0]) < NODE_CACHE_TTL_S:
+            return cached[1], False
+        try:
+            found = tuple(constraint.to_json() for constraint in self._connect().all_hardware_constraints())
+        except Exception as exc:
+            # A failure is deliberately not cached: a ten-minute outage would
+            # otherwise hide the account's hardware long after it recovered.
+            warn(f"qarnot: could not list hardware constraints ({type(exc).__name__}: {exc})")
+            return (), True
+        type(self)._catalogue_cache = (time.monotonic(), found)
+        return found, False
 
     def launch_options(self) -> LaunchOptions:
         """What a user may choose, with the node list fetched from the account.
@@ -136,30 +156,27 @@ class QarnotBackend:
         )
 
     def _node_choices(self) -> tuple[tuple[tuple[str, str], ...], bool]:
-        cached = type(self)._node_cache
-        if cached is not None and (time.monotonic() - cached[0]) < NODE_CACHE_TTL_S:
-            return cached[1], False
-        try:
-            found = self._fetch_node_choices()
-        except Exception as exc:
-            # A failure is deliberately not cached: a ten-minute outage would
-            # otherwise hide the account's nodes long after it recovered.
-            warn(f"qarnot: could not list node types ({type(exc).__name__}: {exc})")
-            return (), True
-        type(self)._node_cache = (time.monotonic(), found)
-        return found, False
-
-    def _fetch_node_choices(self) -> tuple[tuple[str, str], ...]:
         """The account's node specifications, as (key, label) pairs."""
+        catalogue, degraded = self._catalogue()
         choices: list[tuple[str, str]] = []
-        for constraint in self._connect().all_hardware_constraints():
-            payload = constraint.to_json()
+        for payload in catalogue:
             if payload.get("discriminator") != "SpecificHardwareConstraint":
                 continue
             key = str(payload.get("specificationKey") or "")
             if key:
                 choices.append((key, key))
-        return tuple(choices)
+        return tuple(choices), degraded
+
+    def _accepted_constraints(self, candidates: Sequence[Any]) -> list[Any]:
+        """Keep only the constraints this account actually offers.
+
+        Anything else makes Qarnot refuse the whole submission, so an
+        unverifiable constraint is dropped rather than risked: running on a
+        machine csauto did not get to choose beats not running at all.
+        """
+        catalogue, _degraded = self._catalogue()
+        allowed = [dict(payload) for payload in catalogue]
+        return [candidate for candidate in candidates if candidate.to_json() in allowed]
 
     def submit(
         self,
@@ -216,7 +233,10 @@ class QarnotBackend:
         # run can land on fewer cores than it asks for, oversubscribing MPI on
         # paid compute. Both setters below raise once the task is launched, so
         # they run before submit().
-        constraints: list[Any] = [minimum_core_constraint(int(nprocs) * int(nt))]
+        # The core constraint is synthesised by csauto, so it is kept only when
+        # the account offers it. The node came out of that same catalogue, so it
+        # is valid by construction and always travels.
+        constraints: list[Any] = self._accepted_constraints([minimum_core_constraint(int(nprocs) * int(nt))])
         node = str(options.get("node") or "").strip()
         if node:
             constraints.append(specific_hardware_constraint(node))

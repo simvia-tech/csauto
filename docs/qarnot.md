@@ -70,9 +70,14 @@ Pulling more often than the task captures only wastes requests, so keep
 ## Which machine a case runs on
 
 csauto asks Qarnot for a machine with **at least `n` x `nt` cores**, derived from
-the MPI ranks and threads you enter in the Run dialog. Without that constraint
-Qarnot allocates any available machine, and a run asking for eight ranks could
-land on two cores and oversubscribe MPI on compute you are paying for.
+the MPI ranks and threads you enter in the Run dialog, **when your account offers
+that exact constraint**. Qarnot validates hardware constraints against a
+catalogue and refuses a whole submission for one it does not recognise, so a
+core count the account does not list is dropped rather than risked: running on a
+machine csauto did not get to choose beats not running at all.
+
+`csauto doctor --backend qarnot` and the Node type list both read that same
+catalogue.
 
 The Run dialog also lets you pick, per launch:
 

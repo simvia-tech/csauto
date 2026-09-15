@@ -92,6 +92,16 @@ class FakeConnection:
         raise KeyError(uuid)
 
 
+class _MinCores:
+    """A minimum-core constraint as the account catalogue offers it."""
+
+    def __init__(self, count: int) -> None:
+        self._count = count
+
+    def to_json(self) -> dict[str, object]:
+        return {"discriminator": "MinimumCoreHardwareConstraint", "coreCount": self._count}
+
+
 @pytest.fixture
 def campaign(tmp_path: Path) -> Path:
     runs_dir = tmp_path / "RUNS"
@@ -390,8 +400,12 @@ def test_submit_demands_enough_cores_for_the_requested_ranks(campaign: Path) -> 
     -n and --nt only reach code_saturne, inside DOCKER_CMD. Without a hardware
     constraint the task can land on a node with fewer cores than the run asks
     for, oversubscribing MPI on compute the user pays for.
+
+    The constraint is kept only when the account offers it: Qarnot rejects the
+    whole submission for one it does not know.
     """
     connection = FakeConnection()
+    connection.all_hardware_constraints = lambda: iter([_MinCores(8)])
 
     _submit(QarnotBackend(connection=connection), campaign, nprocs=4, nt=2)
 
@@ -401,6 +415,7 @@ def test_submit_demands_enough_cores_for_the_requested_ranks(campaign: Path) -> 
 
 def test_submit_never_demands_fewer_than_one_core(campaign: Path) -> None:
     connection = FakeConnection()
+    connection.all_hardware_constraints = lambda: iter([_MinCores(1)])
 
     _submit(QarnotBackend(connection=connection), campaign, nprocs=0, nt=0)
 
@@ -442,6 +457,7 @@ def test_submit_rejects_an_unknown_scheduling(campaign: Path) -> None:
 
 def test_submit_pins_the_chosen_node(campaign: Path) -> None:
     connection = FakeConnection()
+    connection.all_hardware_constraints = lambda: iter([_MinCores(2)])
 
     _submit(QarnotBackend(connection=connection), campaign, nprocs=2, nt=1, options={"node": "r640-a"})
 
@@ -454,6 +470,7 @@ def test_submit_pins_the_chosen_node(campaign: Path) -> None:
 
 def test_submit_without_a_node_asks_only_for_cores(campaign: Path) -> None:
     connection = FakeConnection()
+    connection.all_hardware_constraints = lambda: iter([_MinCores(2)])
 
     _submit(QarnotBackend(connection=connection), campaign, nprocs=2, nt=1, options={"node": "  "})
 
@@ -571,3 +588,52 @@ def test_a_degraded_result_is_not_cached() -> None:
 
     assert backend.launch_options().degraded is True
     assert backend.launch_options().degraded is False
+
+
+def test_submit_omits_a_core_constraint_the_account_does_not_offer(campaign: Path) -> None:
+    """Qarnot rejects an invented constraint: "Some constraints don't exist"."""
+    connection = FakeConnection()
+    connection.all_hardware_constraints = lambda: iter([_MinCores(4), _Spec("r640-a")])
+
+    _submit(QarnotBackend(connection=connection), campaign, nprocs=1, nt=1)
+
+    assert connection.tasks[0].hardware_constraints == []
+
+
+def test_submit_keeps_a_core_constraint_the_account_offers(campaign: Path) -> None:
+    connection = FakeConnection()
+    connection.all_hardware_constraints = lambda: iter([_MinCores(4)])
+
+    _submit(QarnotBackend(connection=connection), campaign, nprocs=2, nt=2)
+
+    constraints = [c.to_json() for c in connection.tasks[0].hardware_constraints]
+    assert constraints == [{"discriminator": "MinimumCoreHardwareConstraint", "coreCount": 4}]
+
+
+def test_submit_omits_the_core_constraint_when_the_catalogue_is_unreachable(campaign: Path) -> None:
+    """Unverifiable is not the same as valid; sending it would fail the launch."""
+
+    def explode():
+        raise RuntimeError("qarnot is down")
+
+    connection = FakeConnection()
+    connection.all_hardware_constraints = explode
+
+    _submit(QarnotBackend(connection=connection), campaign, nprocs=4, nt=1)
+
+    assert connection.tasks[0].hardware_constraints == []
+
+
+def test_submit_always_keeps_the_chosen_node(campaign: Path) -> None:
+    """The node came from the catalogue, so it is valid by construction."""
+
+    def explode():
+        raise RuntimeError("qarnot is down")
+
+    connection = FakeConnection()
+    connection.all_hardware_constraints = explode
+
+    _submit(QarnotBackend(connection=connection), campaign, nprocs=4, nt=1, options={"node": "r640-a"})
+
+    constraints = [c.to_json() for c in connection.tasks[0].hardware_constraints]
+    assert constraints == [{"discriminator": "SpecificHardwareConstraint", "specificationKey": "r640-a"}]
