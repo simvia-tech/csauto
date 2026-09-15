@@ -374,6 +374,10 @@ Checks performed:
 - Runtime binary / image is accessible (reads `csauto.toml` — native binary, Singularity image, or Docker)
 - X11 display availability (for GUI launch)
 
+`--backend <name>` also checks the prerequisites of an execution backend, for
+example `csauto doctor RUNS --backend qarnot` (SDK installed, `QARNOT_TOKEN`
+set, an image to run, and a solver that can produce a remote command).
+
 Each check prints `[OK]` or `[FAIL]`. Fix all failures before running.
 
 ---

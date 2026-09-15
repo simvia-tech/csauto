@@ -197,7 +197,10 @@
     {/if}
   {/snippet}
 
-  {#if state.columns.length > 0}
+  <!-- The controls stay put even with nothing to plot: hiding them with the
+       plot would strand a user who picked a case that has not run yet, with no
+       selector left to pick another. -->
+  {#if allCases.length > 0}
     <PlotControls
       prefix="plot"
       {allCases}
@@ -237,9 +240,11 @@
         svgHtml={state.svgHtml}
         emptyMessage={state.selectedCases.length === 0
           ? "Please select at least one case."
-          : state.selectedColumns.length === 0
-            ? "Please select at least one variable."
-            : "No data to display."}
+          : state.columns.length === 0
+            ? "No residuals for the selected cases yet."
+            : state.selectedColumns.length === 0
+              ? "Please select at least one variable."
+              : "No data to display."}
       />
     </div>
   {:else}

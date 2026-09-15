@@ -64,6 +64,7 @@
   } from "$lib/actions/dialog.svelte";
   import { showToast } from "$lib/actions/toast.svelte";
   import {
+    syncBackends,
     runCase,
     killCase,
     controlCase,
@@ -76,6 +77,13 @@
   }
 
   let { onRefresh }: Props = $props();
+
+  /* Pressing Refresh asks the server for fresh cloud data first: rereading
+     local files alone would show nothing new for a case a backend owns. */
+  async function refreshNow() {
+    await syncBackends();
+    onRefresh();
+  }
 
   function getSelectedArray(): string[] {
     return [...getSelectedCases()];
@@ -92,6 +100,8 @@
         n: params.n,
         nt: params.nt,
         maxParallel: params.maxParallel,
+        backend: params.backend,
+        options: params.options,
       });
       onRefresh();
     } catch (err) {
@@ -449,7 +459,7 @@
         {onRefresh}
       />
       {#if !autoRefresh}
-        <Button variant="primary" onclick={() => onRefresh()}
+        <Button variant="primary" onclick={refreshNow}
           ><Icon icon={RefreshCw} /> Refresh</Button
         >
       {/if}

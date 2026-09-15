@@ -1322,3 +1322,228 @@ def test_run_without_restart_is_not_blocked_by_the_restart_guard(aster_env) -> N
         # A launch failure (no runtime available in CI) is acceptable here;
         # a capability rejection is not.
         assert "does not support restart" not in exc.read().decode("utf-8")
+
+
+def test_the_server_runs_a_backend_sync_pass(runs_dir: Path, case_factory, registry_factory, monkeypatch) -> None:
+    """The loop lives outside refresh_status, which runs about twice a second.
+
+    Uses TestClient as a context manager on purpose: the shared _start_server
+    helper does not, so the FastAPI lifespan (and therefore the loop) never
+    starts there.
+    """
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    calls = {"count": 0}
+
+    def fake_sync(_runs_dir, **_kwargs):
+        calls["count"] += 1
+        return 0
+
+    monkeypatch.setattr("csauto.backend_sync.sync_backend_cases", fake_sync)
+    case_dir = case_factory(runs_dir, "case0001")
+    registry_factory(runs_dir, "case0001", case_dir, status="PREPARED")
+
+    app = create_fastapi_app(runs_dir, backend_poll_interval_s=1)
+    with TestClient(app) as client:
+        client.get("/api/status")
+        deadline = time.time() + 8.0
+        while time.time() < deadline and calls["count"] == 0:
+            time.sleep(0.2)
+
+    assert calls["count"] >= 1
+
+
+def test_kill_cancels_a_backend_task(runs_dir: Path, case_factory, monkeypatch) -> None:
+    from csauto.backends.fake import FakeBackend
+    from csauto.web_support import kill_case
+
+    case_dir = case_factory(runs_dir, "case0001")
+    backend = FakeBackend(script=["RUNNING"])
+    task_id = backend.submit(case_dir, ["run"], "img", 1, 1)
+    monkeypatch.setattr("csauto.backends.get_backend", lambda _name: backend)
+    save_registry(
+        runs_dir,
+        {
+            "case0001": {
+                "case_id": "case0001",
+                "path": str(case_dir),
+                "status": "RUNNING",
+                "backend": "fake",
+                "task_id": task_id,
+                "pid": None,
+            }
+        },
+    )
+
+    kill_case(runs_dir, "case0001", actor=None, job_id_patterns=())
+
+    assert backend.poll(task_id).status == "FAILED"
+    assert load_registry(runs_dir)["case0001"]["status"] == "FAILED"
+
+
+def test_app_config_lists_the_execution_backends(web_env) -> None:
+    """The dashboard asks what is on offer; it never hardcodes a provider name."""
+    base_url, _case_dir = web_env
+    _status, body = _http_get(f"{base_url}/api/app_config")
+    data = json.loads(body)
+
+    assert "qarnot" in data["backends"]
+    assert "fake" in data["backends"]
+
+
+def test_app_config_never_returns_a_credential(web_env) -> None:
+    base_url, _case_dir = web_env
+    _status, body = _http_get(f"{base_url}/api/app_config")
+
+    assert "token" not in body.lower()
+    assert "secret" not in body.lower()
+
+
+def test_run_case_passes_the_chosen_backend_through(monkeypatch, web_env) -> None:
+    """The runtime is chosen per launch, so the choice must reach run_cases."""
+    base_url, _case_dir = web_env
+    seen: dict[str, object] = {}
+
+    def fake_run_cases(*args, **kwargs):
+        seen.update(kwargs)
+
+    monkeypatch.setattr("csauto.fastapi_routes.actions.run_cases", fake_run_cases)
+
+    status, _body = _http_post(
+        f"{base_url}/api/run_case",
+        {"cases": ["case0001"], "n": 1, "nt": 1, "backend": "fake"},
+    )
+
+    assert status == 200
+    assert seen["backend"] == "fake"
+
+
+def test_run_case_defaults_to_no_backend(monkeypatch, web_env) -> None:
+    """Omitting the field must keep the local behaviour exactly as before."""
+    base_url, _case_dir = web_env
+    seen: dict[str, object] = {}
+
+    def fake_run_cases(*args, **kwargs):
+        seen.update(kwargs)
+
+    monkeypatch.setattr("csauto.fastapi_routes.actions.run_cases", fake_run_cases)
+
+    _http_post(f"{base_url}/api/run_case", {"cases": ["case0001"], "n": 1, "nt": 1})
+
+    assert seen.get("backend") is None
+
+
+def test_run_case_rejects_an_unknown_backend(web_env) -> None:
+    base_url, _case_dir = web_env
+
+    with pytest.raises(HTTPError) as excinfo:
+        _http_post(
+            f"{base_url}/api/run_case",
+            {"cases": ["case0001"], "n": 1, "nt": 1, "backend": "not-a-backend"},
+        )
+
+    assert excinfo.value.code == 400
+    assert "not-a-backend" in json.loads(excinfo.value.read())["detail"]
+
+
+def test_run_case_forwards_the_launch_options(monkeypatch, web_env) -> None:
+    base_url, _case_dir = web_env
+    seen: dict[str, object] = {}
+
+    def fake_run_cases(*args, **kwargs):
+        seen.update(kwargs)
+
+    monkeypatch.setattr("csauto.fastapi_routes.actions.run_cases", fake_run_cases)
+
+    status, _body = _http_post(
+        f"{base_url}/api/run_case",
+        {"cases": ["case0001"], "n": 1, "nt": 1, "backend": "fake", "options": {"speed": "fast"}},
+    )
+
+    assert status == 200
+    assert seen["options"] == {"speed": "fast"}
+
+
+def test_run_case_without_options_forwards_none(monkeypatch, web_env) -> None:
+    base_url, _case_dir = web_env
+    seen: dict[str, object] = {}
+
+    def fake_run_cases(*args, **kwargs):
+        seen.update(kwargs)
+
+    monkeypatch.setattr("csauto.fastapi_routes.actions.run_cases", fake_run_cases)
+
+    _http_post(f"{base_url}/api/run_case", {"cases": ["case0001"], "n": 1, "nt": 1})
+
+    assert seen.get("options") is None
+
+
+def test_launch_options_returns_a_backend_catalogue(web_env) -> None:
+    base_url, _case_dir = web_env
+    _status, body = _http_get(f"{base_url}/api/launch_options?backend=fake")
+    data = json.loads(body)
+
+    assert data["backend"] == "fake"
+    assert data["degraded"] is False
+    assert data["options"][0]["key"] == "speed"
+    assert data["options"][0]["default"] == "slow"
+    assert data["options"][0]["choices"] == [["slow", "Slow"], ["fast", "Fast"]]
+
+
+def test_launch_options_rejects_an_unknown_backend(web_env) -> None:
+    base_url, _case_dir = web_env
+
+    with pytest.raises(HTTPError) as excinfo:
+        _http_get(f"{base_url}/api/launch_options?backend=not-a-backend")
+
+    assert excinfo.value.code == 400
+
+
+def test_launch_options_reports_a_backend_that_fails_as_degraded(monkeypatch, web_env) -> None:
+    """The dialog must open even when the provider is unreachable."""
+    base_url, _case_dir = web_env
+
+    class Broken:
+        name = "fake"
+
+        def launch_options(self):
+            raise RuntimeError("provider is down")
+
+    monkeypatch.setattr("csauto.backends.get_backend", lambda _name: Broken())
+
+    _status, body = _http_get(f"{base_url}/api/launch_options?backend=fake")
+    data = json.loads(body)
+
+    assert data["degraded"] is True
+    assert data["options"] == []
+
+
+def test_launch_options_never_returns_a_credential(web_env) -> None:
+    base_url, _case_dir = web_env
+    _status, body = _http_get(f"{base_url}/api/launch_options?backend=fake")
+
+    assert "token" not in body.lower()
+    assert "secret" not in body.lower()
+
+
+def test_sync_backends_route_reports_whether_it_ran(web_env) -> None:
+    base_url, _case_dir = web_env
+
+    status, body = _http_post(f"{base_url}/api/sync_backends", {})
+    data = json.loads(body)
+
+    assert status == 200
+    assert data["status"] == "ok"
+    assert isinstance(data["synced"], bool)
+
+
+def test_sync_backends_route_is_throttled(web_env) -> None:
+    """The Refresh button is clickable as fast as a user likes."""
+    base_url, _case_dir = web_env
+
+    _status, first = _http_post(f"{base_url}/api/sync_backends", {})
+    _status, second = _http_post(f"{base_url}/api/sync_backends", {})
+
+    assert json.loads(first)["synced"] is True
+    assert json.loads(second)["synced"] is False

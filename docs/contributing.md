@@ -22,6 +22,10 @@ pytest tests/runner -q
 pytest tests/web -q
 ```
 
+`tests/integration/test_qarnot_live.py` talks to the real Qarnot API and is
+skipped unless `CSAUTO_QARNOT_LIVE=1` is set, alongside a `QARNOT_TOKEN`. It
+costs money, so it never runs in CI.
+
 ## Coding style
 
 - simple Python, standard library first

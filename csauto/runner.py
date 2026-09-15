@@ -32,6 +32,7 @@ from .registry import (
     STATUS_PREPARED,
     STATUS_RUNNING,
     append_history,
+    case_records,
     load_registry,
     mutate_registry,
     registry_transaction,
@@ -293,6 +294,8 @@ def _start_case(
     restart_path: str | None,
     mpi_exec_options: str | None,
     source: str,
+    backend_name: str | None = None,
+    options: Mapping[str, str] | None = None,
 ) -> bool:
     """Launch a single case. Returns True if launched, False if skipped."""
     case_id = case_dir.name
@@ -305,6 +308,7 @@ def _start_case(
             restart_value,
             restart_path,
         )
+    backend_argv: list[str] | None = None
     with registry_transaction(runs_dir) as registry:
         record = registry.get(case_id, {})
         if record.get("status") == STATUS_RUNNING:
@@ -350,7 +354,16 @@ def _start_case(
             env_vars=container_env,
         )
 
-        if use_slurm_scheduler:
+        if backend_name:
+            # Only decide here. Submitting uploads the case and talks to a
+            # remote API, and doing that under the registry lock freezes every
+            # reader for its duration, the dashboard's own status route
+            # included. The submit happens below, with no lock held.
+            # A relative path: the remote working directory *is* the case, the
+            # only directory a task can write to, and the host path means
+            # nothing over there.
+            backend_argv = adapter.run_argv(".", nprocs, nt, restart_args)
+        elif use_slurm_scheduler:
             _launch_slurm(
                 case_dir,
                 case_id,
@@ -369,21 +382,44 @@ def _start_case(
         else:
             _launch_local(case_dir, case_id, cmd, cidfile, registry, base_update)
 
-        history_details: dict[str, Any] = {"n": nprocs, "nt": nt, "runtime": selection.runtime}
-        history_details.update(restart_details)
-        if scheduler:
-            history_details["scheduler"] = scheduler
-            history_details["job_id"] = registry.get(case_id, {}).get("job_id")
-            if mpi_exec_options:
-                history_details["mpi_exec_options"] = str(mpi_exec_options).strip()
-        if selection.runtime == RUNTIME_DOCKER:
-            history_details["docker_image"] = selection.docker_image
-        elif selection.runtime == "native":
-            history_details["saturne_bin"] = selection.saturne_bin
-        elif selection.runtime == "singularity":
-            history_details["singularity_bin"] = selection.singularity_bin
-            history_details["singularity_image"] = selection.singularity_image
-        append_history(case_dir, "run", details=history_details, source=source)
+        scheduler_job_id = registry.get(case_id, {}).get("job_id")
+
+    if backend_argv is not None:
+        # The backend puts the campaign's shared directories inside the case,
+        # because a remote task has one working directory and no parent. Only
+        # the adapter knows what its solver needs in order to cope.
+        adapter.prepare_remote_case(case_dir)
+        _launch_backend(
+            case_dir,
+            case_id,
+            backend_argv,
+            selection.docker_image,
+            nprocs,
+            nt,
+            backend_name or "",
+            adapter.observability_globs,
+            dict(options or {}),
+            runs_dir,
+            base_update,
+        )
+
+    history_details: dict[str, Any] = {"n": nprocs, "nt": nt, "runtime": selection.runtime}
+    history_details.update(restart_details)
+    if backend_name and options:
+        history_details["options"] = dict(options)
+    if scheduler:
+        history_details["scheduler"] = scheduler
+        history_details["job_id"] = scheduler_job_id
+        if mpi_exec_options:
+            history_details["mpi_exec_options"] = str(mpi_exec_options).strip()
+    if selection.runtime == RUNTIME_DOCKER:
+        history_details["docker_image"] = selection.docker_image
+    elif selection.runtime == "native":
+        history_details["saturne_bin"] = selection.saturne_bin
+    elif selection.runtime == "singularity":
+        history_details["singularity_bin"] = selection.singularity_bin
+        history_details["singularity_image"] = selection.singularity_image
+    append_history(case_dir, "run", details=history_details, source=source)
     return True
 
 
@@ -456,6 +492,74 @@ def _launch_slurm(
         pid=None,
         job_id=job_id,
     )
+
+
+def _launch_backend(
+    case_dir: Path,
+    case_id: str,
+    argv: Sequence[str],
+    image: str,
+    nprocs: int,
+    nt: int,
+    backend_name: str,
+    observability_globs: Sequence[str],
+    options: Mapping[str, str],
+    runs_dir: Path,
+    base_update: dict[str, Any],
+) -> None:
+    """Submit the case to a remote execution backend.
+
+    Called with **no registry lock held**: submitting uploads the case and
+    talks to a remote API, which can take minutes, and every reader of
+    registry.json would block for that whole time. The outcome is written back
+    under its own short transaction, the same three-phase discipline
+    `backend_sync` follows.
+
+    No PID and no scheduler job: the case is identified by backend and task_id,
+    and the synchronisation pass owns its status from here on.
+    """
+    from .backends import get_backend
+
+    backend = get_backend(backend_name)
+    try:
+        print(f"Submitting {case_id} to backend {backend_name}.")
+        task_id = backend.submit(case_dir, argv, image, nprocs, nt, observability_globs, options)
+    except Exception as exc:
+
+        def mark_failed(registry: dict[str, Any]) -> bool:
+            update_case(
+                registry,
+                case_id,
+                **base_update,
+                status=STATUS_FAILED,
+                start_time=None,
+                end_time=timestamp_now(),
+                pid=None,
+                job_id=None,
+                backend=backend_name,
+                task_id=None,
+            )
+            return True
+
+        mutate_registry(runs_dir, mark_failed)
+        raise RuntimeError(f"Failed to submit {case_id}: {exc}") from exc
+
+    def mark_running(registry: dict[str, Any]) -> bool:
+        update_case(
+            registry,
+            case_id,
+            **base_update,
+            status=STATUS_RUNNING,
+            start_time=timestamp_now(),
+            end_time=None,
+            pid=None,
+            job_id=None,
+            backend=backend_name,
+            task_id=task_id,
+        )
+        return True
+
+    mutate_registry(runs_dir, mark_running)
 
 
 def _launch_local(
@@ -541,6 +645,8 @@ def run_cases(
     mpi_exec_options: str | None = None,
     source: str = "cli",
     adapter: SolverAdapter | None = None,
+    backend: str | None = None,
+    options: Mapping[str, str] | None = None,
 ) -> None:
     """Launch solver runs for each case directory."""
     if nprocs <= 0 or nt <= 0:
@@ -613,6 +719,8 @@ def run_cases(
                 restart_path=restart_path,
                 mpi_exec_options=mpi_exec_options,
                 source=source,
+                backend_name=backend,
+                options=options,
             ):
                 launched += 1
 
@@ -773,7 +881,7 @@ def refresh_status(
     results: list[RefreshResult] = []
     doe_columns: list[str] = []
     seen_doe_columns: set[str] = set()
-    for case_id in sorted(registry):
+    for case_id in sorted(case_records(registry)):
         result = _compute_refresh_result(
             runs_dir,
             case_id,
@@ -811,8 +919,12 @@ def _compute_refresh_result(
     end_time = record.get("end_time")
     has_started = bool(start_time)
     job_id = _normalize_job_id(record.get("job_id"))
+    # A case a remote backend owns has neither a PID nor a scheduler job, so the
+    # finalisation below would mark it FAILED on the first refresh, before the
+    # service had even started it. The synchronisation pass owns its status.
+    backend_name = str(record.get("backend") or "")
 
-    if status == STATUS_RUNNING:
+    if status == STATUS_RUNNING and not backend_name:
         pid_alive = False
         if pid is not None:
             try:
@@ -829,7 +941,7 @@ def _compute_refresh_result(
             end_time = end_time or timestamp_now()
             pid = None
             job_id = None
-    if status == STATUS_RUNNING and has_started:
+    if status == STATUS_RUNNING and has_started and not backend_name:
         # Even if the PID is stale, trust the log end markers.
         outcome = adapter.detect_outcome(case_dir, start_time)
         if outcome:
@@ -838,7 +950,7 @@ def _compute_refresh_result(
                 end_time = timestamp_now()
             pid = None
             job_id = None
-    elif status != STATUS_DONE and has_started:
+    elif status != STATUS_DONE and has_started and not backend_name:
         # Only check for completion if a run was actually started.
         outcome = adapter.detect_outcome(case_dir, start_time)
         if outcome:
@@ -848,7 +960,9 @@ def _compute_refresh_result(
             pid = None
             job_id = None
 
-    last_iter = adapter.read_progress(case_dir, start_time)
+    # A terminal case reads its progress from the log: a live marker left
+    # behind by a run that is over would pin the figure to its last capture.
+    last_iter = adapter.read_progress(case_dir, start_time, running=status not in (STATUS_DONE, STATUS_FAILED))
 
     duration_record = dict(record)
     duration_record["end_time"] = end_time
@@ -869,6 +983,13 @@ def _compute_refresh_result(
         "duration": duration,
         "last_mod": last_mod,
         "resu_size_mb": resu_size_mb,
+        # A case a remote backend owns has no local duration to speak of, so
+        # the dashboard shows what the backend reports instead. Empty and None
+        # for every local case, which is every case today.
+        "backend": backend_name,
+        "backend_progress": record.get("backend_progress"),
+        "backend_execution_time_s": record.get("backend_execution_time_s"),
+        "backend_core_count": record.get("backend_core_count"),
     }
 
     doe_cols: tuple[str, ...] = ()
@@ -990,26 +1111,39 @@ def _query_slurm_job_activity(job_ids: Sequence[str | None]) -> dict[str, bool |
     return states
 
 
+# Some filesystems, WSL2 among them, never bump a directory's mtime when files
+# are created or changed inside it, so a cache keyed on that mtime alone would
+# never invalidate. The size is therefore also given a short life of its own.
+RESU_SIZE_CACHE_TTL_S = 10.0
+
+
 def _cached_resu_size_mb(case_dir: Path, adapter: SolverAdapter) -> tuple[float | None, float | None]:
     resu_root = adapter.results_root(case_dir)
     cache_key = str(case_dir.resolve())
     resu_mtime = None
     if resu_root.is_dir():
         try:
-            resu_mtime = resu_root.stat().st_mtime
+            # The run directories too, not just the root: a backend sync drops
+            # files into an existing run, which leaves the root's mtime alone
+            # and would freeze the cached size for the rest of the campaign.
+            resu_mtime = max(
+                [resu_root.stat().st_mtime] + [child.stat().st_mtime for child in resu_root.iterdir() if child.is_dir()]
+            )
         except OSError:
             resu_mtime = None
     if resu_mtime is None:
         with RESU_SIZE_CACHE_LOCK:
             RESU_SIZE_CACHE.pop(cache_key, None)
         return None, None
+    now = time.monotonic()
     with RESU_SIZE_CACHE_LOCK:
         cached = RESU_SIZE_CACHE.get(cache_key)
-        if cached and cached.get("mtime") == resu_mtime:
+        fresh = cached is not None and (now - float(cached.get("at") or 0.0)) < RESU_SIZE_CACHE_TTL_S
+        if cached and fresh and cached.get("mtime") == resu_mtime:
             return resu_mtime, cached.get("size")
     size = _resu_size_mb(case_dir, adapter)
     with RESU_SIZE_CACHE_LOCK:
-        RESU_SIZE_CACHE[cache_key] = {"mtime": resu_mtime, "size": size}
+        RESU_SIZE_CACHE[cache_key] = {"mtime": resu_mtime, "size": size, "at": now}
     return resu_mtime, size
 
 

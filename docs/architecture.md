@@ -109,6 +109,50 @@ Adding a solver means writing one adapter class and registering it in
 `csauto/solvers/__init__.py`; the core does not change. See
 [Adding a new solver](./adding-a-solver.md) for the step-by-step guide.
 
+## Execution backend boundary
+
+Where `SolverAdapter` answers "what does this solver do", `ExecutionBackend`
+(`csauto/backends/base.py`) answers "where does this case run". A backend
+implements five verbs: `submit`, `poll`, `sync`, `fetch_final`, `cancel`.
+`BackendState.status` already speaks csauto's vocabulary, so translating a
+provider's own state names is the backend's job, never the runner's.
+
+A case a backend owns carries `backend` and `task_id` in the registry instead of
+a `pid` or a `job_id`, and `_compute_refresh_result` does not finalise it: the
+synchronisation pass in `csauto/backend_sync.py` owns its status. That pass runs
+on a timer in `csauto serve` and once, throttled, in `csauto status`.
+
+Two invariants the implementation depends on:
+
+- **`DONE` means the results are on local disk.** Compare reads files, Clean
+  removes directories, `resu_size_mb` measures a size. The pass marks a case
+  `DONE` only after `fetch_final` succeeded.
+- **A failed poll never changes a status.** A flaky network must not mark a
+  whole campaign as failed; consecutive failures are counted instead.
+
+`QarnotBackend` (`backend = "qarnot"`) is the first real implementation. It runs
+any docker image through Qarnot's generic `docker-batch` profile, uploads the
+shared directories once per campaign and the case inputs once per case, and
+turns `adapter.observability_globs` into the regex whitelist Qarnot's periodic
+snapshot expects. Everything Qarnot-specific (the SDK, the buckets, the
+`DOCKER_*` constants, the state table) lives in `csauto/backends/qarnot.py`;
+`csauto/backends/qarnot_support.py` holds the parts that are decisions rather
+than API calls, so they are testable with no SDK. See
+[Running a campaign on Qarnot](./qarnot.md).
+
+A backend's remote working directory **is** the case directory, and the
+campaign's shared directories sit inside it: a remote task has one writable
+directory and no parent to put them in. A solver that expects them elsewhere is
+adjusted by its own adapter, through `SolverAdapter.prepare_remote_case`, which
+the runner calls before any backend launch. That keeps the backend ignorant of
+solvers and the adapter ignorant of providers.
+
+`local` and Slurm are not behind this contract. They predate it and work; porting
+them is a later, mechanical refactor.
+
+`FakeBackend` (`backend = "fake"`) is a shipped fake, what `StubAdapter` is to
+solvers: it covers the whole lifecycle in tests with no network and no account.
+
 ## Persistent data model
 
 - `RUNS/registry.json` - global case state

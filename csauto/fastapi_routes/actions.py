@@ -63,6 +63,8 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         n: int | None = None
         nt: int | None = None
         max_parallel: int | None = None
+        backend: str | None = None
+        options: dict[str, str] | None = None
         restart: bool = False
         restart_mode: str = ""
         restart_value: int | float | None = None
@@ -422,6 +424,34 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         )
         return {"status": "ok"}
 
+    class SyncBackendsResponse(BaseModel):
+        status: str
+        synced: bool
+
+    @app.post("/api/sync_backends", response_model=SyncBackendsResponse)
+    def api_sync_backends(
+        x_csauto_token: str | None = Header(default=None),
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        """Pull fresh data for the cases an execution backend owns, on demand.
+
+        The background loop already does this on a timer, but pressing Refresh
+        rereads local files, and for a cloud case those only change when a sync
+        pass runs. This is what makes the button mean something there.
+
+        Throttled to one pass every ten seconds and never raising, so clicking
+        it repeatedly costs nothing and a provider outage does not fail the
+        click. Deliberately not part of /api/status, which the dashboard polls
+        about once a second.
+        """
+        ctx.require_auth(x_csauto_token, authorization)
+        from ..backend_sync import sync_backend_cases_throttled
+
+        synced = sync_backend_cases_throttled(ctx.runs_dir)
+        if synced:
+            ctx.invalidate_status_cache()
+        return {"status": "ok", "synced": synced}
+
     @app.post("/api/run_case", response_model=SuccessResponse)
     def api_run_case(
         payload: RunCasePayload,
@@ -445,6 +475,16 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
             raise ctx.http_exception_cls(status_code=400, detail="n, nt, and max_parallel must be integers > 0")
         else:
             max_parallel = payload.max_parallel
+
+        backend = (payload.backend or "").strip().lower() or None
+        if backend is not None:
+            from ..backends import available_backends
+
+            if backend not in available_backends():
+                raise ctx.http_exception_cls(
+                    status_code=400,
+                    detail=f"Unknown execution backend: {backend!r}. Choices: {', '.join(available_backends())}",
+                )
 
         restart, restart_mode, restart_value, restart_path = _parse_restart_params(
             payload,
@@ -486,6 +526,8 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
                 mpi_exec_options=ctx.mpi_exec_options,
                 source="web",
                 adapter=ctx.adapter,
+                backend=backend,
+                options=payload.options,
             )
         except ctx.http_exception_cls:
             raise

@@ -65,6 +65,8 @@ def create_fastapi_app(
     singularity_bin: str | None = None,
     use_slurm: bool | None = None,
     mpi_exec_options: str | None = None,
+    backend_poll_interval_s: int = 15,
+    backend_sync_interval_s: int = 60,
 ) -> Any:
     components = _import_fastapi_components()
     FastAPI = components["FastAPI"]
@@ -113,13 +115,39 @@ def create_fastapi_app(
             except Exception:
                 pass
 
+    async def _backend_sync_loop() -> None:
+        """Poll the cases a remote backend owns.
+
+        Deliberately not inside refresh_status, which runs about twice a second
+        because the dashboard polls every second and the server caches for half
+        of one. A network round trip there would abuse the provider's API and
+        make the dashboard lag.
+        """
+        from . import backend_sync
+
+        elapsed_since_file_sync = 0.0
+        while True:
+            await asyncio.sleep(backend_poll_interval_s)
+            elapsed_since_file_sync += backend_poll_interval_s
+            pull_files = elapsed_since_file_sync >= backend_sync_interval_s
+            if pull_files:
+                elapsed_since_file_sync = 0.0
+            try:
+                touched = await asyncio.to_thread(backend_sync.sync_backend_cases, runs_dir, sync_files=pull_files)
+            except Exception:
+                continue
+            if touched:
+                ctx.invalidate_status_cache()
+
     @contextlib.asynccontextmanager
     async def _lifespan(_app: Any) -> AsyncIterator[None]:
-        task = asyncio.create_task(_heartbeat_loop())
+        tasks = [asyncio.create_task(_heartbeat_loop()), asyncio.create_task(_backend_sync_loop())]
         yield
-        task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await task
+        for task in tasks:
+            task.cancel()
+        for task in tasks:
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
 
     app = FastAPI(title="csauto", lifespan=_lifespan)
 

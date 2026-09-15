@@ -65,6 +65,12 @@ The toolbar provides:
 
 Each row also has an **Open GUI** button to launch the code_saturne GUI for that case.
 
+For a case running on an execution backend, **Refresh** first asks the server to
+pull fresh data from the provider, then rereads. Without that it would reread
+local files that only change when the background sync pass runs, so the panels
+would look frozen between two passes. The request is throttled to one every ten
+seconds, so clicking repeatedly costs nothing.
+
 ### Selecting cases
 
 - Click a row to select it
@@ -81,6 +87,22 @@ With one or more cases selected, the action buttons activate:
 
 **Run**: launch the selected cases (`PREPARED`, `DONE`, or `FAILED`). A popup
 asks for `--n` (MPI ranks), `--nt` (OMP threads), and `--max-parallel`.
+
+When the server offers an execution backend, the popup gains a **Run on**
+selector. It defaults to **This machine**, which is the behaviour csauto has
+always had. Choosing a cloud backend restates, before you press the button, how
+many cases are about to be submitted and that they run on your own account and
+bill you for the compute.
+
+The choice is per launch, not per campaign: verify one case locally, then send
+the other ninety-nine to the cloud. See
+[Running a campaign on Qarnot](./qarnot.md).
+
+Choosing a backend also reveals whatever that backend lets you choose. For
+Qarnot that is the scheduling **Priority**, which trades price against waiting
+time, and the **Node type**, listed from your own account. If the provider
+cannot be reached the selects still appear with their defaults and a line says
+so; the run goes ahead either way.
 
 **Restart**: restart from the latest checkpoint. A popup asks for the
 stop criterion:

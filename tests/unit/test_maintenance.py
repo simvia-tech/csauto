@@ -516,3 +516,114 @@ def test_doctor_says_none_when_the_solver_has_no_capability(tmp_path: Path) -> N
 
     items = run_doctor(runs_dir, check_setup=False, check_display=False, adapter=BareAdapter())
     assert _has_item(items, "ok", "solver bare: capabilities none")
+
+
+def test_doctor_says_nothing_about_qarnot_by_default(tmp_path: Path) -> None:
+    from csauto.maintenance import run_doctor
+
+    (tmp_path / "case0001").mkdir()
+    items = run_doctor(tmp_path, check_display=False, check_setup=False)
+
+    assert not [item for item in items if "qarnot" in item.message.lower()]
+
+
+def test_doctor_reports_a_missing_token(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from csauto.maintenance import run_doctor
+
+    monkeypatch.delenv("QARNOT_TOKEN", raising=False)
+    (tmp_path / "case0001").mkdir()
+
+    items = run_doctor(tmp_path, check_display=False, check_setup=False, backend="qarnot")
+    messages = [item.message for item in items]
+
+    assert any("QARNOT_TOKEN" in message for message in messages)
+    assert any(item.level == "fail" for item in items if "QARNOT_TOKEN" in item.message)
+
+
+def test_doctor_never_prints_the_token(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from csauto.maintenance import run_doctor
+
+    monkeypatch.setenv("QARNOT_TOKEN", "super-secret-value")
+    (tmp_path / "case0001").mkdir()
+
+    items = run_doctor(tmp_path, check_display=False, check_setup=False, backend="qarnot")
+
+    assert not [item for item in items if "super-secret-value" in item.message]
+    assert any("QARNOT_TOKEN is set" in item.message for item in items)
+
+
+def test_doctor_reports_a_solver_that_cannot_run_remotely(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from csauto.maintenance import run_doctor
+    from csauto.solvers.code_aster import CodeAsterAdapter
+
+    monkeypatch.setenv("QARNOT_TOKEN", "x")
+    (tmp_path / "case0001").mkdir()
+
+    items = run_doctor(tmp_path, check_display=False, check_setup=False, backend="qarnot", adapter=CodeAsterAdapter())
+
+    assert any(item.level == "fail" and "code_aster" in item.message for item in items)
+
+
+def test_doctor_reports_the_qarnot_quotas(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A full account fails at upload time, which is too late to find out."""
+    from csauto import maintenance
+
+    class FakeUser:
+        email = "someone@example.com"
+        bucket_count = 8
+        max_bucket = 10
+        used_quota_bytes_bucket = 3 * 1024**3
+        quota_bytes_bucket = 4 * 1024**3
+
+    class FakeConnection:
+        user_info = FakeUser()
+
+    monkeypatch.setenv("QARNOT_TOKEN", "x")
+    monkeypatch.setattr(maintenance, "_qarnot_connection", lambda: FakeConnection())
+    (tmp_path / "case0001").mkdir()
+
+    items = run_doctor(tmp_path, check_display=False, check_setup=False, backend="qarnot")
+    messages = [item.message for item in items]
+
+    assert any("buckets 8/10" in message for message in messages)
+    assert any("storage 3.0/4.0 GB" in message for message in messages)
+
+
+def test_doctor_warns_when_the_qarnot_storage_is_nearly_full(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from csauto import maintenance
+
+    class FakeUser:
+        email = "someone@example.com"
+        bucket_count = 1
+        max_bucket = 10
+        used_quota_bytes_bucket = 39 * 1024**3
+        quota_bytes_bucket = 40 * 1024**3
+
+    class FakeConnection:
+        user_info = FakeUser()
+
+    monkeypatch.setenv("QARNOT_TOKEN", "x")
+    monkeypatch.setattr(maintenance, "_qarnot_connection", lambda: FakeConnection())
+    (tmp_path / "case0001").mkdir()
+
+    items = run_doctor(tmp_path, check_display=False, check_setup=False, backend="qarnot")
+
+    assert any(item.level == "warn" and "storage" in item.message for item in items)
+
+
+def test_doctor_reports_an_unreachable_qarnot_without_leaking_the_token(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from csauto import maintenance
+
+    def explode():
+        raise RuntimeError("boom")
+
+    monkeypatch.setenv("QARNOT_TOKEN", "super-secret-value")
+    monkeypatch.setattr(maintenance, "_qarnot_connection", explode)
+    (tmp_path / "case0001").mkdir()
+
+    items = run_doctor(tmp_path, check_display=False, check_setup=False, backend="qarnot")
+
+    assert any(item.level == "fail" and "not reachable" in item.message for item in items)
+    assert not [item for item in items if "super-secret-value" in item.message]

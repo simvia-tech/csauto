@@ -41,6 +41,76 @@ def _check_web_deps(add: object) -> None:
         add("ok", "web dependencies available (fastapi, uvicorn, pydantic)")
 
 
+def _qarnot_connection():
+    """The Qarnot connection, as its own function so doctor tests can replace it."""
+    from .backends.qarnot import QarnotBackend
+
+    return QarnotBackend()._connect()
+
+
+def _check_qarnot_account(add: object) -> None:
+    """Report what the account still has room for, before a launch spends it.
+
+    An exhausted bucket or storage quota surfaces as a QuotaExceeded in the
+    middle of an upload, which is far too late: by then the user has chosen a
+    campaign and pressed the button. Never print the token, only what it buys.
+    """
+    try:
+        user = _qarnot_connection().user_info
+    except Exception as exc:
+        # The token itself must never reach this message; str(exc) from the SDK
+        # carries a status and a reason, not the credential.
+        add("fail", f"qarnot API not reachable ({type(exc).__name__}: {exc})")
+        return
+
+    used = int(getattr(user, "used_quota_bytes_bucket", 0) or 0)
+    total = int(getattr(user, "quota_bytes_bucket", 0) or 0)
+    count = getattr(user, "bucket_count", None)
+    limit = getattr(user, "max_bucket", None)
+    gb = 1024**3
+
+    if limit:
+        level = "warn" if count is not None and count >= limit else "ok"
+        add(level, f"qarnot buckets {count}/{limit}")
+    if total:
+        level = "warn" if used / total >= 0.9 else "ok"
+        add(level, f"qarnot storage {used / gb:.1f}/{total / gb:.1f} GB used")
+    else:
+        add("warn", "qarnot storage quota is 0: the account cannot hold a campaign's inputs")
+
+
+def _check_qarnot(add: object, adapter: object) -> None:
+    """Report each Qarnot prerequisite separately, and never the token itself."""
+    import importlib
+
+    try:
+        importlib.import_module("qarnot")
+    except ImportError:
+        add("fail", "qarnot SDK missing: install csauto with the [qarnot] extra")
+    else:
+        add("ok", "qarnot SDK available")
+
+    if os.environ.get("QARNOT_TOKEN", "").strip():
+        add("ok", "QARNOT_TOKEN is set")
+        _check_qarnot_account(add)
+    else:
+        add("fail", "QARNOT_TOKEN is not set (the token belongs in the environment, never in csauto.toml)")
+
+    image = getattr(adapter, "default_docker_image", "")
+    if image:
+        add("ok", f"cloud image: {image}")
+    else:
+        add("fail", f"solver {adapter.name}: no docker image configured, and qarnot only runs docker images")
+
+    if adapter.run_argv(".", 1, 1):
+        add("ok", f"solver {adapter.name}: builds a remote command")
+    else:
+        add(
+            "fail",
+            f"solver {adapter.name}: builds no remote command (run_argv is empty), so it cannot run on qarnot yet",
+        )
+
+
 def run_doctor(
     runs_dir: Path,
     require_docker: bool = False,
@@ -53,6 +123,7 @@ def run_doctor(
     singularity_image: str | None = None,
     singularity_bin: str | None = None,
     adapter=None,
+    backend: str | None = None,
 ) -> list[DoctorItem]:
     adapter = adapter or _default_adapter()
     items: list[DoctorItem] = []
@@ -161,6 +232,9 @@ def run_doctor(
                 add("ok", f"DISPLAY={display}")
             else:
                 add("warn", "DISPLAY is set but /tmp/.X11-unix is missing")
+
+    if str(backend or "").strip().lower() == "qarnot":
+        _check_qarnot(add, adapter)
 
     _check_web_deps(add)
 

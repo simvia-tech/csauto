@@ -63,6 +63,7 @@ class SolverAdapter(Protocol):
     shared_dir_names: tuple[str, ...]
     template_input_names: frozenset[str]
     anomaly_file_names: tuple[str, ...]
+    observability_globs: tuple[str, ...]
     cleanup_log_names: frozenset[str]
     performance_fields: tuple[str, ...]
     performance_columns: tuple[PerfColumn, ...]
@@ -117,7 +118,7 @@ class SolverAdapter(Protocol):
 
     def detect_outcome(self, case_dir: Path, start_time: str | None = None) -> str | None: ...
 
-    def read_progress(self, case_dir: Path, start_time: str | None = None) -> int | None: ...
+    def read_progress(self, case_dir: Path, start_time: str | None = None, *, running: bool = True) -> int | None: ...
 
     def read_restart_origin(self, case_dir: Path) -> dict[str, int | float]: ...
 
@@ -169,6 +170,8 @@ class SolverAdapter(Protocol):
         start_time: str | None = None,
     ) -> dict[str, Any]: ...
 
+    def prepare_remote_case(self, case_dir: Path) -> None: ...
+
 
 class SolverAdapterBase(ABC):
     """Shared composition and safe defaults for solver adapters."""
@@ -182,6 +185,12 @@ class SolverAdapterBase(ABC):
     shared_dir_names: ClassVar[tuple[str, ...]] = ()
     template_input_names: ClassVar[frozenset[str]] = frozenset()
     anomaly_file_names: ClassVar[tuple[str, ...]] = ("csauto.stderr", "csauto.stdout")
+    # Patterns, relative to the case directory, naming the few files a remote
+    # execution backend should pull back *while the run is in progress*. They
+    # exist because find_residuals_files and friends inspect a local directory
+    # and so cannot describe a task running on someone else's machine.
+    # Keep the list narrow: Qarnot advises a snapshot stays under 1 GB.
+    observability_globs: ClassVar[tuple[str, ...]] = ()
     cleanup_log_names: ClassVar[frozenset[str]] = frozenset({"csauto.stdout", "csauto.stderr"})
     performance_columns: ClassVar[tuple[PerfColumn, ...]] = ()
     compare_kinds: ClassVar[tuple[CompareKind, ...]] = ()
@@ -314,8 +323,14 @@ class SolverAdapterBase(ABC):
     def detect_outcome(self, case_dir: Path, start_time: str | None = None) -> str | None:
         """Read solver output to decide STATUS_DONE / STATUS_FAILED / None (still unknown)."""
 
-    def read_progress(self, case_dir: Path, start_time: str | None = None) -> int | None:
-        """Best-effort current iteration / time step of a run."""
+    def read_progress(self, case_dir: Path, start_time: str | None = None, *, running: bool = True) -> int | None:
+        """Best-effort current iteration / time step of a run.
+
+        `running` says whether the run is still going. A solver that reads a
+        live progress marker must ignore it once the run is over: such a marker
+        can outlive the run, and then reports forever the iteration it was last
+        written at.
+        """
         return None
 
     def read_restart_origin(self, case_dir: Path) -> dict[str, int | float]:
@@ -406,6 +421,16 @@ class SolverAdapterBase(ABC):
 
     def parse_performance(self, path: Path) -> dict[str, str | None]:
         return {}
+
+    def prepare_remote_case(self, case_dir: Path) -> None:  # noqa: B027 - optional hook, not abstract
+        """Adjust a case about to run on an execution backend. Does nothing by default.
+
+        A backend lays the campaign's shared directories *inside* the case
+        directory, because a remote task has a single working directory and no
+        parent to put them in. A solver that expects them somewhere else has to
+        be told, and only the adapter knows how to tell it. Must never raise:
+        preparing is not allowed to be the thing that fails a launch.
+        """
 
     def doctor_checks(
         self,

@@ -429,6 +429,9 @@ def extract_restart_origin(case_dir: Path) -> dict[str, int | float]:
 def extract_last_iteration(log_path: Path) -> int | None:
     """Extract the last iteration number from a log file, if possible."""
     patterns = [
+        # The solver announces each step it starts; the rest are incidental
+        # mentions in warnings, which a log need not contain at all.
+        re.compile(r"TIME\s+STEP\s+NUMBER\s+(\d+)", re.IGNORECASE),
         re.compile(r"[Ii]teration\s+(\d+)"),
         re.compile(r"[Tt]ime\s+step\s+(\d+)"),
         re.compile(r"Iter\s*=\s*(\d+)"),

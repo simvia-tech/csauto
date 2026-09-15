@@ -99,6 +99,41 @@ Response:
 
 - `{ "records": [...] }`
 
+## `GET /api/launch_options`
+
+Purpose:
+
+- list what an execution backend lets a user choose at launch time, for the Run
+  dialog
+
+Query parameters:
+
+- `backend` (required): a name from the `backends` list in `GET /api/app_config`
+
+Response:
+
+```json
+{
+  "backend": "qarnot",
+  "degraded": false,
+  "options": [
+    {"key": "scheduling", "label": "Priority", "default": "Flex",
+     "choices": [["Flex", "Flex - cheaper, may wait for spare capacity"]]}
+  ]
+}
+```
+
+Rules:
+
+- an unknown backend is rejected with HTTP 400
+- the route never fails otherwise: when the provider cannot be reached it
+  returns `degraded: true` with whatever it could build, so the dialog still
+  opens and a launch remains possible with the defaults
+- it never returns a credential of any kind
+- call it when the dialog opens, not on page load: it may talk to the provider
+
+---
+
 ## `GET /api/residuals`
 
 Purpose:
@@ -525,6 +560,32 @@ Response:
 }
 ```
 
+## `POST /api/sync_backends`
+
+Purpose:
+
+- pull fresh data for the cases an execution backend owns, on demand
+
+Payload: none.
+
+Response:
+
+```json
+{ "status": "ok", "synced": true }
+```
+
+Rules:
+
+- throttled to one pass every ten seconds; `synced` says whether this call ran
+  one or found the window still open
+- never fails: a provider outage returns `synced: true` with nothing fetched,
+  because the caller is a Refresh click and must not be broken by it
+- the background loop in `csauto serve` already syncs on a timer; this exists so
+  pressing Refresh means something for a cloud case, whose local files only
+  change when a pass runs
+
+---
+
 ## `POST /api/kill_case`
 
 Purpose:
@@ -640,6 +701,11 @@ Rules:
 
 - `cases`, `n`, `nt` are required
 - `n`, `nt`, `max_parallel` must be integers `> 0`
+- `backend` is optional: the name of an execution backend to run on, taken from
+  the `backends` list returned by `GET /api/app_config`. Omit it, or send an
+  empty string, to run on the machine hosting the server. An unknown name is
+  rejected with HTTP 400. `GET /api/app_config` never returns a credential of
+  any kind: how a backend authenticates is not the dashboard's business
 - `restart_mode` accepted values: `iterations`, `physical_time`
 - `restart_value` must match selected mode constraints
 

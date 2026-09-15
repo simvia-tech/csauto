@@ -1,0 +1,170 @@
+# Running a campaign on Qarnot
+
+csauto can send cases to the [Qarnot](https://qarnot.com) cloud instead of running
+them on this machine. You run them on **your own Qarnot account**: csauto submits
+on your behalf, and Simvia hosts nothing, bills nothing and sees nothing.
+
+Supported solvers: code_saturne and the `stub` test solver. code_aster is not
+supported yet, because its adapter composes its whole launch line locally
+instead of producing a command a remote container can run; `csauto doctor
+--backend qarnot` says so.
+
+## Setup
+
+```bash
+pip install "csauto[qarnot]"
+export QARNOT_TOKEN="<the token from your Qarnot console>"
+csauto doctor RUNS --backend qarnot
+```
+
+`doctor` reports the SDK, the token, the image, whether the configured solver
+can build a remote command, and what the account still has room for:
+
+```
+[OK]   qarnot SDK available
+[OK]   QARNOT_TOKEN is set
+[OK]   qarnot buckets 4/100
+[OK]   qarnot storage 1.2/40.0 GB used
+```
+
+The quota lines matter. An exhausted bucket or storage quota surfaces as a
+`QuotaExceeded` in the middle of an upload, after you have chosen a campaign and
+pressed the button. `doctor` warns before that, and never prints the token
+itself, only what it buys.
+
+**The token goes in the environment, never in `csauto.toml`.** That file lives in
+the campaign directory, which gets shared, committed and archived. csauto
+refuses to start if it finds a token in there.
+
+## Launching from the dashboard
+
+Start `csauto serve`, select the cases, press **Run**, and pick `qarnot` in the
+**Run on** selector. The dialog restates how many cases are about to be
+submitted before anything is sent.
+
+The selector only appears once the server can offer a backend, and the choice
+applies to that launch alone, so a campaign can be split between this machine
+and the cloud.
+
+## Settings
+
+`csauto.toml` carries the non-sensitive settings only:
+
+```toml
+[qarnot]
+profile = "docker-batch"     # the Qarnot profile
+snapshot_interval_s = 60     # how often the remote task captures the watched files
+max_upload_mb = 512          # refuse a case whose own inputs exceed this
+```
+
+Two more settings govern how often csauto looks:
+
+```toml
+backend_poll_interval_s = 15   # status, progress, stdout and stderr
+backend_sync_interval_s = 60   # pull the captured files
+```
+
+Pulling more often than the task captures only wastes requests, so keep
+`backend_sync_interval_s` at or above `snapshot_interval_s`.
+
+## Which machine a case runs on
+
+csauto asks Qarnot for a machine with **at least `n` x `nt` cores**, derived from
+the MPI ranks and threads you enter in the Run dialog, **when your account offers
+that exact constraint**. Qarnot validates hardware constraints against a
+catalogue and refuses a whole submission for one it does not recognise, so a
+core count the account does not list is dropped rather than risked: running on a
+machine csauto did not get to choose beats not running at all.
+
+`csauto doctor --backend qarnot` and the Node type list both read that same
+catalogue.
+
+The Run dialog also lets you pick, per launch:
+
+- **Priority**: `Flex` (cheaper, waits for spare capacity), `OnDemand` (starts
+  sooner, costs more) or `Reserved` (uses capacity reserved on your account).
+  `Reserved` fails unless your account actually has a reservation.
+- **Node type**: one hardware specification from your account, or any node. The
+  list is read from Qarnot when the dialog opens and cached for ten minutes; if
+  it cannot be read, the dialog says so and the run uses any node.
+
+Memory floors, GPUs and CPU models are not exposed yet.
+
+## What is uploaded, and what comes back
+
+The remote working directory **is** the case: it is the only place a task may
+write, so the campaign's shared directories land inside it rather than beside
+it, unlike the local `RUNS/` layout.
+
+```
+/job/DATA/setup.xml   the case
+/job/MESH/mesh1.med   the campaign's shared directories, inside it
+```
+
+A solver that expects them elsewhere is told by its own adapter, through
+`prepare_remote_case`. code_saturne resolves a bare mesh name against
+`<study>/MESH`, which a remote task has no parent for, so its adapter adds a
+`<meshdir>` entry to `setup.xml`. The entry is harmless locally: code_saturne
+keeps the study directory as a fallback.
+
+Only the results directory comes back. Without that restriction a task would
+also return the shared directories it was handed, re-downloading a mesh of
+several gigabytes on every run.
+
+
+| Bucket | Content | Uploaded |
+|---|---|---|
+| `csauto-<campaign>-<hash>-shared` | the shared directories (`MESH`, `POST`) | once per campaign, and again only if they change |
+| `csauto-<campaign>-<hash>-<case>` | the case's own inputs (`DATA/`, `SRC/`, `doe_row.csv`, ...) | once per case |
+| `csauto-<campaign>-<hash>-<case>-out` | snapshots and results | written by the task |
+
+While a case runs, only the files the solver adapter declares as observability
+files come back (for code_saturne: the listing, the residuals, the monitoring
+probes and the run status markers). That is a few hundred kB, which keeps the
+snapshot well under the 1 GB Qarnot advises. The complete results directory is
+downloaded once, when the task finishes.
+
+Because those files genuinely land in `RUNS/caseXXXX/`, the dashboard's
+residuals, probes, log tail and error panels work during a cloud run exactly as
+they do locally.
+
+## Monitoring
+
+Live monitoring goes through `csauto serve`: the polling loop lives in the
+server. From the CLI, `csauto status RUNS` performs one poll and one sync, at
+most once every ten seconds.
+
+## What the statuses mean
+
+- `PENDING`: submitted, waiting for machines.
+- `RUNNING`: executing, or uploading and downloading its results.
+- `DONE`: **the results are on local disk.** csauto never reports `DONE` before
+  the download succeeded, because Compare, Clean and the size figures all read
+  local files.
+- `FAILED`: the task failed, or was cancelled.
+
+A failed poll never changes a status. A flaky network must not mark a hundred
+cases as failed, so consecutive failures are counted and reported instead.
+
+## Costs
+
+csauto shows no price estimate: it has no pricing figure it can vouch for, and a
+wrong number on a launch button would be worse than none. What it does do is
+refuse an oversized upload before submission, and record the execution time and
+core count of each case afterwards.
+
+## Verifying against the real API
+
+Every other Qarnot test runs against a fake connection, which proves what csauto
+asks Qarnot to do. One test proves what Qarnot does with it, and it is the only
+one that costs money, so it is skipped unless you ask for it:
+
+```bash
+CSAUTO_QARNOT_LIVE=1 QARNOT_TOKEN=... .venv/bin/python -m pytest \
+    tests/integration/test_qarnot_live.py -q -s
+```
+
+It submits one `alpine` task of about a minute, and asserts the three claims the
+design rests on: that the case inputs arrive in the task's working directory,
+that a partial result comes back while the task is still running, and that the
+full results land on local disk. It cancels the task even when it fails.

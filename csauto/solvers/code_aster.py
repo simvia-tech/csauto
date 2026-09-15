@@ -34,6 +34,13 @@ class CodeAsterAdapter(SolverAdapterBase):
         "MESH",
         "RESU",
     )
+    # Declared for completeness. code_aster does not run on an execution
+    # backend yet: run_argv returns [] because build_run_command composes the
+    # whole launch line itself, so there is no argv to hand to a remote task.
+    observability_globs: ClassVar[tuple[str, ...]] = (
+        "RESU/LOGS/run_solver.log",
+        "RESU/LOGS/*.mess",
+    )
     # doe_row.csv is written into every generated case by the generic DOE code,
     # so it is comparable whatever the solver. The .export file would be a better
     # candidate but its name varies per case (find_setup_file globs *.export)

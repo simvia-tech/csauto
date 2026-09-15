@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import math
 import re
 import shlex
@@ -82,6 +83,14 @@ class CodeSaturneAdapter(SolverAdapterBase):
     default_docker_image: ClassVar[str] = "simvia/code_saturne"
     results_dirname: ClassVar[str] = "RESU"
     shared_dir_names: ClassVar[tuple[str, ...]] = ("MESH", "POST")
+    observability_globs: ClassVar[tuple[str, ...]] = (
+        "RESU/*/residuals.csv",
+        "RESU/*/listing",
+        "RESU/*/run_solver.log",
+        "RESU/*/performance.log",
+        "RESU/*/monitoring/*.csv",
+        "RESU/*/run_status.*",
+    )
     template_input_names: ClassVar[frozenset[str]] = frozenset({"setup.xml", "run.cfg"})
     anomaly_file_names: ClassVar[tuple[str, ...]] = ANOMALY_FILES_DEFAULT
     cleanup_log_names: ClassVar[frozenset[str]] = frozenset(
@@ -346,25 +355,30 @@ class CodeSaturneAdapter(SolverAdapterBase):
         return None, None
 
     def detect_outcome(self, case_dir: Path, start_time: str | None = None) -> str | None:
-        outcome = detect_run_outcome(case_dir, start_time)
-        if outcome:
-            return outcome
-        # The logs gave no verdict. A run that fails before the solver starts (a
-        # missing mesh, say) writes no run_solver.log at all, only a status
-        # marker beside it. Restricted to the current run, so a marker left by a
-        # previous run never overrides the log of this one.
+        # The marker the solver writes comes first, because the log is only a
+        # heuristic and it can be read wrong in both directions: a run that
+        # fails before the solver starts writes no log at all, and a run killed
+        # by the runaway-computation check prints its closing banner first and
+        # puts the real message in `error`, so the log reads as a success.
+        # Restricted to the current run, so a marker left by a previous one
+        # never fails a good run.
         start_ts = _parse_start_time(start_time)
         for run_dir in self.list_run_dirs(case_dir):
             for name in RUN_STATUS_FAILURE_NAMES:
                 marker = run_dir / name
                 if marker.is_file() and _is_recent(marker, start_ts):
                     return STATUS_FAILED
-        return None
+        return detect_run_outcome(case_dir, start_time)
 
-    def read_progress(self, case_dir: Path, start_time: str | None = None) -> int | None:
-        run_status_path = locate_run_status_file(case_dir, start_time)
-        if run_status_path:
-            return extract_run_status_iteration(run_status_path)
+    def read_progress(self, case_dir: Path, start_time: str | None = None, *, running: bool = True) -> int | None:
+        # run_status.running is only trustworthy while the run is running.
+        # code_saturne removes it when the calculation ends, but a copy pulled
+        # back by an execution backend's snapshot survives, and would report
+        # the iteration it was captured at for the rest of the campaign.
+        if running:
+            run_status_path = locate_run_status_file(case_dir, start_time)
+            if run_status_path:
+                return extract_run_status_iteration(run_status_path)
         log_path = locate_log_file(case_dir, start_time)
         return extract_last_iteration(log_path) if log_path else None
 
@@ -373,6 +387,36 @@ class CodeSaturneAdapter(SolverAdapterBase):
 
     def locate_case_file(self, case_dir: Path, name: str) -> Path | None:
         return locate_case_file(case_dir, name)
+
+    def prepare_remote_case(self, case_dir: Path) -> None:
+        """Point setup.xml at the MESH directory a backend places inside the case.
+
+        code_saturne resolves a bare mesh name against `<study>/MESH`, the
+        parent of the case directory, which a remote task does not have. It
+        also honours `<meshdir>` in setup.xml, resolved against the case
+        directory itself (`cs_case_domain.py:1229`), and it keeps the study
+        directory as a fallback, so the entry is harmless for a local run.
+        """
+        import xml.etree.ElementTree as ElementTree
+
+        try:
+            setup = self.find_setup_file(case_dir)
+            tree = ElementTree.parse(setup)
+        except Exception:
+            # A case with no readable setup fails later, with a better message.
+            return
+
+        meshes = tree.getroot().find(".//solution_domain/meshes_list")
+        if meshes is None or meshes.find("meshdir") is not None:
+            return
+        shared = self.shared_dir_names[0] if self.shared_dir_names else ""
+        if not shared:
+            return
+        node = ElementTree.Element("meshdir")
+        node.set("name", shared)
+        meshes.insert(0, node)
+        with contextlib.suppress(OSError):
+            tree.write(setup, encoding="utf-8", xml_declaration=True)
 
     def find_setup_file(self, template_dir: Path) -> Path:
         return find_setup_file(template_dir)

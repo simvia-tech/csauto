@@ -243,16 +243,27 @@ def parse_residuals_from_log(log_path: Path) -> tuple[list[str], list[dict[str, 
     fields: list[str] = ["iteration"]
     header_re = re.compile(r"Variable\s+Rhs norm", re.IGNORECASE)
     sep_re = re.compile(r"^-{3,}")
+    # The solver announces each time step before printing its convergence
+    # block. Counting blocks instead would put the curve on a wrong axis:
+    # convergence is printed at the listing frequency, so the Nth block is
+    # almost never iteration N.
+    step_re = re.compile(r"TIME STEP NUMBER\s+(\d+)", re.IGNORECASE)
+    last_step: str | None = None
     try:
         with log_path.open("r", encoding="utf-8", errors="ignore") as handle:
             for line in handle:
+                step_match = step_re.search(line)
+                if step_match:
+                    last_step = step_match.group(1)
                 if header_re.search(line):
                     if current:
                         rows.append(current)
                         current = None
                     block_has_data = False
                     block_idx += 1
-                    current = {"iteration": str(block_idx)}
+                    # Fall back to the block index for a log that does not
+                    # announce its steps, so such a run still plots.
+                    current = {"iteration": last_step or str(block_idx)}
                     continue
                 if current is not None:
                     if sep_re.match(line) and not block_has_data:

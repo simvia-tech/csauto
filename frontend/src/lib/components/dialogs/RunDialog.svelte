@@ -1,7 +1,9 @@
 <!--
-  RunDialog — configure MPI ranks, threads, and max parallel before running cases.
+  RunDialog — configure MPI ranks, threads, max parallel and where to run.
 
   Pre-fills from localStorage settings. Validates inputs before resolving.
+  The execution list comes from /api/app_config: this dialog never names a
+  cloud provider itself.
 -->
 <script lang="ts">
   import { closeDialog } from "$lib/actions/dialog.svelte";
@@ -10,7 +12,9 @@
   import Button from "$lib/components/shared/Button.svelte";
   import FormLabel from "$lib/components/shared/FormLabel.svelte";
   import { getRunSettings, setRunSettings } from "$lib/stores/settings.svelte";
-  import type { RunParams } from "$lib/api/types";
+  import { getBackends } from "$lib/stores/appConfig.svelte";
+  import { fetchLaunchOptions } from "$lib/api/endpoints";
+  import type { LaunchOption, RunParams } from "$lib/api/types";
 
   interface Props {
     cases: string[];
@@ -24,6 +28,47 @@
   let n = $state(saved.n);
   let nt = $state(saved.nt);
   let maxParallel = $state(defaultParallel);
+
+  /* "fake" is a test double, not something to offer a user. */
+  const backends = getBackends().filter((name) => name !== "fake");
+  let backend = $state(
+    backends.includes(saved.backend ?? "") ? (saved.backend as string) : "",
+  );
+
+  let launchOptions = $state<LaunchOption[]>([]);
+  let degraded = $state(false);
+  let chosen = $state<Record<string, string>>({});
+
+  /* Fetched when the backend changes, not on page load: this call may talk to
+     the provider. A failure leaves the list empty and the launch still works. */
+  $effect(() => {
+    const name = backend;
+    if (!name) {
+      launchOptions = [];
+      degraded = false;
+      chosen = {};
+      return;
+    }
+    let cancelled = false;
+    fetchLaunchOptions(name)
+      .then((payload) => {
+        if (cancelled) return;
+        launchOptions = payload.options;
+        degraded = payload.degraded;
+        chosen = Object.fromEntries(
+          payload.options.map((option) => [option.key, option.default]),
+        );
+      })
+      .catch(() => {
+        if (cancelled) return;
+        launchOptions = [];
+        degraded = true;
+        chosen = {};
+      });
+    return () => {
+      cancelled = true;
+    };
+  });
 
   async function confirm() {
     if (!Number.isFinite(n) || n <= 0) {
@@ -43,6 +88,8 @@
       n,
       nt,
       maxParallel: maxParallel || null,
+      backend: backend || null,
+      options: backend ? chosen : undefined,
     };
     setRunSettings(params);
     closeDialog(params);
@@ -67,9 +114,56 @@
     </FormLabel>
   </div>
 
+  {#if backends.length}
+    <div class="mb-3">
+      <FormLabel text="Run on">
+        <select bind:value={backend}>
+          <option value="">This machine</option>
+          {#each backends as name (name)}
+            <option value={name}>{name}</option>
+          {/each}
+        </select>
+      </FormLabel>
+    </div>
+  {/if}
+
+  {#if backend}
+    <p
+      class="mb-3 rounded border border-amber-400/50 bg-amber-400/10 px-3 py-2 text-sm"
+      role="status"
+    >
+      About to submit <strong>{cases.length}</strong> case{cases.length > 1
+        ? "s"
+        : ""} to <strong>{backend}</strong>, which runs on your own account and
+      bills you for the compute. Results come back automatically.
+    </p>
+  {/if}
+
+  {#if backend && launchOptions.length}
+    <div class="grid grid-cols-2 gap-2.5 mb-3">
+      {#each launchOptions as option (option.key)}
+        <FormLabel text={option.label}>
+          <select bind:value={chosen[option.key]}>
+            {#each option.choices as [value, label] (value)}
+              <option {value}>{label}</option>
+            {/each}
+          </select>
+        </FormLabel>
+      {/each}
+    </div>
+  {/if}
+
+  {#if backend && degraded}
+    <p class="mb-3 text-sm opacity-75" role="status">
+      Could not reach {backend} to list what is available. The run will use the defaults.
+    </p>
+  {/if}
+
   {#snippet footer()}
     <Button variant="secondary" onclick={() => closeDialog(null)}>Cancel</Button
     >
-    <Button variant="run" onclick={confirm}>Run</Button>
+    <Button variant="run" onclick={confirm}
+      >{backend ? `Run on ${backend}` : "Run"}</Button
+    >
   {/snippet}
 </DialogShell>

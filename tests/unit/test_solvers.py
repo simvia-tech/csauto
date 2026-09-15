@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 
@@ -446,3 +447,181 @@ def test_code_saturne_detect_outcome_ignores_a_stale_failure_marker(tmp_path) ->
     start_time = datetime.fromtimestamp(time.time() - 60).isoformat(timespec="seconds")
 
     assert adapter.detect_outcome(case_dir, start_time) == STATUS_DONE
+
+
+def test_code_saturne_declares_observability_globs() -> None:
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    globs = CodeSaturneAdapter().observability_globs
+
+    assert "RESU/*/listing" in globs
+    assert all(not pattern.startswith("/") for pattern in globs), "patterns are relative to the case dir"
+
+
+def test_an_adapter_that_declares_nothing_has_no_observability_globs() -> None:
+    from csauto.solvers.base import SolverAdapterBase
+
+    assert SolverAdapterBase.observability_globs == ()
+
+
+def test_an_adapter_prepares_nothing_for_a_remote_case_by_default(tmp_path: Path) -> None:
+    from csauto.solvers.stub import StubAdapter
+
+    before = sorted(p.name for p in tmp_path.iterdir())
+    StubAdapter().prepare_remote_case(tmp_path)
+
+    assert sorted(p.name for p in tmp_path.iterdir()) == before
+
+
+def _setup_with_meshes(case_dir: Path) -> Path:
+    setup = case_dir / "DATA" / "setup.xml"
+    setup.parent.mkdir(parents=True, exist_ok=True)
+    setup.write_text(
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        "<Code_Saturne_GUI><solution_domain><meshes_list>"
+        '<mesh name="mesh1.med"/></meshes_list></solution_domain></Code_Saturne_GUI>\n',
+        encoding="utf-8",
+    )
+    return setup
+
+
+def test_code_saturne_points_setup_at_the_mesh_dir_inside_the_case(tmp_path: Path) -> None:
+    """A backend puts the shared dirs inside the case; code_saturne looks beside it."""
+    import xml.etree.ElementTree as ET
+
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    setup = _setup_with_meshes(tmp_path)
+
+    CodeSaturneAdapter().prepare_remote_case(tmp_path)
+
+    node = ET.parse(setup).getroot().find(".//solution_domain/meshes_list/meshdir")
+    assert node is not None
+    assert node.get("name") == "MESH"
+
+
+def test_code_saturne_leaves_an_existing_mesh_dir_alone(tmp_path: Path) -> None:
+    import xml.etree.ElementTree as ET
+
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    setup = _setup_with_meshes(tmp_path)
+    setup.write_text(
+        setup.read_text(encoding="utf-8").replace("<meshes_list>", '<meshes_list><meshdir name="ELSEWHERE"/>'),
+        encoding="utf-8",
+    )
+
+    CodeSaturneAdapter().prepare_remote_case(tmp_path)
+
+    nodes = ET.parse(setup).getroot().findall(".//solution_domain/meshes_list/meshdir")
+    assert [n.get("name") for n in nodes] == ["ELSEWHERE"]
+
+
+def test_code_saturne_prepare_is_idempotent(tmp_path: Path) -> None:
+    import xml.etree.ElementTree as ET
+
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    setup = _setup_with_meshes(tmp_path)
+    adapter = CodeSaturneAdapter()
+
+    adapter.prepare_remote_case(tmp_path)
+    adapter.prepare_remote_case(tmp_path)
+
+    nodes = ET.parse(setup).getroot().findall(".//solution_domain/meshes_list/meshdir")
+    assert len(nodes) == 1
+
+
+def test_code_saturne_prepare_survives_a_case_without_a_setup(tmp_path: Path) -> None:
+    """Preparing must never be the thing that fails a launch."""
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    CodeSaturneAdapter().prepare_remote_case(tmp_path)
+
+
+def _case_with_stale_running_marker(tmp_path: Path) -> Path:
+    """A finished run whose progress marker was left behind mid-run.
+
+    A backend sync downloads run_status.running during the run and only ever
+    adds files, so the marker survives the end of the calculation and keeps
+    reporting the iteration it was captured at.
+    """
+    run_dir = tmp_path / "RESU" / "20260101-0000"
+    run_dir.mkdir(parents=True)
+    (run_dir / "run_status.running").write_text("time step: 9479\n", encoding="utf-8")
+    (run_dir / "run_solver.log").write_text(
+        " INSTANT      100.000000000    TIME STEP NUMBER           10000\n                      END OF CALCULATION\n",
+        encoding="utf-8",
+    )
+    return tmp_path
+
+
+def test_progress_of_a_finished_run_ignores_the_running_marker(tmp_path: Path) -> None:
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    case_dir = _case_with_stale_running_marker(tmp_path)
+
+    assert CodeSaturneAdapter().read_progress(case_dir, running=False) == 10000
+
+
+def test_progress_of_a_live_run_still_prefers_the_running_marker(tmp_path: Path) -> None:
+    """While a run is in progress the marker is fresher than the log."""
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    case_dir = _case_with_stale_running_marker(tmp_path)
+
+    assert CodeSaturneAdapter().read_progress(case_dir) == 9479
+
+
+def _finished_looking_log() -> str:
+    return "===============================\n                 FINAL STAGE OF THE CALCULATION\n                      END OF CALCULATION\n"
+
+
+def test_an_explicit_failure_marker_beats_a_log_that_looks_finished(tmp_path: Path) -> None:
+    """code_saturne prints its final stage even when it then aborts.
+
+    The runaway-computation check kills the solver after that banner, and the
+    real message goes to `error`, not to the log, so the log heuristic alone
+    calls a diverged run a success. The marker the solver writes is explicit.
+    """
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    run_dir = tmp_path / "RESU" / "20260101-0000"
+    run_dir.mkdir(parents=True)
+    (run_dir / "run_solver.log").write_text(_finished_looking_log(), encoding="utf-8")
+    (run_dir / "run_status.failed").write_text("", encoding="utf-8")
+
+    assert CodeSaturneAdapter().detect_outcome(tmp_path) == "FAILED"
+
+
+def test_a_finished_run_without_a_failure_marker_is_done(tmp_path: Path) -> None:
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    run_dir = tmp_path / "RESU" / "20260101-0000"
+    run_dir.mkdir(parents=True)
+    (run_dir / "run_solver.log").write_text(_finished_looking_log(), encoding="utf-8")
+
+    assert CodeSaturneAdapter().detect_outcome(tmp_path) == "DONE"
+
+
+def test_a_failure_marker_from_an_earlier_run_does_not_win(tmp_path: Path) -> None:
+    """Only this run's marker counts; an old one must not fail a good run."""
+    import os
+    from datetime import datetime, timedelta
+
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    now = datetime.now()
+    old_dir = tmp_path / "RESU" / "old-run"
+    old_dir.mkdir(parents=True)
+    stale = old_dir / "run_status.failed"
+    stale.write_text("", encoding="utf-8")
+    long_ago = (now - timedelta(days=1)).timestamp()
+    os.utime(stale, (long_ago, long_ago))
+
+    run_dir = tmp_path / "RESU" / "this-run"
+    run_dir.mkdir(parents=True)
+    (run_dir / "run_solver.log").write_text(_finished_looking_log(), encoding="utf-8")
+
+    started = (now - timedelta(minutes=1)).isoformat(timespec="seconds")
+    assert CodeSaturneAdapter().detect_outcome(tmp_path, started) == "DONE"

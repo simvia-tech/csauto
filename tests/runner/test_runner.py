@@ -1086,3 +1086,487 @@ def test_failed_launch_leaves_the_case_failed_not_pending(monkeypatch, runs_dir:
         )
 
     assert load_registry(runs_dir)["case0001"]["status"] == STATUS_FAILED
+
+
+def test_run_cases_with_a_backend_records_backend_and_task_id(monkeypatch, runs_dir: Path, case_factory) -> None:
+    case_factory(runs_dir, "case0001")
+
+    def no_popen(*_args, **_kwargs):
+        raise AssertionError("Popen must not be used for a backend launch")
+
+    monkeypatch.setattr("subprocess.Popen", no_popen)
+    monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
+
+    run_cases(
+        runs_dir,
+        nprocs=2,
+        nt=3,
+        max_parallel=1,
+        case_filter=["case0001"],
+        docker_image="my_image",
+        resume_only_failed=False,
+        source="test",
+        backend="fake",
+    )
+
+    record = load_registry(runs_dir)["case0001"]
+    assert record["status"] == STATUS_RUNNING
+    assert record["backend"] == "fake"
+    assert record["task_id"].startswith("fake-")
+    assert record["pid"] is None
+    assert record["job_id"] is None
+    assert record["nprocs"] == 2
+    assert record["nt"] == 3
+
+
+def test_local_launch_records_no_backend(monkeypatch, runs_dir: Path, case_factory) -> None:
+    """Non-regression: a local run must not gain a backend field."""
+    case_factory(runs_dir, "case0001")
+
+    class DummyProc:
+        pid = 4242
+
+    monkeypatch.setattr("subprocess.Popen", lambda *_a, **_k: DummyProc())
+    monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
+
+    run_cases(
+        runs_dir,
+        nprocs=1,
+        nt=1,
+        max_parallel=1,
+        case_filter=["case0001"],
+        docker_image="image",
+        resume_only_failed=False,
+        source="test",
+    )
+
+    record = load_registry(runs_dir)["case0001"]
+    assert record.get("backend") is None
+    assert record["pid"]
+
+
+def test_refresh_status_does_not_finalize_a_backend_case(runs_dir: Path, case_factory) -> None:
+    """A backend case has no PID and no job id; the sync pass owns its status.
+
+    Without the guard, should_finalize is True on the first refresh and the
+    STATUS_FAILED fallback marks the case failed before it has started.
+    """
+    case_dir = case_factory(runs_dir, "case0001")
+    save_registry(
+        runs_dir,
+        {
+            "case0001": {
+                "case_id": "case0001",
+                "path": str(case_dir),
+                "status": STATUS_RUNNING,
+                "backend": "fake",
+                "task_id": "fake-0001",
+                "pid": None,
+                "job_id": None,
+                "start_time": datetime.now().isoformat(timespec="seconds"),
+            }
+        },
+    )
+
+    rows = refresh_status(runs_dir)
+
+    assert rows[0]["status"] == STATUS_RUNNING
+    assert load_registry(runs_dir)["case0001"]["status"] == STATUS_RUNNING
+
+
+def test_refresh_status_still_finalizes_a_local_case_whose_process_is_gone(runs_dir: Path, case_factory) -> None:
+    """Non-regression: the guard must not disable finalisation for local cases."""
+    case_dir = case_factory(runs_dir, "case0001")
+    save_registry(
+        runs_dir,
+        {
+            "case0001": {
+                "case_id": "case0001",
+                "path": str(case_dir),
+                "status": STATUS_RUNNING,
+                "pid": None,
+                "job_id": None,
+                "start_time": datetime.now().isoformat(timespec="seconds"),
+            }
+        },
+    )
+
+    rows = refresh_status(runs_dir)
+
+    assert rows[0]["status"] == STATUS_FAILED
+
+
+def test_refresh_status_ignores_the_reserved_backend_key(runs_dir, case_factory) -> None:
+    """The _backend marker is campaign state, not a case; it must not be listed."""
+    case_factory(runs_dir, "case0001")
+    save_registry(
+        runs_dir,
+        {
+            "_backend": {"last_sync": "2026-09-14T10:00:00"},
+            "case0001": {"case_id": "case0001", "path": str(runs_dir / "case0001"), "status": "PREPARED"},
+        },
+    )
+
+    rows = refresh_status(runs_dir)
+
+    assert [row["case_id"] for row in rows] == ["case0001"]
+
+
+def test_backend_argv_uses_a_relative_case_path(monkeypatch, runs_dir, case_factory) -> None:
+    """The remote container has no idea where the case lives on this machine.
+
+    Its working directory is the case, the only place it may write, so the
+    path is relative and the host path never travels.
+    """
+    from csauto.backends.fake import FakeBackend
+
+    case_factory(runs_dir, "case0001")
+    backend = FakeBackend(script=["RUNNING"])
+    submitted: dict[str, object] = {}
+    original_submit = backend.submit
+
+    def record(case_dir, argv, image, nprocs, nt, observability_globs=(), options=None):
+        submitted["argv"] = list(argv)
+        submitted["globs"] = tuple(observability_globs)
+        return original_submit(case_dir, argv, image, nprocs, nt, observability_globs, options or {})
+
+    backend.submit = record  # type: ignore[method-assign]
+    monkeypatch.setattr("csauto.backends.get_backend", lambda _name: backend)
+    monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
+
+    run_cases(
+        runs_dir,
+        nprocs=1,
+        nt=1,
+        max_parallel=1,
+        case_filter=["case0001"],
+        docker_image="image",
+        resume_only_failed=False,
+        source="test",
+        backend="fake",
+    )
+
+    assert str(runs_dir) not in " ".join(str(part) for part in submitted["argv"])
+    assert "." in submitted["argv"]
+    assert submitted["globs"], "the adapter's observability patterns must reach the backend"
+
+
+def test_status_row_carries_the_backend_figures(runs_dir, case_factory) -> None:
+    """The dashboard shows what a cloud case costs; the figures live in the registry."""
+    case_factory(runs_dir, "case0001")
+    save_registry(
+        runs_dir,
+        {
+            "case0001": {
+                "case_id": "case0001",
+                "path": str(runs_dir / "case0001"),
+                "status": STATUS_RUNNING,
+                "backend": "fake",
+                "task_id": "fake-0001",
+                "backend_progress": 0.25,
+                "backend_execution_time_s": 42.0,
+                "backend_core_count": 8,
+            }
+        },
+    )
+
+    row = refresh_status(runs_dir)[0]
+
+    assert row["backend"] == "fake"
+    assert row["backend_progress"] == 0.25
+    assert row["backend_execution_time_s"] == 42.0
+    assert row["backend_core_count"] == 8
+
+
+def test_status_row_of_a_local_case_has_no_backend_figures(runs_dir, case_factory) -> None:
+    case_factory(runs_dir, "case0001")
+    save_registry(
+        runs_dir,
+        {"case0001": {"case_id": "case0001", "path": str(runs_dir / "case0001"), "status": "PREPARED"}},
+    )
+
+    row = refresh_status(runs_dir)[0]
+
+    assert row["backend"] == ""
+    assert row["backend_execution_time_s"] is None
+
+
+def test_submitting_to_a_backend_does_not_hold_the_registry_lock(monkeypatch, runs_dir, case_factory) -> None:
+    """A submit uploads the case and talks to a remote API.
+
+    Holding the registry lock for that long blocks every reader, which freezes
+    the dashboard: /api/status calls load_registry, which takes the same lock.
+    """
+    from csauto.backends.fake import FakeBackend
+
+    case_factory(runs_dir, "case0001")
+    backend = FakeBackend(script=["RUNNING"])
+    original_submit = backend.submit
+    readable: list[bool] = []
+
+    def probing_submit(case_dir, argv, image, nprocs, nt, observability_globs=(), options=None):
+        done = threading.Event()
+
+        def read_registry() -> None:
+            load_registry(runs_dir)
+            done.set()
+
+        threading.Thread(target=read_registry, daemon=True).start()
+        readable.append(done.wait(timeout=5))
+        return original_submit(case_dir, argv, image, nprocs, nt, observability_globs, options or {})
+
+    backend.submit = probing_submit  # type: ignore[method-assign]
+    monkeypatch.setattr("csauto.backends.get_backend", lambda _name: backend)
+    monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
+
+    run_cases(
+        runs_dir,
+        nprocs=1,
+        nt=1,
+        max_parallel=1,
+        case_filter=["case0001"],
+        docker_image="image",
+        resume_only_failed=False,
+        source="test",
+        backend="fake",
+    )
+
+    assert readable == [True], "the registry lock was held across the backend submit"
+    assert load_registry(runs_dir)["case0001"]["status"] == STATUS_RUNNING
+
+
+def test_launch_options_reach_the_backend(monkeypatch, runs_dir, case_factory) -> None:
+    """The core carries the values without reading them."""
+    from csauto.backends.fake import FakeBackend
+
+    case_factory(runs_dir, "case0001")
+    backend = FakeBackend(script=["RUNNING"])
+    monkeypatch.setattr("csauto.backends.get_backend", lambda _name: backend)
+    monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
+
+    run_cases(
+        runs_dir,
+        nprocs=1,
+        nt=1,
+        max_parallel=1,
+        case_filter=["case0001"],
+        docker_image="image",
+        resume_only_failed=False,
+        source="test",
+        backend="fake",
+        options={"speed": "fast"},
+    )
+
+    assert backend.submitted_options == {"speed": "fast"}
+
+
+def test_launch_options_are_recorded_in_the_case_history(monkeypatch, runs_dir, case_factory) -> None:
+    """An audit should show what a run asked for, and what it cost."""
+    import json
+
+    from csauto.backends.fake import FakeBackend
+
+    case_dir = case_factory(runs_dir, "case0001")
+    backend = FakeBackend(script=["RUNNING"])
+    monkeypatch.setattr("csauto.backends.get_backend", lambda _name: backend)
+    monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
+
+    run_cases(
+        runs_dir,
+        nprocs=1,
+        nt=1,
+        max_parallel=1,
+        case_filter=["case0001"],
+        docker_image="image",
+        resume_only_failed=False,
+        source="test",
+        backend="fake",
+        options={"speed": "fast"},
+    )
+
+    entries = [json.loads(line) for line in (case_dir / ".csauto.history.jsonl").read_text().splitlines()]
+    runs = [entry for entry in entries if entry["action"] == "run"]
+    assert runs[-1]["details"]["options"] == {"speed": "fast"}
+
+
+def test_a_local_run_records_no_options(monkeypatch, runs_dir, case_factory) -> None:
+    """Options belong to a backend launch; a local run must not grow a field."""
+    import json
+
+    case_dir = case_factory(runs_dir, "case0001")
+    monkeypatch.setattr("csauto.runner.read_container_id", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
+
+    class DummyProc:
+        def __init__(self, pid: int = 12345) -> None:
+            self.pid = pid
+
+    monkeypatch.setattr("subprocess.Popen", lambda *_args, **_kwargs: DummyProc())
+
+    run_cases(
+        runs_dir,
+        nprocs=1,
+        nt=1,
+        max_parallel=1,
+        case_filter=["case0001"],
+        docker_image="image",
+        resume_only_failed=False,
+        source="test",
+    )
+
+    entries = [json.loads(line) for line in (case_dir / ".csauto.history.jsonl").read_text().splitlines()]
+    runs = [entry for entry in entries if entry["action"] == "run"]
+    assert "options" not in runs[-1]["details"]
+
+
+def test_a_backend_launch_prepares_the_case_first(monkeypatch, runs_dir, case_factory) -> None:
+    """The shared dirs land inside the case remotely; the adapter adjusts for it."""
+    from csauto.backends.fake import FakeBackend
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    case_factory(runs_dir, "case0001")
+    backend = FakeBackend(script=["RUNNING"])
+    calls: list[str] = []
+
+    class Adapter(CodeSaturneAdapter):
+        def prepare_remote_case(self, case_dir) -> None:
+            calls.append(case_dir.name)
+
+    monkeypatch.setattr("csauto.backends.get_backend", lambda _name: backend)
+    monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
+
+    run_cases(
+        runs_dir,
+        nprocs=1,
+        nt=1,
+        max_parallel=1,
+        case_filter=["case0001"],
+        docker_image="image",
+        resume_only_failed=False,
+        source="test",
+        backend="fake",
+        adapter=Adapter(),
+    )
+
+    assert calls == ["case0001"]
+
+
+def test_a_local_launch_does_not_prepare_a_remote_case(monkeypatch, runs_dir, case_factory) -> None:
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    case_factory(runs_dir, "case0001")
+    calls: list[str] = []
+
+    class Adapter(CodeSaturneAdapter):
+        def prepare_remote_case(self, case_dir) -> None:
+            calls.append(case_dir.name)
+
+    monkeypatch.setattr("csauto.runner.read_container_id", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
+
+    class DummyProc:
+        def __init__(self, pid: int = 12345) -> None:
+            self.pid = pid
+
+    monkeypatch.setattr("subprocess.Popen", lambda *_args, **_kwargs: DummyProc())
+
+    run_cases(
+        runs_dir,
+        nprocs=1,
+        nt=1,
+        max_parallel=1,
+        case_filter=["case0001"],
+        docker_image="image",
+        resume_only_failed=False,
+        source="test",
+        adapter=Adapter(),
+    )
+
+    assert calls == []
+
+
+def test_resu_size_expires_even_when_directory_mtimes_do_not_move(monkeypatch, runs_dir, case_factory) -> None:
+    """Some filesystems never bump a directory's mtime when files change inside it.
+
+    WSL2 is one, so a cache keyed on that mtime alone never invalidates and the
+    reported size stays frozen for the life of the process. A backend sync
+    writes into an existing run directory, which is exactly that case.
+    """
+    from csauto import runner
+    from csauto.runner import _cached_resu_size_mb
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    adapter = CodeSaturneAdapter()
+    case_dir = case_factory(runs_dir, "case0001")
+    run_dir = case_dir / "RESU" / "20260101-0000"
+    run_dir.mkdir(parents=True)
+    (run_dir / "listing").write_text("x" * 1024, encoding="utf-8")
+
+    now = 1000.0
+    monkeypatch.setattr(runner.time, "monotonic", lambda: now)
+    _mtime, first = _cached_resu_size_mb(case_dir, adapter)
+
+    (run_dir / "residuals.csv").write_text("y" * (512 * 1024), encoding="utf-8")
+    now += runner.RESU_SIZE_CACHE_TTL_S + 1
+    _mtime, second = _cached_resu_size_mb(case_dir, adapter)
+
+    assert first == 0.0
+    assert second is not None and second > first
+
+
+def test_resu_size_is_not_recomputed_within_its_cache_window(monkeypatch, runs_dir, case_factory) -> None:
+    """The status route is polled about once a second; walking RESU each time is not free."""
+    from csauto import runner
+    from csauto.runner import _cached_resu_size_mb
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    adapter = CodeSaturneAdapter()
+    case_dir = case_factory(runs_dir, "case0001")
+    run_dir = case_dir / "RESU" / "20260101-0000"
+    run_dir.mkdir(parents=True)
+    (run_dir / "listing").write_text("x" * 1024, encoding="utf-8")
+
+    walks: list[int] = []
+    real_size = runner._resu_size_mb
+
+    def counted(*args, **kwargs):
+        walks.append(1)
+        return real_size(*args, **kwargs)
+
+    monkeypatch.setattr(runner, "_resu_size_mb", counted)
+    monkeypatch.setattr(runner.time, "monotonic", lambda: 1000.0)
+
+    _cached_resu_size_mb(case_dir, adapter)
+    _cached_resu_size_mb(case_dir, adapter)
+
+    assert len(walks) == 1
+
+
+def test_a_finished_case_reports_the_iteration_its_log_ends_on(runs_dir, case_factory) -> None:
+    """A stale run_status.running must not freeze LAST ITER at its capture point."""
+    from csauto.registry import save_registry
+
+    case_dir = case_factory(runs_dir, "case0001")
+    run_dir = case_dir / "RESU" / "20260101-0000"
+    run_dir.mkdir(parents=True)
+    (run_dir / "run_status.running").write_text("time step: 9479\n", encoding="utf-8")
+    (run_dir / "run_solver.log").write_text(
+        " INSTANT      100.000000000    TIME STEP NUMBER           10000\n                      END OF CALCULATION\n",
+        encoding="utf-8",
+    )
+    save_registry(
+        runs_dir,
+        {
+            "case0001": {
+                "case_id": "case0001",
+                "path": str(case_dir),
+                "status": STATUS_DONE,
+                "start_time": "2026-01-01T00:00:00",
+                "end_time": "2026-01-01T01:00:00",
+            }
+        },
+    )
+
+    row = refresh_status(runs_dir, adapter=CodeSaturneAdapter())[0]
+
+    assert row["last_iter"] == 10000

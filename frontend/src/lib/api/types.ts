@@ -19,6 +19,10 @@ export interface StatusRow {
   duration: string | null;
   last_mod: string | null;
   resu_size_mb: number | null;
+  backend: string | null;
+  backend_progress: number | null;
+  backend_execution_time_s: number | null;
+  backend_core_count: number | null;
   doe: Record<string, string | number> | null;
   [extra: string]: unknown;
 }
@@ -59,6 +63,20 @@ export interface AppConfig {
   compare_kinds: CompareKindOption[];
   error_files: string[];
   control_actions: string[];
+  backends: string[];
+}
+
+export interface LaunchOption {
+  key: string;
+  label: string;
+  choices: [string, string][];
+  default: string;
+}
+
+export interface LaunchOptionsPayload {
+  backend: string;
+  degraded: boolean;
+  options: LaunchOption[];
 }
 
 /* Shared */
@@ -122,6 +140,10 @@ export interface RunParams {
   n: number;
   nt: number;
   maxParallel: number | null;
+  /** Execution backend name, or null/absent to run on this machine. */
+  backend?: string | null;
+  /** Values chosen for the backend's declared options. */
+  options?: Record<string, string>;
 }
 
 export interface RestartParams extends RunParams {
