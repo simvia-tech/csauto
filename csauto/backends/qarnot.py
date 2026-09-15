@@ -23,12 +23,15 @@ from __future__ import annotations
 
 import os
 import shlex
+import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
-from .base import BackendState
+from ..warn import warn
+from .base import BackendState, LaunchOption, LaunchOptions
 from .qarnot_support import (
+    SCHEDULING_CHOICES,
     bucket_name,
     directory_signature,
     ensure_upload_within,
@@ -41,6 +44,13 @@ from .qarnot_support import (
 )
 
 TOKEN_ENV = "QARNOT_TOKEN"
+
+# The REST calls have a deadline so a slow provider cannot hang a route. It does
+# not apply to the S3 transfers, which are botocore's own business.
+CLUSTER_TIMEOUT_S = 30
+
+# The node list changes rarely and is read every time the Run dialog opens.
+NODE_CACHE_TTL_S = 600
 
 # Qarnot's own vocabulary, translated here and nowhere else. Taken from
 # qarnot.task.Task.state, not guessed. An unlisted name maps to PENDING: a
@@ -87,8 +97,69 @@ class QarnotBackend:
             raise RuntimeError("The qarnot SDK is not installed. Install csauto with the [qarnot] extra.") from exc
         # Never let the token reach a traceback: the SDK raises on a bad token
         # with its own message, which does not contain the value.
-        self._connection = Connection(client_token=token)
+        self._connection = Connection(client_token=token, cluster_timeout=CLUSTER_TIMEOUT_S)
         return self._connection
+
+    _node_cache: ClassVar[tuple[float, tuple[tuple[str, str], ...]] | None] = None
+
+    @classmethod
+    def clear_options_cache(cls) -> None:
+        """Forget the cached node list. Used by tests and after a token change."""
+        cls._node_cache = None
+
+    def launch_options(self) -> LaunchOptions:
+        """What a user may choose, with the node list fetched from the account.
+
+        Never raises: the Run dialog must open, and a launch must remain
+        possible, whatever the provider is doing. When the node list cannot be
+        fetched the catalogue still offers the scheduling classes, "Any node"
+        stands alone, and `degraded` says so rather than letting a short list
+        pass for the truth.
+        """
+        nodes, degraded = self._node_choices()
+        return LaunchOptions(
+            options=(
+                LaunchOption(
+                    key="scheduling",
+                    label="Priority",
+                    choices=SCHEDULING_CHOICES,
+                    default=SCHEDULING_CHOICES[0][0],
+                ),
+                LaunchOption(
+                    key="node",
+                    label="Node type",
+                    choices=(("", "Any node"), *nodes),
+                    default="",
+                ),
+            ),
+            degraded=degraded,
+        )
+
+    def _node_choices(self) -> tuple[tuple[tuple[str, str], ...], bool]:
+        cached = type(self)._node_cache
+        if cached is not None and (time.monotonic() - cached[0]) < NODE_CACHE_TTL_S:
+            return cached[1], False
+        try:
+            found = self._fetch_node_choices()
+        except Exception as exc:
+            # A failure is deliberately not cached: a ten-minute outage would
+            # otherwise hide the account's nodes long after it recovered.
+            warn(f"qarnot: could not list node types ({type(exc).__name__}: {exc})")
+            return (), True
+        type(self)._node_cache = (time.monotonic(), found)
+        return found, False
+
+    def _fetch_node_choices(self) -> tuple[tuple[str, str], ...]:
+        """The account's node specifications, as (key, label) pairs."""
+        choices: list[tuple[str, str]] = []
+        for constraint in self._connect().all_hardware_constraints():
+            payload = constraint.to_json()
+            if payload.get("discriminator") != "SpecificHardwareConstraint":
+                continue
+            key = str(payload.get("specificationKey") or "")
+            if key:
+                choices.append((key, key))
+        return tuple(choices)
 
     def submit(
         self,

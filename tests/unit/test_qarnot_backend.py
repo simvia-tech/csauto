@@ -468,3 +468,106 @@ def test_the_scheduling_is_set_before_submission(campaign: Path) -> None:
     _submit(QarnotBackend(connection=connection), campaign)
 
     assert connection.tasks[0].scheduling_set_while_unsubmitted is True
+
+
+class _Spec:
+    """What all_hardware_constraints yields for a node specification."""
+
+    def __init__(self, key: str) -> None:
+        self._specification_key = key
+
+    def to_json(self) -> dict[str, object]:
+        return {"discriminator": "SpecificHardwareConstraint", "specificationKey": self._specification_key}
+
+
+class _Other:
+    def to_json(self) -> dict[str, object]:
+        return {"discriminator": "GpuHardwareConstraint"}
+
+
+@pytest.fixture(autouse=True)
+def _no_option_cache() -> None:
+    QarnotBackend.clear_options_cache()
+
+
+def test_launch_options_always_offer_the_scheduling_choices() -> None:
+    connection = FakeConnection()
+    connection.all_hardware_constraints = lambda: iter(())
+
+    catalogue = QarnotBackend(connection=connection).launch_options()
+
+    by_key = {option.key: option for option in catalogue.options}
+    assert [value for value, _label in by_key["scheduling"].choices] == ["Flex", "OnDemand", "Reserved"]
+    assert by_key["scheduling"].default == "Flex"
+
+
+def test_launch_options_list_the_account_node_types() -> None:
+    connection = FakeConnection()
+    connection.all_hardware_constraints = lambda: iter([_Spec("r640-a"), _Other(), _Spec("r740-b")])
+
+    catalogue = QarnotBackend(connection=connection).launch_options()
+
+    node = next(option for option in catalogue.options if option.key == "node")
+    assert [value for value, _label in node.choices] == ["", "r640-a", "r740-b"]
+    assert node.default == ""
+    assert catalogue.degraded is False
+
+
+def test_launch_options_degrade_instead_of_raising() -> None:
+    """The dialog must still open, and the launch must still be possible."""
+
+    def explode():
+        raise RuntimeError("qarnot is down")
+
+    connection = FakeConnection()
+    connection.all_hardware_constraints = explode
+
+    catalogue = QarnotBackend(connection=connection).launch_options()
+
+    node = next(option for option in catalogue.options if option.key == "node")
+    assert catalogue.degraded is True
+    assert [value for value, _label in node.choices] == [""]
+
+
+def test_launch_options_degrade_when_there_is_no_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("QARNOT_TOKEN", raising=False)
+
+    catalogue = QarnotBackend().launch_options()
+
+    assert catalogue.degraded is True
+    assert [option.key for option in catalogue.options] == ["scheduling", "node"]
+
+
+def test_the_node_list_is_cached() -> None:
+    calls: list[int] = []
+
+    def counted():
+        calls.append(1)
+        return iter([_Spec("r640-a")])
+
+    connection = FakeConnection()
+    connection.all_hardware_constraints = counted
+    backend = QarnotBackend(connection=connection)
+
+    backend.launch_options()
+    backend.launch_options()
+
+    assert len(calls) == 1
+
+
+def test_a_degraded_result_is_not_cached() -> None:
+    """A transient outage must not hide the node list for ten minutes."""
+    states = iter([RuntimeError("down"), [_Spec("r640-a")]])
+
+    def flaky():
+        value = next(states)
+        if isinstance(value, Exception):
+            raise value
+        return iter(value)
+
+    connection = FakeConnection()
+    connection.all_hardware_constraints = flaky
+    backend = QarnotBackend(connection=connection)
+
+    assert backend.launch_options().degraded is True
+    assert backend.launch_options().degraded is False
