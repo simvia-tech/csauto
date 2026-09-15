@@ -321,3 +321,39 @@ def test_qarnot_is_a_registered_backend() -> None:
     from csauto.backends import available_backends
 
     assert "qarnot" in available_backends()
+
+
+def test_cancel_leaves_a_finished_task_alone() -> None:
+    """Qarnot refuses to abort a finished task, and Stop must not blow up."""
+    task = PolledTask("Success")
+    backend = _backend_with(task)
+
+    backend.cancel("task-0001")
+
+    assert task.aborted is False
+
+
+def test_cancel_tolerates_a_task_that_finished_mid_call() -> None:
+    """The task can end between reading its state and aborting it."""
+    task = PolledTask("FullyExecuting")
+
+    def abort() -> None:
+        raise RuntimeError("Invalid operation on non-running task")
+
+    task.abort = abort  # type: ignore[method-assign]
+    backend = _backend_with(task)
+
+    backend.cancel("task-0001")
+
+
+def test_cancel_still_reports_a_real_failure() -> None:
+    task = PolledTask("FullyExecuting")
+
+    def abort() -> None:
+        raise RuntimeError("invalid credentials")
+
+    task.abort = abort  # type: ignore[method-assign]
+    backend = _backend_with(task)
+
+    with pytest.raises(RuntimeError, match="invalid credentials"):
+        backend.cancel("task-0001")

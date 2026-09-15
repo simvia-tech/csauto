@@ -212,7 +212,22 @@ class QarnotBackend:
         self._task(task_id).results.get_all_files(str(case_dir))
 
     def cancel(self, task_id: str) -> None:
-        self._task(task_id).abort()
+        """Abort the task, unless it has already finished.
+
+        Qarnot refuses to abort a finished task ("Invalid operation on
+        non-running task"). Stopping something that already stopped is not an
+        error for a user pressing Stop, so a terminal task is left alone, and
+        the same refusal is tolerated when the task ends between the state read
+        and the abort. Any other failure is still reported.
+        """
+        task = self._task(task_id)
+        if _STATES.get(str(getattr(task, "state", "")).strip().lower(), "PENDING") in ("DONE", "FAILED"):
+            return
+        try:
+            task.abort()
+        except Exception as exc:
+            if "non-running" not in str(exc).lower():
+                raise
 
     def _task(self, task_id: str) -> Any:
         return self._connect().retrieve_task(str(task_id))
