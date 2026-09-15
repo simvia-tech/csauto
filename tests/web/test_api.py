@@ -1445,3 +1445,35 @@ def test_run_case_rejects_an_unknown_backend(web_env) -> None:
 
     assert excinfo.value.code == 400
     assert "not-a-backend" in json.loads(excinfo.value.read())["detail"]
+
+
+def test_run_case_forwards_the_launch_options(monkeypatch, web_env) -> None:
+    base_url, _case_dir = web_env
+    seen: dict[str, object] = {}
+
+    def fake_run_cases(*args, **kwargs):
+        seen.update(kwargs)
+
+    monkeypatch.setattr("csauto.fastapi_routes.actions.run_cases", fake_run_cases)
+
+    status, _body = _http_post(
+        f"{base_url}/api/run_case",
+        {"cases": ["case0001"], "n": 1, "nt": 1, "backend": "fake", "options": {"speed": "fast"}},
+    )
+
+    assert status == 200
+    assert seen["options"] == {"speed": "fast"}
+
+
+def test_run_case_without_options_forwards_none(monkeypatch, web_env) -> None:
+    base_url, _case_dir = web_env
+    seen: dict[str, object] = {}
+
+    def fake_run_cases(*args, **kwargs):
+        seen.update(kwargs)
+
+    monkeypatch.setattr("csauto.fastapi_routes.actions.run_cases", fake_run_cases)
+
+    _http_post(f"{base_url}/api/run_case", {"cases": ["case0001"], "n": 1, "nt": 1})
+
+    assert seen.get("options") is None

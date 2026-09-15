@@ -64,6 +64,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         nt: int | None = None
         max_parallel: int | None = None
         backend: str | None = None
+        options: dict[str, str] | None = None
         restart: bool = False
         restart_mode: str = ""
         restart_value: int | float | None = None
@@ -498,6 +499,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
                 source="web",
                 adapter=ctx.adapter,
                 backend=backend,
+                options=payload.options,
             )
         except ctx.http_exception_cls:
             raise

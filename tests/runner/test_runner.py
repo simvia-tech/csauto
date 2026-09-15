@@ -1221,10 +1221,10 @@ def test_backend_argv_uses_a_relative_case_path(monkeypatch, runs_dir, case_fact
     submitted: dict[str, object] = {}
     original_submit = backend.submit
 
-    def record(case_dir, argv, image, nprocs, nt, observability_globs=()):
+    def record(case_dir, argv, image, nprocs, nt, observability_globs=(), options=None):
         submitted["argv"] = list(argv)
         submitted["globs"] = tuple(observability_globs)
-        return original_submit(case_dir, argv, image, nprocs, nt, observability_globs)
+        return original_submit(case_dir, argv, image, nprocs, nt, observability_globs, options or {})
 
     backend.submit = record  # type: ignore[method-assign]
     monkeypatch.setattr("csauto.backends.get_backend", lambda _name: backend)
@@ -1300,7 +1300,7 @@ def test_submitting_to_a_backend_does_not_hold_the_registry_lock(monkeypatch, ru
     original_submit = backend.submit
     readable: list[bool] = []
 
-    def probing_submit(case_dir, argv, image, nprocs, nt, observability_globs=()):
+    def probing_submit(case_dir, argv, image, nprocs, nt, observability_globs=(), options=None):
         done = threading.Event()
 
         def read_registry() -> None:
@@ -1309,7 +1309,7 @@ def test_submitting_to_a_backend_does_not_hold_the_registry_lock(monkeypatch, ru
 
         threading.Thread(target=read_registry, daemon=True).start()
         readable.append(done.wait(timeout=5))
-        return original_submit(case_dir, argv, image, nprocs, nt, observability_globs)
+        return original_submit(case_dir, argv, image, nprocs, nt, observability_globs, options or {})
 
     backend.submit = probing_submit  # type: ignore[method-assign]
     monkeypatch.setattr("csauto.backends.get_backend", lambda _name: backend)
@@ -1329,3 +1329,87 @@ def test_submitting_to_a_backend_does_not_hold_the_registry_lock(monkeypatch, ru
 
     assert readable == [True], "the registry lock was held across the backend submit"
     assert load_registry(runs_dir)["case0001"]["status"] == STATUS_RUNNING
+
+
+def test_launch_options_reach_the_backend(monkeypatch, runs_dir, case_factory) -> None:
+    """The core carries the values without reading them."""
+    from csauto.backends.fake import FakeBackend
+
+    case_factory(runs_dir, "case0001")
+    backend = FakeBackend(script=["RUNNING"])
+    monkeypatch.setattr("csauto.backends.get_backend", lambda _name: backend)
+    monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
+
+    run_cases(
+        runs_dir,
+        nprocs=1,
+        nt=1,
+        max_parallel=1,
+        case_filter=["case0001"],
+        docker_image="image",
+        resume_only_failed=False,
+        source="test",
+        backend="fake",
+        options={"speed": "fast"},
+    )
+
+    assert backend.submitted_options == {"speed": "fast"}
+
+
+def test_launch_options_are_recorded_in_the_case_history(monkeypatch, runs_dir, case_factory) -> None:
+    """An audit should show what a run asked for, and what it cost."""
+    import json
+
+    from csauto.backends.fake import FakeBackend
+
+    case_dir = case_factory(runs_dir, "case0001")
+    backend = FakeBackend(script=["RUNNING"])
+    monkeypatch.setattr("csauto.backends.get_backend", lambda _name: backend)
+    monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
+
+    run_cases(
+        runs_dir,
+        nprocs=1,
+        nt=1,
+        max_parallel=1,
+        case_filter=["case0001"],
+        docker_image="image",
+        resume_only_failed=False,
+        source="test",
+        backend="fake",
+        options={"speed": "fast"},
+    )
+
+    entries = [json.loads(line) for line in (case_dir / ".csauto.history.jsonl").read_text().splitlines()]
+    runs = [entry for entry in entries if entry["action"] == "run"]
+    assert runs[-1]["details"]["options"] == {"speed": "fast"}
+
+
+def test_a_local_run_records_no_options(monkeypatch, runs_dir, case_factory) -> None:
+    """Options belong to a backend launch; a local run must not grow a field."""
+    import json
+
+    case_dir = case_factory(runs_dir, "case0001")
+    monkeypatch.setattr("csauto.runner.read_container_id", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
+
+    class DummyProc:
+        def __init__(self, pid: int = 12345) -> None:
+            self.pid = pid
+
+    monkeypatch.setattr("subprocess.Popen", lambda *_args, **_kwargs: DummyProc())
+
+    run_cases(
+        runs_dir,
+        nprocs=1,
+        nt=1,
+        max_parallel=1,
+        case_filter=["case0001"],
+        docker_image="image",
+        resume_only_failed=False,
+        source="test",
+    )
+
+    entries = [json.loads(line) for line in (case_dir / ".csauto.history.jsonl").read_text().splitlines()]
+    runs = [entry for entry in entries if entry["action"] == "run"]
+    assert "options" not in runs[-1]["details"]

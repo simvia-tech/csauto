@@ -295,6 +295,7 @@ def _start_case(
     mpi_exec_options: str | None,
     source: str,
     backend_name: str | None = None,
+    options: Mapping[str, str] | None = None,
 ) -> bool:
     """Launch a single case. Returns True if launched, False if skipped."""
     case_id = case_dir.name
@@ -392,12 +393,15 @@ def _start_case(
             nt,
             backend_name or "",
             adapter.observability_globs,
+            dict(options or {}),
             runs_dir,
             base_update,
         )
 
     history_details: dict[str, Any] = {"n": nprocs, "nt": nt, "runtime": selection.runtime}
     history_details.update(restart_details)
+    if backend_name and options:
+        history_details["options"] = dict(options)
     if scheduler:
         history_details["scheduler"] = scheduler
         history_details["job_id"] = scheduler_job_id
@@ -494,6 +498,7 @@ def _launch_backend(
     nt: int,
     backend_name: str,
     observability_globs: Sequence[str],
+    options: Mapping[str, str],
     runs_dir: Path,
     base_update: dict[str, Any],
 ) -> None:
@@ -513,7 +518,7 @@ def _launch_backend(
     backend = get_backend(backend_name)
     try:
         print(f"Submitting {case_id} to backend {backend_name}.")
-        task_id = backend.submit(case_dir, argv, image, nprocs, nt, observability_globs)
+        task_id = backend.submit(case_dir, argv, image, nprocs, nt, observability_globs, options)
     except Exception as exc:
 
         def mark_failed(registry: dict[str, Any]) -> bool:
@@ -636,6 +641,7 @@ def run_cases(
     source: str = "cli",
     adapter: SolverAdapter | None = None,
     backend: str | None = None,
+    options: Mapping[str, str] | None = None,
 ) -> None:
     """Launch solver runs for each case directory."""
     if nprocs <= 0 or nt <= 0:
@@ -709,6 +715,7 @@ def run_cases(
                 mpi_exec_options=mpi_exec_options,
                 source=source,
                 backend_name=backend,
+                options=options,
             ):
                 launched += 1
 
