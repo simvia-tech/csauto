@@ -17,7 +17,6 @@ export interface ProbeLoaderConfig {
   scope: "monitoring" | "profiles";
   getState: () => ProbeTabState;
   setState: (partial: Partial<ProbeTabState>) => void;
-  setHasData: (v: boolean) => void;
   /** Filter raw columns after fetching (e.g. exclude axis columns for time probes) */
   filterColumns?: (cols: string[]) => string[];
   /** Pick defaults after columns are loaded (e.g. auto-select axis for profiles) */
@@ -29,7 +28,7 @@ export interface ProbeLoaderConfig {
 }
 
 export function createProbeLoader(config: ProbeLoaderConfig) {
-  const { scope, getState, setState, setHasData, getAxis } = config;
+  const { scope, getState, setState, getAxis } = config;
 
   async function loadFiles() {
     const state = getState();
@@ -38,7 +37,10 @@ export function createProbeLoader(config: ProbeLoaderConfig) {
       let files = await fetchProbeFiles(state.selectedCases, scope);
       if (config.filterFiles) files = config.filterFiles(files);
       setState({ files });
-      setHasData(files.length > 0);
+      // Deliberately not touching the tab's availability flag: that one says
+      // whether the campaign has any probe data at all, and ProbesCard owns it.
+      // Overwriting it from the current selection disabled the tab as soon as a
+      // user picked a case that had not run, leaving no way back.
       if (files.length === 0) {
         setState({
           file: "",

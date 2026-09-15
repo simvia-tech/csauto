@@ -14,11 +14,7 @@
   import { Download } from "lucide-svelte";
   import { savePngFromContainer, buildPlotFilename } from "$lib/actions/export";
   import { createProbeLoader } from "$lib/actions/probeLoader";
-  import {
-    getTimeState,
-    setTimeState,
-    setTimeHasData,
-  } from "$lib/stores/probes.svelte";
+  import { getTimeState, setTimeState } from "$lib/stores/probes.svelte";
   import { fetchProbePosition } from "$lib/api/endpoints";
 
   interface Props {
@@ -36,7 +32,6 @@
     scope: "monitoring",
     getState: getTimeState,
     setState: setTimeState,
-    setHasData: setTimeHasData,
     filterFiles: (files) =>
       files.filter((f) => {
         const stem = f.replace(/\.csv$/i, "").toLowerCase();
@@ -132,13 +127,18 @@
   let emptyMessage = $derived(
     state.selectedCases.length === 0
       ? "Please select at least one case."
-      : state.selectedColumns.length === 0
-        ? "Please select at least one probe."
-        : "No data to display.",
+      : state.files.length === 0
+        ? "No probe data for the selected cases yet."
+        : state.selectedColumns.length === 0
+          ? "Please select at least one probe."
+          : "No data to display.",
   );
 </script>
 
-{#if state.files.length > 0}
+<!-- The controls stay put even with nothing to plot: hiding them with the
+     plot would strand a user who picked a case that has not run yet, with no
+     selector left to pick another. -->
+{#if allCases.length > 0}
   <PlotControls
     prefix="probe"
     {allCases}
