@@ -94,3 +94,19 @@ csauto shows no price estimate: it has no pricing figure it can vouch for, and a
 wrong number on a launch button would be worse than none. What it does do is
 refuse an oversized upload before submission, and record the execution time and
 core count of each case afterwards.
+
+## Verifying against the real API
+
+Every other Qarnot test runs against a fake connection, which proves what csauto
+asks Qarnot to do. One test proves what Qarnot does with it, and it is the only
+one that costs money, so it is skipped unless you ask for it:
+
+```bash
+CSAUTO_QARNOT_LIVE=1 QARNOT_TOKEN=... .venv/bin/python -m pytest \
+    tests/integration/test_qarnot_live.py -q -s
+```
+
+It submits one `alpine` task of about a minute, and asserts the three claims the
+design rests on: that the case inputs arrive in the task's working directory,
+that a partial result comes back while the task is still running, and that the
+full results land on local disk. It cancels the task even when it fails.
