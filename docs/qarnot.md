@@ -92,15 +92,24 @@ Memory floors, GPUs and CPU models are not exposed yet.
 
 ## What is uploaded, and what comes back
 
-The remote working directory is the **study**, not the case: the case travels in
-a directory of its own and the shared directories sit beside it, mirroring
-`RUNS/` locally. code_saturne looks for its mesh in `<study>/MESH`, so a shared
-directory placed inside the case directory would be invisible to it.
+The remote working directory **is** the case: it is the only place a task may
+write, so the campaign's shared directories land inside it rather than beside
+it, unlike the local `RUNS/` layout.
 
 ```
-/job/MESH/mesh1.med          the campaign's shared directories
-/job/case0001/DATA/setup.xml the case
+/job/DATA/setup.xml   the case
+/job/MESH/mesh1.med   the campaign's shared directories, inside it
 ```
+
+A solver that expects them elsewhere is told by its own adapter, through
+`prepare_remote_case`. code_saturne resolves a bare mesh name against
+`<study>/MESH`, which a remote task has no parent for, so its adapter adds a
+`<meshdir>` entry to `setup.xml`. The entry is harmless locally: code_saturne
+keeps the study directory as a fallback.
+
+Only the results directory comes back. Without that restriction a task would
+also return the shared directories it was handed, re-downloading a mesh of
+several gigabytes on every run.
 
 
 | Bucket | Content | Uploaded |

@@ -170,6 +170,8 @@ class SolverAdapter(Protocol):
         start_time: str | None = None,
     ) -> dict[str, Any]: ...
 
+    def prepare_remote_case(self, case_dir: Path) -> None: ...
+
 
 class SolverAdapterBase(ABC):
     """Shared composition and safe defaults for solver adapters."""
@@ -413,6 +415,16 @@ class SolverAdapterBase(ABC):
 
     def parse_performance(self, path: Path) -> dict[str, str | None]:
         return {}
+
+    def prepare_remote_case(self, case_dir: Path) -> None:  # noqa: B027 - optional hook, not abstract
+        """Adjust a case about to run on an execution backend. Does nothing by default.
+
+        A backend lays the campaign's shared directories *inside* the case
+        directory, because a remote task has a single working directory and no
+        parent to put them in. A solver that expects them somewhere else has to
+        be told, and only the adapter knows how to tell it. Must never raise:
+        preparing is not allowed to be the thing that fails a launch.
+        """
 
     def doctor_checks(
         self,

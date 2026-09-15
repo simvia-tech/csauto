@@ -140,6 +140,13 @@ snapshot expects. Everything Qarnot-specific (the SDK, the buckets, the
 than API calls, so they are testable with no SDK. See
 [Running a campaign on Qarnot](./qarnot.md).
 
+A backend's remote working directory **is** the case directory, and the
+campaign's shared directories sit inside it: a remote task has one writable
+directory and no parent to put them in. A solver that expects them elsewhere is
+adjusted by its own adapter, through `SolverAdapter.prepare_remote_case`, which
+the runner calls before any backend launch. That keeps the backend ignorant of
+solvers and the adapter ignorant of providers.
+
 `local` and Slurm are not behind this contract. They predate it and work; porting
 them is a later, mechanical refactor.
 

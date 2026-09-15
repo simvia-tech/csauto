@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 
@@ -461,3 +462,78 @@ def test_an_adapter_that_declares_nothing_has_no_observability_globs() -> None:
     from csauto.solvers.base import SolverAdapterBase
 
     assert SolverAdapterBase.observability_globs == ()
+
+
+def test_an_adapter_prepares_nothing_for_a_remote_case_by_default(tmp_path: Path) -> None:
+    from csauto.solvers.stub import StubAdapter
+
+    before = sorted(p.name for p in tmp_path.iterdir())
+    StubAdapter().prepare_remote_case(tmp_path)
+
+    assert sorted(p.name for p in tmp_path.iterdir()) == before
+
+
+def _setup_with_meshes(case_dir: Path) -> Path:
+    setup = case_dir / "DATA" / "setup.xml"
+    setup.parent.mkdir(parents=True, exist_ok=True)
+    setup.write_text(
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        "<Code_Saturne_GUI><solution_domain><meshes_list>"
+        '<mesh name="mesh1.med"/></meshes_list></solution_domain></Code_Saturne_GUI>\n',
+        encoding="utf-8",
+    )
+    return setup
+
+
+def test_code_saturne_points_setup_at_the_mesh_dir_inside_the_case(tmp_path: Path) -> None:
+    """A backend puts the shared dirs inside the case; code_saturne looks beside it."""
+    import xml.etree.ElementTree as ET
+
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    setup = _setup_with_meshes(tmp_path)
+
+    CodeSaturneAdapter().prepare_remote_case(tmp_path)
+
+    node = ET.parse(setup).getroot().find(".//solution_domain/meshes_list/meshdir")
+    assert node is not None
+    assert node.get("name") == "MESH"
+
+
+def test_code_saturne_leaves_an_existing_mesh_dir_alone(tmp_path: Path) -> None:
+    import xml.etree.ElementTree as ET
+
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    setup = _setup_with_meshes(tmp_path)
+    setup.write_text(
+        setup.read_text(encoding="utf-8").replace("<meshes_list>", '<meshes_list><meshdir name="ELSEWHERE"/>'),
+        encoding="utf-8",
+    )
+
+    CodeSaturneAdapter().prepare_remote_case(tmp_path)
+
+    nodes = ET.parse(setup).getroot().findall(".//solution_domain/meshes_list/meshdir")
+    assert [n.get("name") for n in nodes] == ["ELSEWHERE"]
+
+
+def test_code_saturne_prepare_is_idempotent(tmp_path: Path) -> None:
+    import xml.etree.ElementTree as ET
+
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    setup = _setup_with_meshes(tmp_path)
+    adapter = CodeSaturneAdapter()
+
+    adapter.prepare_remote_case(tmp_path)
+    adapter.prepare_remote_case(tmp_path)
+
+    nodes = ET.parse(setup).getroot().findall(".//solution_domain/meshes_list/meshdir")
+    assert len(nodes) == 1
+
+
+def test_code_saturne_prepare_survives_a_case_without_a_setup(tmp_path: Path) -> None:
+    """Preparing must never be the thing that fails a launch."""
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    CodeSaturneAdapter().prepare_remote_case(tmp_path)

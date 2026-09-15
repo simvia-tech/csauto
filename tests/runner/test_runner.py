@@ -1212,11 +1212,11 @@ def test_refresh_status_ignores_the_reserved_backend_key(runs_dir, case_factory)
     assert [row["case_id"] for row in rows] == ["case0001"]
 
 
-def test_backend_argv_names_the_case_not_a_host_path(monkeypatch, runs_dir, case_factory) -> None:
+def test_backend_argv_uses_a_relative_case_path(monkeypatch, runs_dir, case_factory) -> None:
     """The remote container has no idea where the case lives on this machine.
 
-    It gets the case name: a backend lays the case out inside the remote
-    working directory, which plays the role the campaign directory plays here.
+    Its working directory is the case, the only place it may write, so the
+    path is relative and the host path never travels.
     """
     from csauto.backends.fake import FakeBackend
 
@@ -1247,7 +1247,7 @@ def test_backend_argv_names_the_case_not_a_host_path(monkeypatch, runs_dir, case
     )
 
     assert str(runs_dir) not in " ".join(str(part) for part in submitted["argv"])
-    assert "case0001" in submitted["argv"]
+    assert "." in submitted["argv"]
     assert submitted["globs"], "the adapter's observability patterns must reach the backend"
 
 
@@ -1417,3 +1417,69 @@ def test_a_local_run_records_no_options(monkeypatch, runs_dir, case_factory) -> 
     entries = [json.loads(line) for line in (case_dir / ".csauto.history.jsonl").read_text().splitlines()]
     runs = [entry for entry in entries if entry["action"] == "run"]
     assert "options" not in runs[-1]["details"]
+
+
+def test_a_backend_launch_prepares_the_case_first(monkeypatch, runs_dir, case_factory) -> None:
+    """The shared dirs land inside the case remotely; the adapter adjusts for it."""
+    from csauto.backends.fake import FakeBackend
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    case_factory(runs_dir, "case0001")
+    backend = FakeBackend(script=["RUNNING"])
+    calls: list[str] = []
+
+    class Adapter(CodeSaturneAdapter):
+        def prepare_remote_case(self, case_dir) -> None:
+            calls.append(case_dir.name)
+
+    monkeypatch.setattr("csauto.backends.get_backend", lambda _name: backend)
+    monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
+
+    run_cases(
+        runs_dir,
+        nprocs=1,
+        nt=1,
+        max_parallel=1,
+        case_filter=["case0001"],
+        docker_image="image",
+        resume_only_failed=False,
+        source="test",
+        backend="fake",
+        adapter=Adapter(),
+    )
+
+    assert calls == ["case0001"]
+
+
+def test_a_local_launch_does_not_prepare_a_remote_case(monkeypatch, runs_dir, case_factory) -> None:
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    case_factory(runs_dir, "case0001")
+    calls: list[str] = []
+
+    class Adapter(CodeSaturneAdapter):
+        def prepare_remote_case(self, case_dir) -> None:
+            calls.append(case_dir.name)
+
+    monkeypatch.setattr("csauto.runner.read_container_id", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
+
+    class DummyProc:
+        def __init__(self, pid: int = 12345) -> None:
+            self.pid = pid
+
+    monkeypatch.setattr("subprocess.Popen", lambda *_args, **_kwargs: DummyProc())
+
+    run_cases(
+        runs_dir,
+        nprocs=1,
+        nt=1,
+        max_parallel=1,
+        case_filter=["case0001"],
+        docker_image="image",
+        resume_only_failed=False,
+        source="test",
+        adapter=Adapter(),
+    )
+
+    assert calls == []

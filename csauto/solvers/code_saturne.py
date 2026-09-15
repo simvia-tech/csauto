@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import math
 import re
 import shlex
@@ -381,6 +382,36 @@ class CodeSaturneAdapter(SolverAdapterBase):
 
     def locate_case_file(self, case_dir: Path, name: str) -> Path | None:
         return locate_case_file(case_dir, name)
+
+    def prepare_remote_case(self, case_dir: Path) -> None:
+        """Point setup.xml at the MESH directory a backend places inside the case.
+
+        code_saturne resolves a bare mesh name against `<study>/MESH`, the
+        parent of the case directory, which a remote task does not have. It
+        also honours `<meshdir>` in setup.xml, resolved against the case
+        directory itself (`cs_case_domain.py:1229`), and it keeps the study
+        directory as a fallback, so the entry is harmless for a local run.
+        """
+        import xml.etree.ElementTree as ElementTree
+
+        try:
+            setup = self.find_setup_file(case_dir)
+            tree = ElementTree.parse(setup)
+        except Exception:
+            # A case with no readable setup fails later, with a better message.
+            return
+
+        meshes = tree.getroot().find(".//solution_domain/meshes_list")
+        if meshes is None or meshes.find("meshdir") is not None:
+            return
+        shared = self.shared_dir_names[0] if self.shared_dir_names else ""
+        if not shared:
+            return
+        node = ElementTree.Element("meshdir")
+        node.set("name", shared)
+        meshes.insert(0, node)
+        with contextlib.suppress(OSError):
+            tree.write(setup, encoding="utf-8", xml_declaration=True)
 
     def find_setup_file(self, template_dir: Path) -> Path:
         return find_setup_file(template_dir)

@@ -359,10 +359,10 @@ def _start_case(
             # remote API, and doing that under the registry lock freezes every
             # reader for its duration, the dashboard's own status route
             # included. The submit happens below, with no lock held.
-            # The case name, not a host path and not ".": a backend lays the
-            # case out inside the remote working directory, which plays the
-            # role the campaign directory plays locally.
-            backend_argv = adapter.run_argv(case_dir.name, nprocs, nt, restart_args)
+            # A relative path: the remote working directory *is* the case, the
+            # only directory a task can write to, and the host path means
+            # nothing over there.
+            backend_argv = adapter.run_argv(".", nprocs, nt, restart_args)
         elif use_slurm_scheduler:
             _launch_slurm(
                 case_dir,
@@ -385,6 +385,10 @@ def _start_case(
         scheduler_job_id = registry.get(case_id, {}).get("job_id")
 
     if backend_argv is not None:
+        # The backend puts the campaign's shared directories inside the case,
+        # because a remote task has one working directory and no parent. Only
+        # the adapter knows what its solver needs in order to cope.
+        adapter.prepare_remote_case(case_dir)
         _launch_backend(
             case_dir,
             case_id,

@@ -159,3 +159,17 @@ ships a header logo today; adding one means editing
 the Simvia mark and switches to `/favicon-<name>.svg` automatically when that
 asset exists — drop a `favicon-<name>.svg` into `frontend/static/` and rebuild
 the frontend to ship one.
+
+## Running on an execution backend
+
+A backend's remote working directory is the case directory, and the campaign's
+shared directories (whatever `shared_dir_names` declares) sit **inside** it,
+because a remote task has a single writable directory and no parent.
+
+If your solver resolves those directories relative to something else, override
+`prepare_remote_case(case_dir)` to tell it. It is called once, before the case
+is uploaded, and must never raise: preparing is not allowed to be the thing
+that fails a launch. `CodeSaturneAdapter` is the worked example, adding a
+`<meshdir>` entry to `setup.xml`.
+
+Solvers that need nothing leave it alone; the default does nothing.

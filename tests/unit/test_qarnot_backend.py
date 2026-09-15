@@ -165,7 +165,7 @@ def test_submit_uploads_the_case_inputs_but_not_the_mesh(campaign: Path) -> None
     _submit(QarnotBackend(connection=connection), campaign)
 
     case_bucket = next(b for b in connection.buckets.values() if b.uuid.endswith("-case0001"))
-    assert set(case_bucket.files) == {"case0001/DATA/setup.xml", "case0001/doe_row.csv"}
+    assert set(case_bucket.files) == {"DATA/setup.xml", "doe_row.csv"}
 
 
 def test_submit_uploads_the_shared_directories_once_per_campaign(campaign: Path) -> None:
@@ -198,7 +198,7 @@ def test_submit_whitelists_only_the_observability_files(campaign: Path) -> None:
     _submit(QarnotBackend(connection=connection), campaign)
 
     task = connection.tasks[0]
-    assert re.match(task.snapshot_whitelist, "case0001/RESU/r1/listing")
+    assert re.match(task.snapshot_whitelist, "RESU/r1/listing")
     assert task.snapshot_calls == [(60, task.snapshot_whitelist)]
 
 
@@ -620,34 +620,8 @@ def test_submit_always_keeps_the_chosen_node(campaign: Path) -> None:
     assert constraints == [{"discriminator": "SpecificHardwareConstraint", "specificationKey": "r640-a"}]
 
 
-def test_submit_uploads_the_case_into_its_own_directory(campaign: Path) -> None:
-    """The task's working directory is the study, not the case.
-
-    code_saturne looks for the mesh in <study>/MESH, so the remote layout has
-    to mirror the local one: shared dirs beside the case, never inside it.
-    """
-    connection = FakeConnection()
-
-    _submit(QarnotBackend(connection=connection), campaign)
-
-    case_bucket = next(b for b in connection.buckets.values() if b.uuid.endswith("-case0001"))
-    assert set(case_bucket.files) == {"case0001/DATA/setup.xml", "case0001/doe_row.csv"}
-
-
-def test_the_snapshot_whitelist_is_scoped_to_the_case_directory(campaign: Path) -> None:
-    import re
-
-    connection = FakeConnection()
-
-    _submit(QarnotBackend(connection=connection), campaign)
-
-    pattern = connection.tasks[0].snapshot_whitelist
-    assert re.match(pattern, "case0001/RESU/r1/listing")
-    assert not re.match(pattern, "RESU/r1/listing")
-
-
-def test_the_results_are_restricted_to_the_case_directory(campaign: Path) -> None:
-    """RUNS/MESH is a symlink to the user's mesh; the results must not reach it."""
+def test_only_the_results_directory_comes_back(campaign: Path) -> None:
+    """The task is handed the shared mesh; it must not hand it back every run."""
     import re
 
     connection = FakeConnection()
@@ -655,26 +629,25 @@ def test_the_results_are_restricted_to_the_case_directory(campaign: Path) -> Non
     _submit(QarnotBackend(connection=connection), campaign)
 
     pattern = connection.tasks[0].results_whitelist
-    assert re.match(pattern, "case0001/RESU/r1/listing")
+    assert re.match(pattern, "RESU/r1/listing")
     assert not re.match(pattern, "MESH/mesh1.med")
 
 
-def test_sync_downloads_into_the_campaign_directory(tmp_path: Path) -> None:
-    """Remote paths carry the case prefix, so they land beside the campaign."""
+def test_sync_downloads_into_the_case_directory(tmp_path: Path) -> None:
     task = PolledTask("FullyExecuting")
     backend = _backend_with(task)
 
-    backend.sync("task-0001", tmp_path / "RUNS" / "case0001")
+    backend.sync("task-0001", tmp_path / "case0001")
 
-    assert task.downloaded == [str(tmp_path / "RUNS")]
+    assert task.downloaded == [str(tmp_path / "case0001")]
 
 
-def test_fetch_final_downloads_into_the_campaign_directory(tmp_path: Path) -> None:
+def test_fetch_final_pulls_the_whole_results_bucket(tmp_path: Path) -> None:
     task = PolledTask("Success")
     pulled: list[str] = []
     task.results.get_all_files = lambda output_dir, progress=None: pulled.append(output_dir)  # type: ignore[attr-defined]
     backend = _backend_with(task)
 
-    backend.fetch_final("task-0001", tmp_path / "RUNS" / "case0001")
+    backend.fetch_final("task-0001", tmp_path / "case0001")
 
-    assert pulled == [str(tmp_path / "RUNS")]
+    assert pulled == [str(tmp_path / "case0001")]

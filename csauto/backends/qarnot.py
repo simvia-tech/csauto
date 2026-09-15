@@ -213,14 +213,13 @@ class QarnotBackend:
         connection = self._connect()
         campaign = bucket_name(runs_dir)
 
-        # The remote working directory is the *study*, not the case: the case
-        # goes in a directory of its own, the campaign's shared directories sit
-        # beside it, and the layout matches what works locally. code_saturne
-        # looks for its mesh in <study>/MESH, so shared dirs inside the case
-        # directory are invisible to it.
+        # The remote working directory *is* the case: it is the only place a
+        # task may write, so the campaign's shared directories land inside it
+        # rather than beside it. `adapter.prepare_remote_case` has already
+        # adjusted the case for that, whatever its solver needs.
         case_bucket = connection.retrieve_or_create_bucket(f"{campaign}-{case_dir.name}")
         for relative in plan.paths:
-            case_bucket.add_file(str(case_dir / relative), f"{case_dir.name}/{relative}")
+            case_bucket.add_file(str(case_dir / relative), relative)
 
         resources = [case_bucket]
         shared_bucket = self._shared_bucket(connection, runs_dir, adapter, campaign)
@@ -249,16 +248,13 @@ class QarnotBackend:
         task.hardware_constraints = constraints
         task.scheduling_type = scheduling_choice(str(options.get("scheduling") or "Flex"))
 
-        # Both filters are regexes over remote paths, which now carry the case
-        # prefix. The results filter also keeps the task from writing anywhere
-        # near the campaign's shared directories: RUNS/MESH is a symlink to the
-        # user's own mesh, and a download through it would corrupt the source.
-        prefix = re.escape(f"{case_dir.name}/")
-        declared = snapshot_whitelist(observability_globs)
-        whitelist = "|".join(f"{prefix}{part}" for part in declared.split("|")) if declared else ""
+        # Only the results directory comes back. Without this the task would
+        # also return the shared directories it was given, re-downloading a
+        # mesh of several gigabytes into the case on every run.
+        whitelist = snapshot_whitelist(observability_globs)
         if whitelist:
             task.snapshot_whitelist = whitelist
-        task.results_whitelist = f"{prefix}.*"
+        task.results_whitelist = f"{re.escape(adapter.results_dirname)}/.*"
         task.submit()
         if whitelist:
             task.snapshot(config.qarnot_snapshot_interval_s, whitelist=whitelist)
@@ -318,9 +314,8 @@ class QarnotBackend:
         whitelisted paths under the results directory, so the case inputs are
         never overwritten.
         """
-        target = Path(case_dir).parent
-        target.mkdir(parents=True, exist_ok=True)
-        self._task(task_id).download_results(str(target))
+        Path(case_dir).mkdir(parents=True, exist_ok=True)
+        self._task(task_id).download_results(str(case_dir))
 
     def fetch_final(self, task_id: str, case_dir: Path) -> None:
         """Pull the complete results, once, unconditionally.
@@ -328,9 +323,8 @@ class QarnotBackend:
         Not download_results: that one skips the transfer when the SDK thinks
         nothing changed, and DONE must mean the results really are on disk.
         """
-        target = Path(case_dir).parent
-        target.mkdir(parents=True, exist_ok=True)
-        self._task(task_id).results.get_all_files(str(target))
+        Path(case_dir).mkdir(parents=True, exist_ok=True)
+        self._task(task_id).results.get_all_files(str(case_dir))
 
     def cancel(self, task_id: str) -> None:
         """Abort the task, unless it has already finished.
