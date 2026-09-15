@@ -11,7 +11,7 @@ import itertools
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
-from .base import BackendState
+from .base import BackendState, LaunchOption, LaunchOptions
 
 
 class _FakeTask:
@@ -47,6 +47,20 @@ class FakeBackend:
         self.fail_fetch_final = fail_fetch_final
         self._tasks: dict[str, _FakeTask] = {}
         self._ids = itertools.count(1)
+        self.submitted_options: dict[str, str] = {}
+
+    def launch_options(self) -> LaunchOptions:
+        """One trivial option, so the whole path is exercised with no network."""
+        return LaunchOptions(
+            options=(
+                LaunchOption(
+                    key="speed",
+                    label="Speed",
+                    choices=(("slow", "Slow"), ("fast", "Fast")),
+                    default="slow",
+                ),
+            )
+        )
 
     def submit(
         self,
@@ -56,7 +70,9 @@ class FakeBackend:
         nprocs: int,
         nt: int,
         observability_globs: Sequence[str] = (),
+        options: Mapping[str, str] = {},
     ) -> str:
+        self.submitted_options = dict(options)
         task_id = f"fake-{next(self._ids):04d}"
         self._tasks[task_id] = _FakeTask(case_dir)
         return task_id

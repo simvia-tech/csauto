@@ -114,3 +114,48 @@ def test_fake_backend_can_be_told_to_fail_a_poll(tmp_path) -> None:
     with pytest.raises(RuntimeError, match="fake poll failure"):
         backend.poll(task_id)
     assert backend.poll(task_id).status == "RUNNING"
+
+
+def test_a_backend_declares_what_a_user_may_choose() -> None:
+    from pathlib import Path  # noqa: F401 - used by the sibling tests below
+
+    from csauto.backends.base import LaunchOptions
+    from csauto.backends.fake import FakeBackend
+
+    catalogue = FakeBackend().launch_options()
+
+    assert isinstance(catalogue, LaunchOptions)
+    assert catalogue.degraded is False
+    assert [option.key for option in catalogue.options] == ["speed"]
+
+
+def test_a_declared_option_carries_its_choices_and_default() -> None:
+    from csauto.backends.base import LaunchOption
+    from csauto.backends.fake import FakeBackend
+
+    option = FakeBackend().launch_options().options[0]
+
+    assert isinstance(option, LaunchOption)
+    assert option.default == "slow"
+    assert dict(option.choices) == {"slow": "Slow", "fast": "Fast"}
+
+
+def test_submit_receives_the_chosen_options(tmp_path) -> None:
+    from csauto.backends.fake import FakeBackend
+
+    backend = FakeBackend()
+
+    backend.submit(tmp_path, ["run"], "img", 1, 1, (), {"speed": "fast"})
+
+    assert backend.submitted_options == {"speed": "fast"}
+
+
+def test_submit_without_options_receives_an_empty_mapping(tmp_path) -> None:
+    """Every existing caller omits the argument; none of them may break."""
+    from csauto.backends.fake import FakeBackend
+
+    backend = FakeBackend()
+
+    backend.submit(tmp_path, ["run"], "img", 1, 1)
+
+    assert backend.submitted_options == {}
