@@ -62,8 +62,6 @@ The toolbar provides:
 | `DURATION` | Elapsed time since launch |
 | `RESU SIZE (MB)` | Total RESU disk usage |
 | `LAST MODIFIED` | Timestamp of the last state change |
-| `CLOUD TIME (S)` | Execution time reported by the execution backend; empty for a local run |
-| `CLOUD CORES` | Cores the execution backend used; empty for a local run |
 
 Each row also has an **Open GUI** button to launch the code_saturne GUI for that case.
 
