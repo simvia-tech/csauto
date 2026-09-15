@@ -640,6 +640,11 @@ Rules:
 
 - `cases`, `n`, `nt` are required
 - `n`, `nt`, `max_parallel` must be integers `> 0`
+- `backend` is optional: the name of an execution backend to run on, taken from
+  the `backends` list returned by `GET /api/app_config`. Omit it, or send an
+  empty string, to run on the machine hosting the server. An unknown name is
+  rejected with HTTP 400. `GET /api/app_config` never returns a credential of
+  any kind: how a backend authenticates is not the dashboard's business
 - `restart_mode` accepted values: `iterations`, `physical_time`
 - `restart_value` must match selected mode constraints
 

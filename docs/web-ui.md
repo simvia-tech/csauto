@@ -62,6 +62,8 @@ The toolbar provides:
 | `DURATION` | Elapsed time since launch |
 | `RESU SIZE (MB)` | Total RESU disk usage |
 | `LAST MODIFIED` | Timestamp of the last state change |
+| `CLOUD TIME (S)` | Execution time reported by the execution backend; empty for a local run |
+| `CLOUD CORES` | Cores the execution backend used; empty for a local run |
 
 Each row also has an **Open GUI** button to launch the code_saturne GUI for that case.
 
@@ -81,6 +83,16 @@ With one or more cases selected, the action buttons activate:
 
 **Run**: launch the selected cases (`PREPARED`, `DONE`, or `FAILED`). A popup
 asks for `--n` (MPI ranks), `--nt` (OMP threads), and `--max-parallel`.
+
+When the server offers an execution backend, the popup gains a **Run on**
+selector. It defaults to **This machine**, which is the behaviour csauto has
+always had. Choosing a cloud backend restates, before you press the button, how
+many cases are about to be submitted and that they run on your own account and
+bill you for the compute.
+
+The choice is per launch, not per campaign: verify one case locally, then send
+the other ninety-nine to the cloud. See
+[Running a campaign on Qarnot](./qarnot.md).
 
 **Restart**: restart from the latest checkpoint. A popup asks for the
 stop criterion:

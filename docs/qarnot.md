@@ -21,6 +21,16 @@ csauto doctor RUNS --backend qarnot
 the campaign directory, which gets shared, committed and archived. csauto
 refuses to start if it finds a token in there.
 
+## Launching from the dashboard
+
+Start `csauto serve`, select the cases, press **Run**, and pick `qarnot` in the
+**Run on** selector. The dialog restates how many cases are about to be
+submitted before anything is sent.
+
+The selector only appears once the server can offer a backend, and the choice
+applies to that launch alone, so a campaign can be split between this machine
+and the cloud.
+
 ## Settings
 
 `csauto.toml` carries the non-sensitive settings only:
