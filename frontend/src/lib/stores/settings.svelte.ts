@@ -25,12 +25,21 @@ function readString(key: string, fallback: string): string {
   return localStorage.getItem(key) ?? fallback;
 }
 
+function writeString(key: string, value: string): void {
+  if (value) {
+    localStorage.setItem(key, value);
+  } else {
+    localStorage.removeItem(key);
+  }
+}
+
 /* Run settings */
 
 export interface RunSettings {
   n: number;
   nt: number;
   maxParallel: number | null;
+  backend?: string | null;
 }
 
 export function getRunSettings(): RunSettings {
@@ -38,6 +47,7 @@ export function getRunSettings(): RunSettings {
     n: readNumber("csauto_run_n", 1),
     nt: readNumber("csauto_run_nt", 1),
     maxParallel: readNumber("csauto_run_max_parallel", 0) || null,
+    backend: readString("csauto_run_backend", "") || null,
   };
 }
 
@@ -45,6 +55,7 @@ export function setRunSettings(s: RunSettings): void {
   writeNumber("csauto_run_n", s.n);
   writeNumber("csauto_run_nt", s.nt);
   if (s.maxParallel) writeNumber("csauto_run_max_parallel", s.maxParallel);
+  writeString("csauto_run_backend", s.backend ?? "");
 }
 
 /* Restart settings */

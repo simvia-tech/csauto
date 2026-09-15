@@ -92,6 +92,7 @@
         n: params.n,
         nt: params.nt,
         maxParallel: params.maxParallel,
+        backend: params.backend,
       });
       onRefresh();
     } catch (err) {

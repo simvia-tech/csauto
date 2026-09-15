@@ -194,6 +194,7 @@ export function runCase(params: {
   n: number;
   nt: number;
   maxParallel?: number | null;
+  backend?: string | null;
   restart?: boolean;
   restartMode?: string;
   restartValue?: number;
@@ -203,6 +204,7 @@ export function runCase(params: {
     n: params.n,
     nt: params.nt,
     max_parallel: params.maxParallel ?? undefined,
+    backend: params.backend ?? undefined,
     restart: params.restart ?? false,
     restart_mode: params.restartMode ?? "",
     restart_value: params.restartValue ?? undefined,

@@ -1,7 +1,9 @@
 <!--
-  RunDialog — configure MPI ranks, threads, and max parallel before running cases.
+  RunDialog — configure MPI ranks, threads, max parallel and where to run.
 
   Pre-fills from localStorage settings. Validates inputs before resolving.
+  The execution list comes from /api/app_config: this dialog never names a
+  cloud provider itself.
 -->
 <script lang="ts">
   import { closeDialog } from "$lib/actions/dialog.svelte";
@@ -10,6 +12,7 @@
   import Button from "$lib/components/shared/Button.svelte";
   import FormLabel from "$lib/components/shared/FormLabel.svelte";
   import { getRunSettings, setRunSettings } from "$lib/stores/settings.svelte";
+  import { getBackends } from "$lib/stores/appConfig.svelte";
   import type { RunParams } from "$lib/api/types";
 
   interface Props {
@@ -24,6 +27,12 @@
   let n = $state(saved.n);
   let nt = $state(saved.nt);
   let maxParallel = $state(defaultParallel);
+
+  /* "fake" is a test double, not something to offer a user. */
+  const backends = getBackends().filter((name) => name !== "fake");
+  let backend = $state(
+    backends.includes(saved.backend ?? "") ? (saved.backend as string) : "",
+  );
 
   async function confirm() {
     if (!Number.isFinite(n) || n <= 0) {
@@ -43,6 +52,7 @@
       n,
       nt,
       maxParallel: maxParallel || null,
+      backend: backend || null,
     };
     setRunSettings(params);
     closeDialog(params);
@@ -67,9 +77,36 @@
     </FormLabel>
   </div>
 
+  {#if backends.length}
+    <div class="mb-3">
+      <FormLabel text="Run on">
+        <select bind:value={backend}>
+          <option value="">This machine</option>
+          {#each backends as name (name)}
+            <option value={name}>{name}</option>
+          {/each}
+        </select>
+      </FormLabel>
+    </div>
+  {/if}
+
+  {#if backend}
+    <p
+      class="mb-3 rounded border border-amber-400/50 bg-amber-400/10 px-3 py-2 text-sm"
+      role="status"
+    >
+      About to submit <strong>{cases.length}</strong> case{cases.length > 1
+        ? "s"
+        : ""} to <strong>{backend}</strong>, which runs on your own account and
+      bills you for the compute. Results come back automatically.
+    </p>
+  {/if}
+
   {#snippet footer()}
     <Button variant="secondary" onclick={() => closeDialog(null)}>Cancel</Button
     >
-    <Button variant="run" onclick={confirm}>Run</Button>
+    <Button variant="run" onclick={confirm}
+      >{backend ? `Run on ${backend}` : "Run"}</Button
+    >
   {/snippet}
 </DialogShell>

@@ -33,3 +33,14 @@ export function hasCapability(name: string): boolean {
 export function hasControlAction(name: string): boolean {
   return config === null || config.control_actions.includes(name);
 }
+
+/**
+ * Execution backends the server offers, beside running on this machine.
+ *
+ * Empty while the config is null, unlike hasCapability which is permissive:
+ * offering a cloud run that the server may not support would let a user submit
+ * a campaign that fails, and a paid one at that. Local stays the safe default.
+ */
+export function getBackends(): string[] {
+  return config?.backends ?? [];
+}
