@@ -1483,3 +1483,60 @@ def test_a_local_launch_does_not_prepare_a_remote_case(monkeypatch, runs_dir, ca
     )
 
     assert calls == []
+
+
+def test_resu_size_expires_even_when_directory_mtimes_do_not_move(monkeypatch, runs_dir, case_factory) -> None:
+    """Some filesystems never bump a directory's mtime when files change inside it.
+
+    WSL2 is one, so a cache keyed on that mtime alone never invalidates and the
+    reported size stays frozen for the life of the process. A backend sync
+    writes into an existing run directory, which is exactly that case.
+    """
+    from csauto import runner
+    from csauto.runner import _cached_resu_size_mb
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    adapter = CodeSaturneAdapter()
+    case_dir = case_factory(runs_dir, "case0001")
+    run_dir = case_dir / "RESU" / "20260101-0000"
+    run_dir.mkdir(parents=True)
+    (run_dir / "listing").write_text("x" * 1024, encoding="utf-8")
+
+    now = 1000.0
+    monkeypatch.setattr(runner.time, "monotonic", lambda: now)
+    _mtime, first = _cached_resu_size_mb(case_dir, adapter)
+
+    (run_dir / "residuals.csv").write_text("y" * (512 * 1024), encoding="utf-8")
+    now += runner.RESU_SIZE_CACHE_TTL_S + 1
+    _mtime, second = _cached_resu_size_mb(case_dir, adapter)
+
+    assert first == 0.0
+    assert second is not None and second > first
+
+
+def test_resu_size_is_not_recomputed_within_its_cache_window(monkeypatch, runs_dir, case_factory) -> None:
+    """The status route is polled about once a second; walking RESU each time is not free."""
+    from csauto import runner
+    from csauto.runner import _cached_resu_size_mb
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    adapter = CodeSaturneAdapter()
+    case_dir = case_factory(runs_dir, "case0001")
+    run_dir = case_dir / "RESU" / "20260101-0000"
+    run_dir.mkdir(parents=True)
+    (run_dir / "listing").write_text("x" * 1024, encoding="utf-8")
+
+    walks: list[int] = []
+    real_size = runner._resu_size_mb
+
+    def counted(*args, **kwargs):
+        walks.append(1)
+        return real_size(*args, **kwargs)
+
+    monkeypatch.setattr(runner, "_resu_size_mb", counted)
+    monkeypatch.setattr(runner.time, "monotonic", lambda: 1000.0)
+
+    _cached_resu_size_mb(case_dir, adapter)
+    _cached_resu_size_mb(case_dir, adapter)
+
+    assert len(walks) == 1

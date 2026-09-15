@@ -560,6 +560,32 @@ Response:
 }
 ```
 
+## `POST /api/sync_backends`
+
+Purpose:
+
+- pull fresh data for the cases an execution backend owns, on demand
+
+Payload: none.
+
+Response:
+
+```json
+{ "status": "ok", "synced": true }
+```
+
+Rules:
+
+- throttled to one pass every ten seconds; `synced` says whether this call ran
+  one or found the window still open
+- never fails: a provider outage returns `synced: true` with nothing fetched,
+  because the caller is a Refresh click and must not be broken by it
+- the background loop in `csauto serve` already syncs on a timer; this exists so
+  pressing Refresh means something for a cloud case, whose local files only
+  change when a pass runs
+
+---
+
 ## `POST /api/kill_case`
 
 Purpose:

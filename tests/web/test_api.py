@@ -1525,3 +1525,25 @@ def test_launch_options_never_returns_a_credential(web_env) -> None:
 
     assert "token" not in body.lower()
     assert "secret" not in body.lower()
+
+
+def test_sync_backends_route_reports_whether_it_ran(web_env) -> None:
+    base_url, _case_dir = web_env
+
+    status, body = _http_post(f"{base_url}/api/sync_backends", {})
+    data = json.loads(body)
+
+    assert status == 200
+    assert data["status"] == "ok"
+    assert isinstance(data["synced"], bool)
+
+
+def test_sync_backends_route_is_throttled(web_env) -> None:
+    """The Refresh button is clickable as fast as a user likes."""
+    base_url, _case_dir = web_env
+
+    _status, first = _http_post(f"{base_url}/api/sync_backends", {})
+    _status, second = _http_post(f"{base_url}/api/sync_backends", {})
+
+    assert json.loads(first)["synced"] is True
+    assert json.loads(second)["synced"] is False

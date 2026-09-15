@@ -182,3 +182,34 @@ def test_sync_records_the_timing_figures(runs_dir: Path, case_factory) -> None:
     record = load_registry(runs_dir)["case0001"]
     assert record["backend_execution_time_s"] == 42.0
     assert record["backend_core_count"] == 8
+
+
+def test_a_throttled_sync_runs_once_then_holds(runs_dir: Path, case_factory) -> None:
+    """Every Refresh click must not become a provider round trip."""
+    from csauto.backend_sync import sync_backend_cases_throttled
+
+    case_dir = case_factory(runs_dir, "case0001")
+    backend = FakeBackend(script=["RUNNING", "RUNNING"])
+    task_id = backend.submit(case_dir, ["run"], "img", 1, 1)
+    _register(runs_dir, case_dir, task_id)
+
+    first = sync_backend_cases_throttled(runs_dir, backend_factory=lambda _name: backend)
+    second = sync_backend_cases_throttled(runs_dir, backend_factory=lambda _name: backend)
+
+    assert first is True
+    assert second is False
+
+
+def test_a_throttled_sync_never_raises(runs_dir: Path, case_factory) -> None:
+    """A provider outage must not fail the click that asked for fresh data."""
+    from csauto.backend_sync import sync_backend_cases_throttled
+
+    case_dir = case_factory(runs_dir, "case0001")
+    backend = FakeBackend(script=["RUNNING"])
+    task_id = backend.submit(case_dir, ["run"], "img", 1, 1)
+    _register(runs_dir, case_dir, task_id)
+
+    def explode(_name: str):
+        raise RuntimeError("provider is down")
+
+    assert sync_backend_cases_throttled(runs_dir, backend_factory=explode) is True

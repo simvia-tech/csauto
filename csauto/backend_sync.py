@@ -11,7 +11,9 @@ every other writer for its duration.
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +29,10 @@ from .registry import (
 from .warn import warn
 
 TERMINAL_STATUSES = (STATUS_DONE, STATUS_FAILED)
+
+# A user may click Refresh as fast as they like, and `csauto status` may be run
+# in a loop. Neither should become a provider round trip each time.
+SYNC_THROTTLE_S = 10.0
 
 
 def sync_backend_cases(
@@ -135,4 +141,33 @@ def _append(path: Path, text: str) -> None:
         return
 
 
-__all__ = ["sync_backend_cases"]
+def sync_backend_cases_throttled(
+    runs_dir: Path,
+    *,
+    sync_files: bool = True,
+    backend_factory: Callable[[str], ExecutionBackend] = get_backend,
+) -> bool:
+    """Run one pass, at most once every 10 s. Returns whether it ran.
+
+    Never raises: the caller is a status command or a Refresh click, and a
+    provider outage must not fail either. The marker lives under a reserved
+    `_backend` key at the top of registry.json, which no case id can collide
+    with: `_resolve_case_id` rejects ids not matching ^[A-Za-z0-9][A-Za-z0-9_.-]*$.
+    """
+    marker = load_registry(runs_dir).get("_backend", {}).get("last_sync")
+    if marker:
+        with contextlib.suppress(ValueError):
+            if (datetime.now() - datetime.fromisoformat(str(marker))).total_seconds() < SYNC_THROTTLE_S:
+                return False
+
+    def stamp(registry: dict[str, dict[str, Any]]) -> bool:
+        registry.setdefault("_backend", {})["last_sync"] = timestamp_now()
+        return True
+
+    mutate_registry(runs_dir, stamp)
+    with contextlib.suppress(Exception):
+        sync_backend_cases(runs_dir, sync_files=sync_files, backend_factory=backend_factory)
+    return True
+
+
+__all__ = ["sync_backend_cases", "sync_backend_cases_throttled"]

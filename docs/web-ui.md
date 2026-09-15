@@ -67,6 +67,12 @@ The toolbar provides:
 
 Each row also has an **Open GUI** button to launch the code_saturne GUI for that case.
 
+For a case running on an execution backend, **Refresh** first asks the server to
+pull fresh data from the provider, then rereads. Without that it would reread
+local files that only change when the background sync pass runs, so the panels
+would look frozen between two passes. The request is throttled to one every ten
+seconds, so clicking repeatedly costs nothing.
+
 ### Selecting cases
 
 - Click a row to select it

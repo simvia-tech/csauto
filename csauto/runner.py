@@ -1109,26 +1109,39 @@ def _query_slurm_job_activity(job_ids: Sequence[str | None]) -> dict[str, bool |
     return states
 
 
+# Some filesystems, WSL2 among them, never bump a directory's mtime when files
+# are created or changed inside it, so a cache keyed on that mtime alone would
+# never invalidate. The size is therefore also given a short life of its own.
+RESU_SIZE_CACHE_TTL_S = 10.0
+
+
 def _cached_resu_size_mb(case_dir: Path, adapter: SolverAdapter) -> tuple[float | None, float | None]:
     resu_root = adapter.results_root(case_dir)
     cache_key = str(case_dir.resolve())
     resu_mtime = None
     if resu_root.is_dir():
         try:
-            resu_mtime = resu_root.stat().st_mtime
+            # The run directories too, not just the root: a backend sync drops
+            # files into an existing run, which leaves the root's mtime alone
+            # and would freeze the cached size for the rest of the campaign.
+            resu_mtime = max(
+                [resu_root.stat().st_mtime] + [child.stat().st_mtime for child in resu_root.iterdir() if child.is_dir()]
+            )
         except OSError:
             resu_mtime = None
     if resu_mtime is None:
         with RESU_SIZE_CACHE_LOCK:
             RESU_SIZE_CACHE.pop(cache_key, None)
         return None, None
+    now = time.monotonic()
     with RESU_SIZE_CACHE_LOCK:
         cached = RESU_SIZE_CACHE.get(cache_key)
-        if cached and cached.get("mtime") == resu_mtime:
+        fresh = cached is not None and (now - float(cached.get("at") or 0.0)) < RESU_SIZE_CACHE_TTL_S
+        if cached and fresh and cached.get("mtime") == resu_mtime:
             return resu_mtime, cached.get("size")
     size = _resu_size_mb(case_dir, adapter)
     with RESU_SIZE_CACHE_LOCK:
-        RESU_SIZE_CACHE[cache_key] = {"mtime": resu_mtime, "size": size}
+        RESU_SIZE_CACHE[cache_key] = {"mtime": resu_mtime, "size": size, "at": now}
     return resu_mtime, size
 
 

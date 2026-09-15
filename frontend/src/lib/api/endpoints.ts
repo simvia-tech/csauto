@@ -198,6 +198,19 @@ export function fetchCompareDiff(params: {
 
 /* Actions (POST) */
 
+/**
+ * Ask the server to pull fresh data for cases an execution backend owns.
+ *
+ * Refresh rereads local files, and for a cloud case those only change when a
+ * sync pass runs, so the button would otherwise do nothing there. Throttled
+ * server-side, and it never fails: a provider outage must not break Refresh.
+ */
+export function syncBackends(): Promise<void> {
+  return apiPost("/api/sync_backends", {})
+    .then(() => undefined)
+    .catch(() => undefined);
+}
+
 export function runCase(params: {
   cases: string[];
   n: number;
