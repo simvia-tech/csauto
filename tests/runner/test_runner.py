@@ -1285,3 +1285,47 @@ def test_status_row_of_a_local_case_has_no_backend_figures(runs_dir, case_factor
 
     assert row["backend"] == ""
     assert row["backend_execution_time_s"] is None
+
+
+def test_submitting_to_a_backend_does_not_hold_the_registry_lock(monkeypatch, runs_dir, case_factory) -> None:
+    """A submit uploads the case and talks to a remote API.
+
+    Holding the registry lock for that long blocks every reader, which freezes
+    the dashboard: /api/status calls load_registry, which takes the same lock.
+    """
+    from csauto.backends.fake import FakeBackend
+
+    case_factory(runs_dir, "case0001")
+    backend = FakeBackend(script=["RUNNING"])
+    original_submit = backend.submit
+    readable: list[bool] = []
+
+    def probing_submit(case_dir, argv, image, nprocs, nt, observability_globs=()):
+        done = threading.Event()
+
+        def read_registry() -> None:
+            load_registry(runs_dir)
+            done.set()
+
+        threading.Thread(target=read_registry, daemon=True).start()
+        readable.append(done.wait(timeout=5))
+        return original_submit(case_dir, argv, image, nprocs, nt, observability_globs)
+
+    backend.submit = probing_submit  # type: ignore[method-assign]
+    monkeypatch.setattr("csauto.backends.get_backend", lambda _name: backend)
+    monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
+
+    run_cases(
+        runs_dir,
+        nprocs=1,
+        nt=1,
+        max_parallel=1,
+        case_filter=["case0001"],
+        docker_image="image",
+        resume_only_failed=False,
+        source="test",
+        backend="fake",
+    )
+
+    assert readable == [True], "the registry lock was held across the backend submit"
+    assert load_registry(runs_dir)["case0001"]["status"] == STATUS_RUNNING

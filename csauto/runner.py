@@ -307,6 +307,7 @@ def _start_case(
             restart_value,
             restart_path,
         )
+    backend_argv: list[str] | None = None
     with registry_transaction(runs_dir) as registry:
         record = registry.get(case_id, {})
         if record.get("status") == STATUS_RUNNING:
@@ -353,20 +354,13 @@ def _start_case(
         )
 
         if backend_name:
-            _launch_backend(
-                case_dir,
-                case_id,
-                # A relative path: the remote task's working directory is the
-                # case directory, and the host path means nothing over there.
-                adapter.run_argv(".", nprocs, nt, restart_args),
-                selection.docker_image,
-                nprocs,
-                nt,
-                backend_name,
-                adapter.observability_globs,
-                registry,
-                base_update,
-            )
+            # Only decide here. Submitting uploads the case and talks to a
+            # remote API, and doing that under the registry lock freezes every
+            # reader for its duration, the dashboard's own status route
+            # included. The submit happens below, with no lock held.
+            # A relative path: the remote task's working directory is the case
+            # directory, and the host path means nothing over there.
+            backend_argv = adapter.run_argv(".", nprocs, nt, restart_args)
         elif use_slurm_scheduler:
             _launch_slurm(
                 case_dir,
@@ -386,21 +380,37 @@ def _start_case(
         else:
             _launch_local(case_dir, case_id, cmd, cidfile, registry, base_update)
 
-        history_details: dict[str, Any] = {"n": nprocs, "nt": nt, "runtime": selection.runtime}
-        history_details.update(restart_details)
-        if scheduler:
-            history_details["scheduler"] = scheduler
-            history_details["job_id"] = registry.get(case_id, {}).get("job_id")
-            if mpi_exec_options:
-                history_details["mpi_exec_options"] = str(mpi_exec_options).strip()
-        if selection.runtime == RUNTIME_DOCKER:
-            history_details["docker_image"] = selection.docker_image
-        elif selection.runtime == "native":
-            history_details["saturne_bin"] = selection.saturne_bin
-        elif selection.runtime == "singularity":
-            history_details["singularity_bin"] = selection.singularity_bin
-            history_details["singularity_image"] = selection.singularity_image
-        append_history(case_dir, "run", details=history_details, source=source)
+        scheduler_job_id = registry.get(case_id, {}).get("job_id")
+
+    if backend_argv is not None:
+        _launch_backend(
+            case_dir,
+            case_id,
+            backend_argv,
+            selection.docker_image,
+            nprocs,
+            nt,
+            backend_name or "",
+            adapter.observability_globs,
+            runs_dir,
+            base_update,
+        )
+
+    history_details: dict[str, Any] = {"n": nprocs, "nt": nt, "runtime": selection.runtime}
+    history_details.update(restart_details)
+    if scheduler:
+        history_details["scheduler"] = scheduler
+        history_details["job_id"] = scheduler_job_id
+        if mpi_exec_options:
+            history_details["mpi_exec_options"] = str(mpi_exec_options).strip()
+    if selection.runtime == RUNTIME_DOCKER:
+        history_details["docker_image"] = selection.docker_image
+    elif selection.runtime == "native":
+        history_details["saturne_bin"] = selection.saturne_bin
+    elif selection.runtime == "singularity":
+        history_details["singularity_bin"] = selection.singularity_bin
+        history_details["singularity_image"] = selection.singularity_image
+    append_history(case_dir, "run", details=history_details, source=source)
     return True
 
 
@@ -484,10 +494,16 @@ def _launch_backend(
     nt: int,
     backend_name: str,
     observability_globs: Sequence[str],
-    registry: dict[str, Any],
+    runs_dir: Path,
     base_update: dict[str, Any],
 ) -> None:
     """Submit the case to a remote execution backend.
+
+    Called with **no registry lock held**: submitting uploads the case and
+    talks to a remote API, which can take minutes, and every reader of
+    registry.json would block for that whole time. The outcome is written back
+    under its own short transaction, the same three-phase discipline
+    `backend_sync` follows.
 
     No PID and no scheduler job: the case is identified by backend and task_id,
     and the synchronisation pass owns its status from here on.
@@ -499,32 +515,41 @@ def _launch_backend(
         print(f"Submitting {case_id} to backend {backend_name}.")
         task_id = backend.submit(case_dir, argv, image, nprocs, nt, observability_globs)
     except Exception as exc:
+
+        def mark_failed(registry: dict[str, Any]) -> bool:
+            update_case(
+                registry,
+                case_id,
+                **base_update,
+                status=STATUS_FAILED,
+                start_time=None,
+                end_time=timestamp_now(),
+                pid=None,
+                job_id=None,
+                backend=backend_name,
+                task_id=None,
+            )
+            return True
+
+        mutate_registry(runs_dir, mark_failed)
+        raise RuntimeError(f"Failed to submit {case_id}: {exc}") from exc
+
+    def mark_running(registry: dict[str, Any]) -> bool:
         update_case(
             registry,
             case_id,
             **base_update,
-            status=STATUS_FAILED,
-            start_time=None,
-            end_time=timestamp_now(),
+            status=STATUS_RUNNING,
+            start_time=timestamp_now(),
+            end_time=None,
             pid=None,
             job_id=None,
             backend=backend_name,
-            task_id=None,
+            task_id=task_id,
         )
-        raise RuntimeError(f"Failed to submit {case_id}: {exc}") from exc
+        return True
 
-    update_case(
-        registry,
-        case_id,
-        **base_update,
-        status=STATUS_RUNNING,
-        start_time=timestamp_now(),
-        end_time=None,
-        pid=None,
-        job_id=None,
-        backend=backend_name,
-        task_id=task_id,
-    )
+    mutate_registry(runs_dir, mark_running)
 
 
 def _launch_local(
