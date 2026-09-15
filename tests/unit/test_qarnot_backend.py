@@ -42,6 +42,8 @@ class FakeTask:
         self.uuid = "task-0001"
         self._hardware_constraints: list[Any] = []
         self.constraints_set_while_unsubmitted: bool | None = None
+        self._scheduling_type: Any = None
+        self.scheduling_set_while_unsubmitted: bool | None = None
 
     @property
     def hardware_constraints(self) -> list[Any]:
@@ -53,6 +55,15 @@ class FakeTask:
         # instead so a test can assert it.
         self.constraints_set_while_unsubmitted = not self.submitted
         self._hardware_constraints = value
+
+    @property
+    def scheduling_type(self) -> Any:
+        return self._scheduling_type
+
+    @scheduling_type.setter
+    def scheduling_type(self, value: Any) -> None:
+        self.scheduling_set_while_unsubmitted = not self.submitted
+        self._scheduling_type = value
 
     def submit(self) -> None:
         self.submitted = True
@@ -101,6 +112,7 @@ def _submit(backend: QarnotBackend, case_dir: Path, **kwargs: Any) -> str:
         "nprocs": 4,
         "nt": 1,
         "observability_globs": ("RESU/*/listing",),
+        "options": {},
     }
     defaults.update(kwargs)
     return backend.submit(case_dir, **defaults)
@@ -403,3 +415,56 @@ def test_the_core_constraint_is_set_before_submission(campaign: Path) -> None:
 
     task = connection.tasks[0]
     assert task.constraints_set_while_unsubmitted is True
+
+
+def test_submit_defaults_to_flex_scheduling(campaign: Path) -> None:
+    connection = FakeConnection()
+
+    _submit(QarnotBackend(connection=connection), campaign)
+
+    assert connection.tasks[0].scheduling_type.schedulingType == "Flex"
+
+
+def test_submit_honours_the_chosen_scheduling(campaign: Path) -> None:
+    connection = FakeConnection()
+
+    _submit(QarnotBackend(connection=connection), campaign, options={"scheduling": "OnDemand"})
+
+    assert connection.tasks[0].scheduling_type.schedulingType == "OnDemand"
+
+
+def test_submit_rejects_an_unknown_scheduling(campaign: Path) -> None:
+    connection = FakeConnection()
+
+    with pytest.raises(ValueError, match="Unknown scheduling"):
+        _submit(QarnotBackend(connection=connection), campaign, options={"scheduling": "Cheap"})
+
+
+def test_submit_pins_the_chosen_node(campaign: Path) -> None:
+    connection = FakeConnection()
+
+    _submit(QarnotBackend(connection=connection), campaign, nprocs=2, nt=1, options={"node": "r640-a"})
+
+    constraints = [c.to_json() for c in connection.tasks[0].hardware_constraints]
+    assert constraints == [
+        {"discriminator": "MinimumCoreHardwareConstraint", "coreCount": 2},
+        {"discriminator": "SpecificHardwareConstraint", "specificationKey": "r640-a"},
+    ]
+
+
+def test_submit_without_a_node_asks_only_for_cores(campaign: Path) -> None:
+    connection = FakeConnection()
+
+    _submit(QarnotBackend(connection=connection), campaign, nprocs=2, nt=1, options={"node": "  "})
+
+    constraints = [c.to_json() for c in connection.tasks[0].hardware_constraints]
+    assert constraints == [{"discriminator": "MinimumCoreHardwareConstraint", "coreCount": 2}]
+
+
+def test_the_scheduling_is_set_before_submission(campaign: Path) -> None:
+    """The SDK refuses scheduling_type once the task is launched."""
+    connection = FakeConnection()
+
+    _submit(QarnotBackend(connection=connection), campaign)
+
+    assert connection.tasks[0].scheduling_set_while_unsubmitted is True

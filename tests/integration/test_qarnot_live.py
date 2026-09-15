@@ -102,6 +102,12 @@ def test_a_real_task_round_trips(tiny_case: Path) -> None:
     print(f"submitted task {task_id}")
     assert task_id
 
+    # Read the attribute, not str(): the SDK's __str__ returns
+    # "scheduling type Flex.", which would fail an equality check for the
+    # wrong reason. Costs nothing: the task was going to be submitted anyway.
+    submitted = backend._connect().retrieve_task(task_id)
+    assert submitted.scheduling_type.schedulingType == "Flex", "the scheduling class did not reach the task"
+
     saw_running = False
     saw_partial = False
     saw_stdout = False

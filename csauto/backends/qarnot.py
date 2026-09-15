@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import os
 import shlex
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -33,7 +33,9 @@ from .qarnot_support import (
     directory_signature,
     ensure_upload_within,
     minimum_core_constraint,
+    scheduling_choice,
     snapshot_whitelist,
+    specific_hardware_constraint,
     split_image,
     upload_plan,
 )
@@ -96,6 +98,7 @@ class QarnotBackend:
         nprocs: int,
         nt: int,
         observability_globs: Sequence[str] = (),
+        options: Mapping[str, str] = {},
     ) -> str:
         from ..solvers import get_solver_adapter
 
@@ -137,12 +140,17 @@ class QarnotBackend:
         task.constants["DOCKER_CMD"] = shlex.join(command)
         task.resources = resources
         task.results = connection.retrieve_or_create_bucket(f"{campaign}-{case_dir.name}-out")
-        # -n and --nt only reach the solver, inside DOCKER_CMD. Without this,
-        # Qarnot allocates any available machine and the run can land on fewer
-        # cores than it asks for, oversubscribing MPI on paid compute. The SDK
-        # refuses hardware_constraints once a task is launched, so it is set
-        # here, before submit().
-        task.hardware_constraints = [minimum_core_constraint(int(nprocs) * int(nt))]
+        # The rank and thread counts only reach the solver, inside DOCKER_CMD.
+        # Without a constraint Qarnot allocates any available machine and the
+        # run can land on fewer cores than it asks for, oversubscribing MPI on
+        # paid compute. Both setters below raise once the task is launched, so
+        # they run before submit().
+        constraints: list[Any] = [minimum_core_constraint(int(nprocs) * int(nt))]
+        node = str(options.get("node") or "").strip()
+        if node:
+            constraints.append(specific_hardware_constraint(node))
+        task.hardware_constraints = constraints
+        task.scheduling_type = scheduling_choice(str(options.get("scheduling") or "Flex"))
 
         whitelist = snapshot_whitelist(observability_globs)
         if whitelist:
