@@ -94,6 +94,12 @@ The choice is per launch, not per campaign: verify one case locally, then send
 the other ninety-nine to the cloud. See
 [Running a campaign on Qarnot](./qarnot.md).
 
+Choosing a backend also reveals whatever that backend lets you choose. For
+Qarnot that is the scheduling **Priority**, which trades price against waiting
+time, and the **Node type**, listed from your own account. If the provider
+cannot be reached the selects still appear with their defaults and a line says
+so; the run goes ahead either way.
+
 **Restart**: restart from the latest checkpoint. A popup asks for the
 stop criterion:
 - `Iterations`: add N more iterations beyond the current checkpoint

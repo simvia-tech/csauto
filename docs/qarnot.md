@@ -67,6 +67,24 @@ backend_sync_interval_s = 60   # pull the captured files
 Pulling more often than the task captures only wastes requests, so keep
 `backend_sync_interval_s` at or above `snapshot_interval_s`.
 
+## Which machine a case runs on
+
+csauto asks Qarnot for a machine with **at least `n` x `nt` cores**, derived from
+the MPI ranks and threads you enter in the Run dialog. Without that constraint
+Qarnot allocates any available machine, and a run asking for eight ranks could
+land on two cores and oversubscribe MPI on compute you are paying for.
+
+The Run dialog also lets you pick, per launch:
+
+- **Priority**: `Flex` (cheaper, waits for spare capacity), `OnDemand` (starts
+  sooner, costs more) or `Reserved` (uses capacity reserved on your account).
+  `Reserved` fails unless your account actually has a reservation.
+- **Node type**: one hardware specification from your account, or any node. The
+  list is read from Qarnot when the dialog opens and cached for ten minutes; if
+  it cannot be read, the dialog says so and the run uses any node.
+
+Memory floors, GPUs and CPU models are not exposed yet.
+
 ## What is uploaded, and what comes back
 
 | Bucket | Content | Uploaded |

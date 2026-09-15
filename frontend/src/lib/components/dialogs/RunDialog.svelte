@@ -13,7 +13,8 @@
   import FormLabel from "$lib/components/shared/FormLabel.svelte";
   import { getRunSettings, setRunSettings } from "$lib/stores/settings.svelte";
   import { getBackends } from "$lib/stores/appConfig.svelte";
-  import type { RunParams } from "$lib/api/types";
+  import { fetchLaunchOptions } from "$lib/api/endpoints";
+  import type { LaunchOption, RunParams } from "$lib/api/types";
 
   interface Props {
     cases: string[];
@@ -34,6 +35,41 @@
     backends.includes(saved.backend ?? "") ? (saved.backend as string) : "",
   );
 
+  let launchOptions = $state<LaunchOption[]>([]);
+  let degraded = $state(false);
+  let chosen = $state<Record<string, string>>({});
+
+  /* Fetched when the backend changes, not on page load: this call may talk to
+     the provider. A failure leaves the list empty and the launch still works. */
+  $effect(() => {
+    const name = backend;
+    if (!name) {
+      launchOptions = [];
+      degraded = false;
+      chosen = {};
+      return;
+    }
+    let cancelled = false;
+    fetchLaunchOptions(name)
+      .then((payload) => {
+        if (cancelled) return;
+        launchOptions = payload.options;
+        degraded = payload.degraded;
+        chosen = Object.fromEntries(
+          payload.options.map((option) => [option.key, option.default]),
+        );
+      })
+      .catch(() => {
+        if (cancelled) return;
+        launchOptions = [];
+        degraded = true;
+        chosen = {};
+      });
+    return () => {
+      cancelled = true;
+    };
+  });
+
   async function confirm() {
     if (!Number.isFinite(n) || n <= 0) {
       await appAlert("MPI ranks must be an integer > 0.", "Invalid value");
@@ -53,6 +89,7 @@
       nt,
       maxParallel: maxParallel || null,
       backend: backend || null,
+      options: backend ? chosen : undefined,
     };
     setRunSettings(params);
     closeDialog(params);
@@ -99,6 +136,26 @@
         ? "s"
         : ""} to <strong>{backend}</strong>, which runs on your own account and
       bills you for the compute. Results come back automatically.
+    </p>
+  {/if}
+
+  {#if backend && launchOptions.length}
+    <div class="grid grid-cols-2 gap-2.5 mb-3">
+      {#each launchOptions as option (option.key)}
+        <FormLabel text={option.label}>
+          <select bind:value={chosen[option.key]}>
+            {#each option.choices as [value, label] (value)}
+              <option {value}>{label}</option>
+            {/each}
+          </select>
+        </FormLabel>
+      {/each}
+    </div>
+  {/if}
+
+  {#if backend && degraded}
+    <p class="mb-3 text-sm opacity-75" role="status">
+      Could not reach {backend} to list what is available. The run will use the defaults.
     </p>
   {/if}
 

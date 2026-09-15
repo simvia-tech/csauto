@@ -93,6 +93,7 @@
         nt: params.nt,
         maxParallel: params.maxParallel,
         backend: params.backend,
+        options: params.options,
       });
       onRefresh();
     } catch (err) {

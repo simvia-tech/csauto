@@ -66,6 +66,19 @@ export interface AppConfig {
   backends: string[];
 }
 
+export interface LaunchOption {
+  key: string;
+  label: string;
+  choices: [string, string][];
+  default: string;
+}
+
+export interface LaunchOptionsPayload {
+  backend: string;
+  degraded: boolean;
+  options: LaunchOption[];
+}
+
 /* Shared */
 
 export interface StringListResponse {
@@ -129,6 +142,8 @@ export interface RunParams {
   maxParallel: number | null;
   /** Execution backend name, or null/absent to run on this machine. */
   backend?: string | null;
+  /** Values chosen for the backend's declared options. */
+  options?: Record<string, string>;
 }
 
 export interface RestartParams extends RunParams {

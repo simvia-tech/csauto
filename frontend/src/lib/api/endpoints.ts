@@ -15,6 +15,7 @@ import type {
   RestartOriginResponse,
   ProbePositionResponse,
   CleanupResponse,
+  LaunchOptionsPayload,
 } from "./types";
 
 /* Helpers */
@@ -25,6 +26,14 @@ function caseParams(cases: string[]): string {
 }
 
 /* Observability */
+
+export function fetchLaunchOptions(
+  backend: string,
+): Promise<LaunchOptionsPayload> {
+  return apiGet<LaunchOptionsPayload>(
+    `/api/launch_options?backend=${encodeURIComponent(backend)}`,
+  );
+}
 
 export function fetchStatus(log = false): Promise<StatusPayload> {
   const qs = log ? "?log=1" : "";
@@ -195,6 +204,7 @@ export function runCase(params: {
   nt: number;
   maxParallel?: number | null;
   backend?: string | null;
+  options?: Record<string, string>;
   restart?: boolean;
   restartMode?: string;
   restartValue?: number;
@@ -205,6 +215,7 @@ export function runCase(params: {
     nt: params.nt,
     max_parallel: params.maxParallel ?? undefined,
     backend: params.backend ?? undefined,
+    options: params.options ?? undefined,
     restart: params.restart ?? false,
     restart_mode: params.restartMode ?? "",
     restart_value: params.restartValue ?? undefined,
