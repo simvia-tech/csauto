@@ -92,6 +92,17 @@ Memory floors, GPUs and CPU models are not exposed yet.
 
 ## What is uploaded, and what comes back
 
+The remote working directory is the **study**, not the case: the case travels in
+a directory of its own and the shared directories sit beside it, mirroring
+`RUNS/` locally. code_saturne looks for its mesh in `<study>/MESH`, so a shared
+directory placed inside the case directory would be invisible to it.
+
+```
+/job/MESH/mesh1.med          the campaign's shared directories
+/job/case0001/DATA/setup.xml the case
+```
+
+
 | Bucket | Content | Uploaded |
 |---|---|---|
 | `csauto-<campaign>-<hash>-shared` | the shared directories (`MESH`, `POST`) | once per campaign, and again only if they change |

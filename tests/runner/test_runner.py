@@ -1212,8 +1212,12 @@ def test_refresh_status_ignores_the_reserved_backend_key(runs_dir, case_factory)
     assert [row["case_id"] for row in rows] == ["case0001"]
 
 
-def test_backend_argv_uses_a_relative_case_path(monkeypatch, runs_dir, case_factory) -> None:
-    """The remote container has no idea where the case lives on this machine."""
+def test_backend_argv_names_the_case_not_a_host_path(monkeypatch, runs_dir, case_factory) -> None:
+    """The remote container has no idea where the case lives on this machine.
+
+    It gets the case name: a backend lays the case out inside the remote
+    working directory, which plays the role the campaign directory plays here.
+    """
     from csauto.backends.fake import FakeBackend
 
     case_factory(runs_dir, "case0001")
@@ -1243,7 +1247,7 @@ def test_backend_argv_uses_a_relative_case_path(monkeypatch, runs_dir, case_fact
     )
 
     assert str(runs_dir) not in " ".join(str(part) for part in submitted["argv"])
-    assert "." in submitted["argv"]
+    assert "case0001" in submitted["argv"]
     assert submitted["globs"], "the adapter's observability patterns must reach the backend"
 
 

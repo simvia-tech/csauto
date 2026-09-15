@@ -82,7 +82,11 @@ def test_a_real_task_round_trips(tiny_case: Path) -> None:
     from csauto.backends.qarnot import QarnotBackend
 
     backend = QarnotBackend()
+    # cd into the case first: the working directory is the study, with the case
+    # in a directory of its own and the shared directories beside it, mirroring
+    # the local layout. That is what lets code_saturne find <study>/MESH.
     script = (
+        "cd case0001 && "
         "mkdir -p OUT/run_0001 && "
         "cp DATA/input.txt OUT/run_0001/echoed.txt && "
         "for i in 1 2 3 4 5 6; do "
