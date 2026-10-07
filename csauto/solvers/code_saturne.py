@@ -33,7 +33,6 @@ from ..logs import (
 from ..probes import list_probe_files, list_profile_files, locate_probe_files
 from ..registry import STATUS_FAILED
 from ..residuals import find_residuals_files, parse_residuals_from_log
-from ..template import find_run_cfg, find_setup_file
 from .base import CompareKind, PerfColumn, SolverAdapterBase
 
 if TYPE_CHECKING:
@@ -55,6 +54,19 @@ NT_MAX_SETUP_RE = re.compile(r"nt_max:\s*(-?\d+)")
 # ...and re-echoes it into the main log every time a control_file directive changes it:
 #   "  max_time_step                        600 (current:            9)\n" (src/base/cs_control.cpp)
 NT_MAX_CONTROL_RE = re.compile(r"max_time_step\s+(\d+)\s*\(current:")
+
+
+def _find_input_file(template_dir: Path, name: str) -> Path | None:
+    """Locate `name` at the case root, in DATA/, or as the single match anywhere below."""
+    for candidate in (template_dir / name, template_dir / "DATA" / name):
+        if candidate.is_file():
+            return candidate
+    matches = list(template_dir.rglob(name))
+    if len(matches) > 1:
+        found = ", ".join(str(p.relative_to(template_dir)) for p in matches[:5])
+        suffix = " ..." if len(matches) > 5 else ""
+        raise ValueError(f"Multiple {name} found in {template_dir}: {found}{suffix}")
+    return matches[0] if matches else None
 
 
 def _require_positive_restart_value(
@@ -392,10 +404,13 @@ class CodeSaturneAdapter(SolverAdapterBase):
         return locate_case_file(case_dir, name)
 
     def find_setup_file(self, template_dir: Path) -> Path:
-        return find_setup_file(template_dir)
+        setup_path = _find_input_file(template_dir, "setup.xml")
+        if setup_path is None:
+            raise FileNotFoundError(f"setup.xml not found in template: {template_dir}")
+        return setup_path
 
     def find_run_config(self, template_dir: Path) -> Path | None:
-        return find_run_cfg(template_dir)
+        return _find_input_file(template_dir, "run.cfg")
 
     def doctor_checks(
         self,
@@ -412,7 +427,7 @@ class CodeSaturneAdapter(SolverAdapterBase):
         missing: list[str] = []
         for case_dir in case_dirs:
             try:
-                find_setup_file(case_dir)
+                self.find_setup_file(case_dir)
             except (FileNotFoundError, ValueError):
                 missing.append(case_dir.name)
         if missing:

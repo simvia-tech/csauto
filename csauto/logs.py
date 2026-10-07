@@ -16,7 +16,6 @@ from pathlib import Path
 
 from .pathutil import is_within_root, safe_subpath
 from .registry import STATUS_DONE, STATUS_FAILED
-from .template import find_setup_file
 from .warn import warn
 
 
@@ -349,7 +348,7 @@ def locate_case_file(case_dir: Path, name: str) -> Path | None:
             return candidate
     if name == "setup.xml":
         try:
-            return find_setup_file(case_dir)
+            return _default_adapter().find_setup_file(case_dir)
         except (FileNotFoundError, ValueError):
             return None
     if name == "doe_row.csv":

@@ -444,3 +444,23 @@ def test_code_saturne_detect_outcome_ignores_a_stale_failure_marker(tmp_path) ->
     start_time = datetime.fromtimestamp(time.time() - 60).isoformat(timespec="seconds")
 
     assert adapter.detect_outcome(case_dir, start_time) == STATUS_DONE
+
+
+def test_code_saturne_finds_its_input_files(tmp_path) -> None:
+    adapter = get_solver_adapter("code_saturne")
+    with pytest.raises(FileNotFoundError):
+        adapter.find_setup_file(tmp_path)
+    assert adapter.find_run_config(tmp_path) is None
+
+    (tmp_path / "DATA").mkdir()
+    (tmp_path / "DATA" / "setup.xml").write_text("<xml/>", encoding="utf-8")
+    (tmp_path / "DATA" / "run.cfg").write_text("", encoding="utf-8")
+    assert adapter.find_setup_file(tmp_path) == tmp_path / "DATA" / "setup.xml"
+    assert adapter.find_run_config(tmp_path) == tmp_path / "DATA" / "run.cfg"
+
+    nested = tmp_path / "other"
+    for sub in ("a", "b"):
+        (nested / sub).mkdir(parents=True)
+        (nested / sub / "setup.xml").write_text("<xml/>", encoding="utf-8")
+    with pytest.raises(ValueError, match=r"Multiple setup\.xml"):
+        adapter.find_setup_file(nested)
