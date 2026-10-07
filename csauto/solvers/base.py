@@ -64,6 +64,7 @@ class SolverAdapter(Protocol):
     shared_dir_names: tuple[str, ...]
     template_input_names: frozenset[str]
     anomaly_file_names: tuple[str, ...]
+    tail_file_names: tuple[str, ...]
     cleanup_log_names: frozenset[str]
     performance_fields: tuple[str, ...]
     performance_columns: tuple[PerfColumn, ...]
@@ -183,6 +184,8 @@ class SolverAdapterBase(ABC):
     shared_dir_names: ClassVar[tuple[str, ...]] = ()
     template_input_names: ClassVar[frozenset[str]] = frozenset()
     anomaly_file_names: ClassVar[tuple[str, ...]] = ("csauto.stderr", "csauto.stdout")
+    # Log Tail candidates, best first; the first entry is the /api/tail default.
+    tail_file_names: ClassVar[tuple[str, ...]] = ("csauto.stdout", "csauto.stderr")
     cleanup_log_names: ClassVar[frozenset[str]] = frozenset({"csauto.stdout", "csauto.stderr"})
     performance_columns: ClassVar[tuple[PerfColumn, ...]] = ()
     compare_kinds: ClassVar[tuple[CompareKind, ...]] = ()

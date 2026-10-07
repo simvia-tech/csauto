@@ -86,6 +86,7 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
         capabilities: list[str]
         compare_kinds: list[CompareKindModel]
         error_files: list[str]
+        tail_files: list[str]
         control_actions: list[str]
 
     class RecentErrorItemModel(BaseModel):
@@ -149,6 +150,7 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
             "capabilities": sorted(ctx.adapter.capabilities),
             "compare_kinds": [{"value": kind.value, "label": kind.label} for kind in ctx.adapter.compare_kinds],
             "error_files": list(ctx.adapter.anomaly_file_names),
+            "tail_files": list(ctx.adapter.tail_file_names),
             "control_actions": sorted(ctx.adapter.control_actions),
         }
 

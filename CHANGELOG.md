@@ -11,6 +11,7 @@ Make the dashboard follow what each solver can actually do: panels and action bu
 ### Changed
 - Dashboard panels and action buttons are derived from what the solver adapter implements, rather than declared: a panel appears when the adapter provides what feeds it (`find_residuals_files`, `list_probe_files`, or a non-empty `compare_kinds` / `performance_columns` / `control_actions`), and the Restart, Stop, control and Open GUI controls follow the same rule. Solvers other than code_saturne lose the panels and buttons they could never feed: code_aster and the stub solver now show Status, Compare, Log Tail and Recent Errors only. code_saturne is unchanged
 - `csauto doctor` reports the panels and capabilities derived for the configured solver
+- `/api/probes` takes `scope=probes` instead of `scope=monitoring` (a code_saturne directory name); `profiles` is unchanged. `/api/tail` defaults to the solver's own main log instead of `listing`, and the Log Tail file priority comes from the new adapter attribute `tail_file_names`, exposed as `tail_files` in `/api/app_config`
 - Dashboard tabs are now declared by each solver adapter in `dashboard_panels`, and by nothing else: an adapter may leave out a tab it could feed, and Status, Log Tail and Recent Errors are ordinary entries rather than imposed. A test fails when an adapter declares a tab it cannot feed or an unknown tab name. `capabilities` stays derived. No visible change for any shipped solver
 
 ### Fixed

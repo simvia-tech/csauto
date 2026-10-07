@@ -84,6 +84,14 @@ class CodeSaturneAdapter(SolverAdapterBase):
     shared_dir_names: ClassVar[tuple[str, ...]] = ("MESH", "POST")
     template_input_names: ClassVar[frozenset[str]] = frozenset({"setup.xml", "run.cfg"})
     anomaly_file_names: ClassVar[tuple[str, ...]] = ANOMALY_FILES_DEFAULT
+    tail_file_names: ClassVar[tuple[str, ...]] = (
+        "run_solver.log",
+        "listing",
+        "run_status.running",
+        "csauto.stdout",
+        "csauto.stderr",
+        "performance.log",
+    )
     cleanup_log_names: ClassVar[frozenset[str]] = frozenset(
         {
             "run_solver.log",

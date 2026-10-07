@@ -24,6 +24,7 @@
   import FormLabel from "$lib/components/shared/FormLabel.svelte";
   import TailOutput from "./TailOutput.svelte";
   import { fetchTail, fetchResuFiles } from "$lib/api/endpoints";
+  import { getAppConfig } from "$lib/stores/appConfig.svelte";
   import {
     startTimer,
     stopTimer,
@@ -83,19 +84,15 @@
     ),
   );
 
-  /** File priority for auto-selection */
-  const FILE_PRIORITY: Record<string, number> = {
-    "run_solver.log": 1,
-    listing: 2,
-    "run_status.running": 3,
-    "csauto.stdout": 4,
-    "csauto.stderr": 5,
-    "performance.log": 6,
-  };
+  /** Log files declared by the solver adapter, best first, for auto-selection */
+  let tailFiles = $derived(
+    getAppConfig()?.tail_files ?? ["csauto.stdout", "csauto.stderr"],
+  );
 
   function filePriority(name: string): number {
     const base = name.split("/").pop() ?? name;
-    return FILE_PRIORITY[base] ?? 99;
+    const index = tailFiles.indexOf(base);
+    return index === -1 ? 99 : index;
   }
 
   async function loadFiles() {
@@ -105,7 +102,9 @@
       const logFiles = files.filter((f) => {
         const base = f.split("/").pop() ?? f;
         return (
-          f.endsWith(".log") || f.endsWith("/summary") || base in FILE_PRIORITY
+          f.endsWith(".log") ||
+          f.endsWith("/summary") ||
+          tailFiles.includes(base)
         );
       });
       const sorted = logFiles.sort((a, b) => filePriority(a) - filePriority(b));

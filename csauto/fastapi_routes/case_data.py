@@ -24,7 +24,7 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
 
     class TailQuery(BaseModel):
         case: str | None = None
-        file: str = "listing"
+        file: str | None = None
         n: int = Field(default=200, ge=1)
 
     class ResuFilesQuery(BaseModel):
@@ -33,7 +33,7 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
 
     class ProbesQuery(BaseModel):
         case: list[str] | None = None
-        scope: str = "monitoring"
+        scope: str = "probes"
         limit: int = Field(default=200, ge=1)
 
     class ProbePositionQuery(BaseModel):
@@ -61,14 +61,15 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
         ctx.require_auth(x_csauto_token, authorization)
         case_id = ctx.validate_case(query.case)
         case_dir = ctx.runs_dir / case_id
-        file_path = ctx.adapter.locate_case_file(case_dir, query.file) if case_dir.is_dir() else None
+        file_name = query.file or ctx.adapter.tail_file_names[0]
+        file_path = ctx.adapter.locate_case_file(case_dir, file_name) if case_dir.is_dir() else None
         if not file_path:
-            raise ctx.http_exception_cls(status_code=404, detail=f"File {query.file} not found for {case_id}")
+            raise ctx.http_exception_cls(status_code=404, detail=f"File {file_name} not found for {case_id}")
         log_case_action(
             ctx.runs_dir,
             case_id,
             "tail",
-            {"file": query.file, "lines": query.n},
+            {"file": file_name, "lines": query.n},
             actor=request.client.host if request.client else None,
         )
         return PlainTextResponse("".join(read_tail_lines(file_path, query.n)))
@@ -102,8 +103,8 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
     ) -> dict[str, Any]:
         ctx.require_auth(x_csauto_token, authorization)
         case_ids = ctx.validate_cases(query.case)
-        scope_value = (query.scope or "monitoring").strip().lower()
-        if scope_value not in ("monitoring", "profiles"):
+        scope_value = query.scope.strip().lower()
+        if scope_value not in ("probes", "profiles"):
             raise ctx.http_exception_cls(status_code=400, detail="Invalid scope parameter")
         seen: set[str] = set()
         files: list[str] = []

@@ -59,7 +59,7 @@
   async function checkDataAvailability() {
     if (!allCases.length) return;
     try {
-      const timeFiles = await fetchProbeFiles(allCases, "monitoring");
+      const timeFiles = await fetchProbeFiles(allCases, "probes");
       const filtered = timeFiles.filter((f) => {
         const stem = f.replace(/\.csv$/i, "").toLowerCase();
         return stem !== "coords" && !stem.includes("coordinates");

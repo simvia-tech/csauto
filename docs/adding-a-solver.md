@@ -47,6 +47,8 @@ Then declare the conventions that differ from the base defaults:
 - `cleanup_log_names` — logs the Clean action may truncate.
 - `anomaly_file_names` — launcher/solver logs scanned for anomalies, and the
   file list offered by the Recent Errors panel.
+- `tail_file_names` — logs the Log Tail panel prefers, best first. The first
+  entry is the `/api/tail` default file.
 - `compare_kinds` — `CompareKind(value, label)` entries that populate the
   compare panel's file selector. The first entry is the default;
   `default_compare_kind` is derived from it, so do not declare it yourself.
@@ -100,8 +102,8 @@ by the API with a 400. Run `csauto doctor RUNS` to see both lists:
 [OK] solver code_aster: capabilities compare
 ```
 
-The web UI reads `panels`, `capabilities`, `control_actions`, `compare_kinds`
-and `anomaly_file_names` from `/api/app_config`, and the timing columns from
+The web UI reads `panels`, `capabilities`, `control_actions`, `compare_kinds`,
+`anomaly_file_names` and `tail_file_names` from `/api/app_config`, and the timing columns from
 `/api/perf`, so these declarations reshape the dashboard without any frontend
 change.
 

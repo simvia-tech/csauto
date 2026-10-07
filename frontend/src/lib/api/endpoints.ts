@@ -116,7 +116,7 @@ export function fetchResuDirs(cases: string[]): Promise<string[]> {
 
 export function fetchProbeFiles(
   cases: string[],
-  scope: "monitoring" | "profiles",
+  scope: "probes" | "profiles",
 ): Promise<string[]> {
   const qs = new URLSearchParams({ scope });
   cases.forEach((c) => qs.append("case", c));

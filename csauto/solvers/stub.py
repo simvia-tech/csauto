@@ -42,6 +42,7 @@ class StubAdapter(SolverAdapterBase):
     results_dirname: ClassVar[str] = "OUT"
     template_input_names: ClassVar[frozenset[str]] = frozenset({STUB_SETUP_FILENAME})
     anomaly_file_names: ClassVar[tuple[str, ...]] = ("csauto.stderr", "csauto.stdout", STUB_LOG_FILENAME)
+    tail_file_names: ClassVar[tuple[str, ...]] = (STUB_LOG_FILENAME, "csauto.stdout", "csauto.stderr")
     cleanup_log_names: ClassVar[frozenset[str]] = frozenset({STUB_LOG_FILENAME, "csauto.stdout", "csauto.stderr"})
     dashboard_panels: ClassVar[tuple[str, ...]] = ("status", "compare", "tail", "errors")
     compare_kinds: ClassVar[tuple[CompareKind, ...]] = (CompareKind(STUB_SETUP_FILENAME, STUB_SETUP_FILENAME),)

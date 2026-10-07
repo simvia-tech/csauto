@@ -52,7 +52,7 @@
   const DEFAULT_ERROR_CONTEXT = 6;
   /* Fallback for older backends; normally the file list comes from the
      solver adapter via /api/app_config. */
-  const DEFAULT_ERROR_FILES = ["csauto.stderr", "run_solver.log", "listing"];
+  const DEFAULT_ERROR_FILES = ["csauto.stderr", "csauto.stdout"];
 
   let selectedCases = $state<string[]>([]);
   let selectedFiles = $state<string[]>([...DEFAULT_ERROR_FILES]);
@@ -162,14 +162,8 @@
 
   /* Dropdown options */
   let caseOptions = $derived(toCaseOptions(allCases));
-  const ALL_ERROR_FILES = [
-    "csauto.stderr",
-    "run_solver.log",
-    "listing",
-    "csauto.stdout",
-  ];
   let fileOptions = $derived(
-    (getAppConfig()?.error_files ?? ALL_ERROR_FILES).map((f) => ({
+    (getAppConfig()?.error_files ?? DEFAULT_ERROR_FILES).map((f) => ({
       value: f,
       label: f,
     })),

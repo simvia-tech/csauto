@@ -196,7 +196,7 @@ Purpose:
 Query parameters:
 
 - `case` (required)
-- `file` (optional, default `listing`)
+- `file` (optional, default: the first entry of the solver's `tail_files`, `run_solver.log` for code_saturne)
 - `n` (optional int, default `200`)
 
 Response content-type:
@@ -241,7 +241,7 @@ Purpose:
 Query parameters:
 
 - `case` (required)
-- `scope` (optional): `monitoring` (default) or `profiles`
+- `scope` (optional): `probes` (default) or `profiles`
 - `limit` (optional int, default `200`)
 
 Response:

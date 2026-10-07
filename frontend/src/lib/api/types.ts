@@ -58,6 +58,7 @@ export interface AppConfig {
   capabilities: string[];
   compare_kinds: CompareKindOption[];
   error_files: string[];
+  tail_files: string[];
   control_actions: string[];
 }
 

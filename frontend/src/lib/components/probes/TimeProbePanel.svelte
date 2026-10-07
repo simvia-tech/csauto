@@ -33,7 +33,7 @@
   const AXIS_EXCLUDED = new Set(["time", "t", "iteration", "iter"]);
 
   const loader = createProbeLoader({
-    scope: "monitoring",
+    scope: "probes",
     getState: getTimeState,
     setState: setTimeState,
     setHasData: setTimeHasData,

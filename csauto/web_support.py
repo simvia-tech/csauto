@@ -185,7 +185,7 @@ def discover_job_id(case_dir: Path, job_id_patterns: Sequence[re.Pattern[str]], 
 
     seen: set[str] = set()
     candidates: list[Path] = []
-    for name in ("csauto.stdout", "csauto.stderr", "run_solver.log", "listing"):
+    for name in adapter.anomaly_file_names:
         file_path = adapter.locate_case_file(case_dir, name)
         if not file_path or not file_path.is_file():
             continue

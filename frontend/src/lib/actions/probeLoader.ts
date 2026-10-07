@@ -14,7 +14,7 @@ import {
 } from "$lib/api/endpoints";
 
 export interface ProbeLoaderConfig {
-  scope: "monitoring" | "profiles";
+  scope: "probes" | "profiles";
   getState: () => ProbeTabState;
   setState: (partial: Partial<ProbeTabState>) => void;
   setHasData: (v: boolean) => void;
@@ -138,7 +138,7 @@ export function createProbeLoader(config: ProbeLoaderConfig) {
       return;
     }
     await loadFiles();
-    if (scope === "monitoring") await loadPlot();
+    if (scope === "probes") await loadPlot();
   }
 
   function handleColumnsChange(cols: string[]) {
