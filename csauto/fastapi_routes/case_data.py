@@ -59,6 +59,11 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
         x_min: float | None = None
         time_min: float = 0.0
 
+    def _default_tail_file(case_dir: Any) -> str:
+        """The best log the case has, else the adapter's preferred name (for the 404 message)."""
+        files = list_tail_files(case_dir, ctx.adapter) if case_dir.is_dir() else []
+        return files[0] if files else ctx.adapter.tail_file_names[0]
+
     @app.get("/api/tail", response_model=None)
     def api_tail(
         request: Request,
@@ -69,7 +74,7 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
         ctx.require_auth(x_csauto_token, authorization)
         case_id = ctx.validate_case(query.case)
         case_dir = ctx.runs_dir / case_id
-        file_name = query.file or ctx.adapter.tail_file_names[0]
+        file_name = query.file or _default_tail_file(case_dir)
         file_path = ctx.adapter.locate_case_file(case_dir, file_name) if case_dir.is_dir() else None
         if not file_path:
             raise ctx.http_exception_cls(status_code=404, detail=f"File {file_name} not found for {case_id}")
@@ -102,7 +107,7 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
         """Last lines of a case file, each with the severity the solver's anomaly patterns give it."""
         ctx.require_auth(x_csauto_token, authorization)
         case_id, case_dir = ctx.validated_case_dir(query.case)
-        file_name = query.file or ctx.adapter.tail_file_names[0]
+        file_name = query.file or _default_tail_file(case_dir)
         file_path = ctx.adapter.locate_case_file(case_dir, file_name)
         if not file_path:
             raise ctx.http_exception_cls(status_code=404, detail=f"File {file_name} not found for {case_id}")

@@ -432,7 +432,7 @@ def tail_log(
         raise FileNotFoundError(f"Case not found: {case}")
 
     adapter = adapter or _default_adapter()
-    file_name = file_name or adapter.tail_file_names[0]
+    file_name = file_name or next(iter(list_tail_files(case_dir, adapter)), adapter.tail_file_names[0])
     path = adapter.locate_case_file(case_dir, file_name)
     if not path:
         raise FileNotFoundError(f"File {file_name} not found for {case}")

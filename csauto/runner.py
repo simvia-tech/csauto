@@ -808,7 +808,7 @@ def is_process_alive(pid: int, started_at: float | None = None) -> bool:
 
 
 def _run_alive(record: Mapping[str, Any], job_active: Callable[[str], bool | None]) -> bool | None:
-    """Whether a RUNNING case's process or Slurm job still exists; None when it cannot be told."""
+    """Whether a RUNNING case's process or Slurm job still exists; None when squeue cannot tell."""
     pid = record.get("pid")
     if pid is not None:
         try:
@@ -819,7 +819,7 @@ def _run_alive(record: Mapping[str, Any], job_active: Callable[[str], bool | Non
     job_id = _normalize_job_id(record.get("job_id"))
     if job_id:
         return job_active(job_id)
-    return None
+    return False  # nothing left to watch
 
 
 def terminate_pid(pid: int, grace: float = 1.0) -> None:
