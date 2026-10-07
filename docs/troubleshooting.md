@@ -62,13 +62,28 @@ campaign's solver.
 
 ---
 
-### `Warning: RUNS was prepared for code_saturne; ignoring solver = 'code_aster' from ...`
+### `Warning: RUNS was prepared for code_saturne: ignoring solver, docker_image, saturne_bin and singularity_image from ...`
 
 **Cause**: the `csauto.toml` found for this command selects another solver than
-the one the campaign was prepared for. csauto uses the campaign's solver.
+the one the campaign was prepared for. csauto uses the campaign's solver, with
+that solver's default image and executable: the image and paths in that file
+belong to the other solver.
 
 **Fix**: nothing is needed. To silence it, run the command from the campaign's
-own directory or fix `solver` in that `csauto.toml`.
+own directory or fix `solver` in that `csauto.toml`. To use your own image for
+this campaign, pass `--docker-image` (or `--saturne-bin`, `--singularity-image`)
+on the command line, or set it in a `csauto.toml` that selects the campaign's
+solver.
+
+---
+
+### `RUNS/campaign.json names an unknown solver: 'xyz'`
+
+**Cause**: the campaign was prepared with a solver this csauto installation
+does not have (a newer csauto, say), or `campaign.json` was edited.
+
+**Fix**: use the csauto that prepared the campaign, or correct the solver name
+in `RUNS/campaign.json` (`code_saturne` or `code_aster`).
 
 ---
 
@@ -81,6 +96,17 @@ directory. The case keeps its status; the other selected cases still launch.
 1. Check that `RESU/<run_id>/checkpoint/` exists and is non-empty
 2. If no checkpoint exists, run a fresh simulation first: code_saturne must write
    at least one checkpoint before a restart is possible
+
+---
+
+### `Run 20260101-1000 of caseXXXX has no checkpoint to restart from`
+
+**Cause**: the run chosen in the Restart dialog's **Restart from** (or passed
+as `restart_path`) holds no checkpoint, usually because it failed before
+writing one. The case keeps its status; the other selected cases still launch.
+
+**Fix**: pick another run, or leave **Restart from** on its default, the most
+recent run that has a checkpoint.
 
 ---
 

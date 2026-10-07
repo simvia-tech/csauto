@@ -119,10 +119,10 @@ once your adapter feeds it; the conformance suite refuses a tab nothing feeds.
 | Tab | What to add |
 |---|---|
 | Log Tail | Nothing. It offers `csauto.stdout` and `csauto.stderr` (the solver's console output) plus every `*.log` file of the latest run. Set `tail_file_names` to put your main logs first; entries may be globs, such as `"*.mess"`. |
-| Recent Errors | Nothing. It scans `anomaly_file_names` for crashes, tracebacks, `error:` lines and warnings. Add your solver's own markers with `anomaly_patterns` (labels `"error"`, `"warn"` or `"info"`) and silence false positives with `anomaly_ignore_patterns`. The Log Tail colours lines with the same patterns. |
+| Recent Errors | Nothing. It scans `anomaly_file_names` for crashes, tracebacks, `error:` lines and warnings. Add your solver's own markers with `anomaly_patterns` (labels `"error"` or `"warn"`) and silence false positives with `anomaly_ignore_patterns`. The Log Tail colours lines with the same patterns. |
 | Compare | `compare_kinds`: `CompareKind(value, label)` entries. The value is a name handed to `locate_case_file`, so it can be an alias for a file whose name changes per case (code_aster maps `"export"` to the case's `.export`). The first entry is the default. |
 | Residuals | `find_residuals_files` returning CSV files with an `iteration` column and one column per residual, or `parse_live_residuals` returning rows parsed from a log. `default_residual_columns` names the curves shown first. |
-| Probes | `list_probe_files` and `locate_probe_files`. Time series need a `t` or `time` column. Files are read as comma-separated CSV; override `read_probe_file` for another format. `list_profile_files` adds spatial profiles. |
+| Probes | `list_probe_files` and `locate_probe_files`. Time series need a `t` or `time` column. Files are read as comma-separated CSV; override `read_probe_file(path, max_rows)` for another format (return at most `max_rows` rows when it is set: 0 means only the column names are needed). `list_profile_files` adds spatial profiles. |
 | Timing Snapshot | `performance_columns` (`PerfColumn(key, label, kind)`, kind `"time"`, `"int"`, `"float"` or `"text"`), `find_performance_log`, and `parse_performance` returning values under those keys. `csauto perf` exports the same columns. |
 
 The status table's **Last Iter** column comes from `read_progress`.
@@ -180,7 +180,10 @@ everything into `results_dirname` itself, return `[self.results_root(case_dir)]`
 `locate_case_file(case_dir, name)` turns the names used by the Log Tail,
 Recent Errors and Compare into files. The default resolves paths relative to
 the case folder; extend it when your logs live in run folders (see
-`StubAdapter` and `CodeSaturneAdapter`).
+`StubAdapter` and `CodeSaturneAdapter`). These names can come from API
+requests: build paths with `pathutil.safe_subpath(folder, name)`, which refuses
+`..` and absolute paths, as the stub does. csauto also ignores any file you
+return from outside the case folder.
 
 ### The solver needs a file written at launch
 
@@ -210,7 +213,7 @@ in separate steps), return it from `build_slurm_script`. `mpi_env` turns the
 `supported_runtimes` lists the runtimes the solver can use (`native`,
 `docker`, `singularity`). Auto mode only picks among them, and asking for
 another one is refused before anything starts. Containers mount the campaign
-folder at `container_root` (`/mnt` by default). Keep it out of the image
+folder at `container_root` (`/csauto` by default). Keep it out of the image
 user's home directory, or the solver's own settings and caches end up in the
 campaign folder.
 
@@ -234,7 +237,7 @@ Optional, with their default:
 | Member | Default |
 |---|---|
 | `supported_runtimes` | native, docker and singularity |
-| `container_root` | `"/mnt"` |
+| `container_root` | `"/csauto"` |
 | `container_setup` | none |
 | `shared_dir_names`, `readonly_shared_dir_names` | none: folders next to `TEMPLATE` shared by every case (code_saturne: `MESH`, `POST`), reached as `../MESH` from a case |
 | `template_input_names` | none: files never rendered |

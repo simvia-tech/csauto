@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+from .pathutil import is_within_root
 from .registry import STATUS_DONE, STATUS_FAILED
 from .warn import warn
 
@@ -39,7 +40,7 @@ GENERIC_ANOMALY_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ),
     ("warn", re.compile(r"(warning|limit reached)", re.IGNORECASE)),
 )
-ANOMALY_SEVERITY = {"error": 2, "warn": 1, "info": 0}
+ANOMALY_SEVERITY = {"error": 2, "warn": 1}
 ANOMALY_CONTEXT_DEFAULT = 6
 ANOMALY_CONTEXT_MAX = 50
 ANOMALY_FILE_CACHE_MAX = 256
@@ -108,7 +109,7 @@ def highlight_anomaly_line(
         parts.append(f'<span class="err-hit">{html_lib.escape(line[start:end])}</span>')
         last = end
     parts.append(html_lib.escape(line[last:]))
-    return "".join(parts), severity or "info"
+    return "".join(parts), severity or "warn"
 
 
 def _new_anomaly_file_cache(path: Path, *, device: int | None, inode: int | None) -> AnomalyFileCache:
@@ -264,7 +265,7 @@ def collect_recent_errors(
             continue
         seen_paths: set[str] = set()
         for name in files_to_scan:
-            path = adapter.locate_case_file(case_dir, name)
+            path = find_case_file(case_dir, name, adapter)
             if not path or not path.is_file():
                 continue
             # Aliased names (adapters mapping several conventional names onto
@@ -338,7 +339,9 @@ def list_tail_files(case_dir: Path, adapter=None) -> list[str]:
             seen.add(resolved)
             files.append(name)
 
-    latest = adapter.latest_run_dir(case_dir)
+    run_dirs = adapter.list_run_dirs(case_dir)
+    latest = run_dirs[0] if run_dirs else None
+    older_runs = [run_dir.resolve() for run_dir in run_dirs[1:]]
     folders = [case_dir, *([latest] if latest and latest != case_dir else [])]
     for name in adapter.tail_file_names:
         if any(char in name for char in "*?["):
@@ -346,8 +349,9 @@ def list_tail_files(case_dir: Path, adapter=None) -> list[str]:
                 for path in sorted(folder.glob(name)):
                     add(path.relative_to(case_dir).as_posix(), path)
             continue
-        path = adapter.locate_case_file(case_dir, name)
-        if path:
+        path = find_case_file(case_dir, name, adapter)
+        # A previous run's copy would pass for the current run's log while a new run starts.
+        if path and not any(is_within_root(path, run_dir) for run_dir in older_runs):
             add(name, path)
     if latest:
         for path in sorted(latest.glob("*.log")):
@@ -355,10 +359,20 @@ def list_tail_files(case_dir: Path, adapter=None) -> list[str]:
     return files
 
 
-def read_case_file_text(case_dir: Path, name: str, adapter=None) -> str:
-    """Read a case file content as text."""
+def find_case_file(case_dir: Path, name: str, adapter=None) -> Path | None:
+    """adapter.locate_case_file, refused when the file it finds lies outside the case folder.
+
+    Names come from API requests too, so core code goes through here instead of
+    trusting every adapter override to stay inside the case.
+    """
     adapter = adapter or _default_adapter()
     path = adapter.locate_case_file(case_dir, name)
+    return path if path and is_within_root(path, case_dir.resolve()) else None
+
+
+def read_case_file_text(case_dir: Path, name: str, adapter=None) -> str:
+    """Read a case file content as text."""
+    path = find_case_file(case_dir, name, adapter)
     if not path:
         raise FileNotFoundError(f"File {name} not found for {case_dir.name}")
     return path.read_text(encoding="utf-8", errors="ignore")
@@ -433,7 +447,7 @@ def tail_log(
 
     adapter = adapter or _default_adapter()
     file_name = file_name or next(iter(list_tail_files(case_dir, adapter)), adapter.tail_file_names[0])
-    path = adapter.locate_case_file(case_dir, file_name)
+    path = find_case_file(case_dir, file_name, adapter)
     if not path:
         raise FileNotFoundError(f"File {file_name} not found for {case}")
 

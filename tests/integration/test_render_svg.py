@@ -237,3 +237,14 @@ def test_probe_position_is_unknown_for_an_unmatched_probe(tmp_path: Path) -> Non
     (probe_dir / "gauges_coords.csv").write_text("name,x,y\ngauge_A,1,1\n", encoding="utf-8")
     assert probe_position(case_dir, "gauges_h.csv", column_ref="gauge_A")["x"] == 1.0
     assert probe_position(case_dir, "gauges_h.csv", column_ref="gauge_B") == {}
+
+
+def test_read_csv_table_can_stop_early(tmp_path: Path) -> None:
+    from csauto.probes import read_csv_table
+
+    path = tmp_path / "probes.csv"
+    path.write_text("t, p1\n" + "".join(f"{i}, {i * 2}\n" for i in range(500)), encoding="utf-8")
+    assert read_csv_table(path, max_rows=0) == (["t", "p1"], [])
+    rows = read_csv_table(path, max_rows=200)[1]
+    assert len(rows) == 200 and rows[-1] == {"t": "199", "p1": "398"}
+    assert len(read_csv_table(path)[1]) == 500

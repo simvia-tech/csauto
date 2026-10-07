@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from csauto.registry import STATUS_DONE, STATUS_PREPARED, load_registry, save_registry
+from csauto.registry import STATUS_DONE, STATUS_FAILED, STATUS_PREPARED, STATUS_RUNNING, load_registry, save_registry
 from csauto.solvers.base import ControlAction, PerfColumn, RestartMode
 from csauto.solvers.stub import StubAdapter
 
@@ -139,6 +139,43 @@ def test_clean_resets_a_case_only_when_its_runs_are_deleted(client_for, stub_cas
     prune = {"cases": ["case0001"], "prune_resu": True, "keep_last": 0}
     assert client.post("/api/cleanup_cases", json=prune).json()["resu_removed"] == 1
     assert load_registry(runs_dir)["case0001"]["status"] == STATUS_PREPARED
+
+
+def test_clean_keeps_the_status_of_cases_it_did_not_touch(client_for, stub_case, runs_dir: Path) -> None:
+    (runs_dir / "case0002").mkdir()  # failed before writing any run folder
+    (runs_dir / "case0003" / "OUT" / "run_0001").mkdir(parents=True)
+    registry = load_registry(runs_dir)
+    registry["case0002"] = {"case_id": "case0002", "status": STATUS_FAILED}
+    registry["case0003"] = {"case_id": "case0003", "status": STATUS_RUNNING}
+    save_registry(runs_dir, registry)
+
+    cases = {"cases": ["case0002", "case0003"], "prune_resu": True, "keep_last": 0}
+    report = client_for(StubAdapter()).post("/api/cleanup_cases", json=cases).json()
+
+    assert report["skipped_active"] == ["case0003"]
+    assert (runs_dir / "case0003" / "OUT" / "run_0001").is_dir()
+    assert load_registry(runs_dir)["case0002"]["status"] == STATUS_FAILED
+
+
+def test_file_routes_never_leave_the_case_folder(client_for, stub_case, tmp_path: Path) -> None:
+    secret = tmp_path / "secret.txt"
+    secret.write_text("token\n", encoding="utf-8")
+
+    class LeakyAdapter(StubAdapter):
+        def locate_case_file(self, case_dir, name):
+            return secret
+
+    client = client_for(LeakyAdapter())
+    for url in ("/api/tail?case=case0001&file=x", "/api/tail_lines?case=case0001&file=x"):
+        assert client.get(url).status_code == 404, url
+    assert client.get("/api/case_file?case=case0001&kind=x").status_code == 404
+    update = {"case": "case0001", "kind": "x", "content": "overwritten"}
+    assert client.post("/api/case_file", json=update).status_code == 404
+    assert secret.read_text(encoding="utf-8") == "token\n"
+
+    stub = client_for(StubAdapter())
+    for name in ("../../secret.txt", str(secret), "bad%00name"):
+        assert stub.get(f"/api/tail_lines?case=case0001&file={name}").status_code == 404, name
 
 
 def test_kill_only_searches_docker_for_docker_runs(runs_dir: Path, monkeypatch) -> None:

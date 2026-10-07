@@ -4,7 +4,7 @@ import contextlib
 import os
 import shutil
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .pathutil import is_within_root
@@ -183,6 +183,7 @@ class CleanupReport:
     bytes_freed: int = 0
     cid_removed: int = 0
     pycache_removed: int = 0
+    skipped_active: list[str] = field(default_factory=list)
 
 
 def _truncate_file(path: Path, max_bytes: int) -> int:
@@ -275,12 +276,16 @@ def cleanup_runs(
     for case_dir in _iter_case_dirs(runs_dir, cases):
         if statuses.get(case_dir.name) in (STATUS_RUNNING, STATUS_PENDING):
             # Never delete or truncate files a live run is writing.
+            report.skipped_active.append(case_dir.name)
             continue
         # Only the folders the adapter reports as runs are ever deleted.
         resu_dirs = adapter.list_run_dirs(case_dir)
         if prune_resu:
             if keep_names:
-                targets = [resu_dir for resu_dir in resu_dirs if resu_dir.name not in keep_names]
+                # A case that has none of the kept folders keeps everything: the
+                # names were picked from another case's runs, or mistyped.
+                kept = [resu_dir for resu_dir in resu_dirs if resu_dir.name in keep_names]
+                targets = [resu_dir for resu_dir in resu_dirs if resu_dir.name not in keep_names] if kept else []
             elif delete_names:
                 targets = [resu_dir for resu_dir in resu_dirs if resu_dir.name in delete_names]
             else:

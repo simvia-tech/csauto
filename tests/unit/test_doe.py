@@ -155,3 +155,26 @@ def test_a_bad_doe_value_leaves_no_half_made_case(tmp_path: Path) -> None:
     assert not (runs / "case0001").exists()
     generate_cases(["steps"], [{"steps": "3"}], template_dir, runs, adapter=get_solver_adapter("stub"))
     assert (runs / "case0001" / "stub.toml").read_text(encoding="utf-8") == "steps = 3\n"
+
+
+def test_cases_written_by_older_versions_still_match(tmp_path: Path) -> None:
+    template_dir = tmp_path / "TEMPLATE"
+    (template_dir / "DATA").mkdir(parents=True)
+    (template_dir / "DATA" / "setup.xml").write_bytes(b"<root>\r\n  {foo}\r\n  <!-- caf\xe9 -->\r\n</root>\r\n")
+    output_dir = tmp_path / "RUNS"
+    generate_cases(["foo"], [{"foo": "1"}], template_dir, output_dir)
+    setup = output_dir / "case0001" / "DATA" / "setup.xml"
+    assert setup.read_bytes() == b"<root>\r\n  1\r\n  <!-- caf\xe9 -->\r\n</root>\r\n"
+    # csauto 0.5 wrote LF line endings and dropped the bytes that were not UTF-8.
+    setup.write_bytes(b"<root>\n  1\n  <!-- caf -->\n</root>\n")
+    generate_cases(["foo"], [{"foo": "1"}], template_dir, output_dir)
+
+
+def test_a_binary_with_a_text_head_is_copied_verbatim(tmp_path: Path) -> None:
+    template_dir = tmp_path / "TEMPLATE"
+    (template_dir / "DATA").mkdir(parents=True)
+    (template_dir / "DATA" / "setup.xml").write_text("<root>{foo}</root>", encoding="utf-8")
+    blob = b"{foo}\n" * 2000 + b"\x00\xff"  # the NUL byte comes after the 8 KiB sniff
+    (template_dir / "mesh.bin").write_bytes(blob)
+    generate_cases(["foo"], [{"foo": "1"}], template_dir, tmp_path / "RUNS")
+    assert (tmp_path / "RUNS" / "case0001" / "mesh.bin").read_bytes() == blob

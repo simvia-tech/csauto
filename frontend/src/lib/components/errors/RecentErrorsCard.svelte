@@ -172,7 +172,6 @@
     { value: "all", label: "All" },
     { value: "error", label: "Error" },
     { value: "warn", label: "Warn" },
-    { value: "info", label: "Info" },
   ];
 
   /* Filter change handlers */

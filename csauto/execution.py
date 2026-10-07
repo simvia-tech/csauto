@@ -196,7 +196,9 @@ def shared_dir_symlink_mounts(
     return mounts
 
 
-def check_shared_dir_symlinks(runs_dir: Path, runtime: str, shared_dirs: Sequence[str]) -> None:
+def check_shared_dir_symlinks(
+    runs_dir: Path, runtime: str, shared_dirs: Sequence[str], container_root: str | None = None
+) -> None:
     """Raise if a symlinked shared dir cannot be made visible inside a container.
 
     Symlink targets outside `runs_dir` are bind-mounted into containers at the
@@ -206,6 +208,11 @@ def check_shared_dir_symlinks(runs_dir: Path, runtime: str, shared_dirs: Sequenc
     if runtime not in (RUNTIME_DOCKER, RUNTIME_SINGULARITY):
         return
     for target, _readonly in shared_dir_symlink_mounts(runs_dir, shared_dirs):
+        if container_root and (target == Path(container_root) or Path(container_root) in target.parents):
+            raise RuntimeError(
+                f"{target} is mounted at its own path inside the {runtime} container, which collides with "
+                f"the campaign mount point {container_root}. Move it, or prepare with mesh_mode=copy."
+            )
         if not target.is_dir():
             raise RuntimeError(
                 f"{runs_dir} contains a shared-dir symlink to {target}, which does not exist, "

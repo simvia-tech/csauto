@@ -87,7 +87,7 @@ host = "127.0.0.1"
 port = 8000
 ```
 
-Containers mount the campaign folder at `/mnt` and start the solver inside the
+Containers mount the campaign folder at `/csauto` and start the solver inside the
 case folder (`docker run --rm --entrypoint ...`), so the image does not need
 the solver as its entrypoint.
 
@@ -129,7 +129,7 @@ token = "your-secret-token"
 | `solver` | `code_saturne` | The campaign's solver: `code_saturne`, `code_aster`, or `stub` (a fake solver for tests). `csauto prepare` records it in `RUNS/campaign.json` (see [architecture.md](./architecture.md#solver-adapter-boundary)) |
 | `runtime` | `auto` | Execution backend: `auto`, `native`, `docker`, or `singularity` |
 | `saturne_bin` | (auto-detected) | Path to the native solver executable (`code_saturne`, or `run_aster` for code_aster) for `native` runtime |
-| `docker_image` | (the solver's own image) | Docker image name for `docker` runtime; defaults to `simvia/code_saturne` for code_saturne, `simvia/code_aster:17.4.0` for code_aster |
+| `docker_image` | (the solver's own image) | Docker image name for `docker` runtime; defaults to `simvia/code_saturne` for code_saturne, `simvia/code_aster:17.4.0` for code_aster. csauto starts the solver with `--entrypoint`, so in a custom image the solver must be on `PATH` and its environment set through `ENV` |
 | `singularity_image` | (none) | Path or URI to `.sif` image for `singularity` runtime |
 | `singularity_bin` | (auto-detected) | Path to `apptainer` or `singularity` binary |
 | `use_slurm` | (auto-detected) | `true` to force Slurm submission, `false` to force local |

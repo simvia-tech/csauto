@@ -57,9 +57,6 @@ SLURM_FALSE_VALUES = {"0", "false", "no", "off"}
 LAUNCH_LOCKFILE = ".csauto.launch.lock"
 # Written in the case folder by the launch wrapper when the run command ends.
 EXIT_CODE_FILE = ".csauto.exitcode"
-# How far the start time of a live PID may be from the recorded launch time
-# before the PID is considered reused by another process.
-PID_START_TOLERANCE_S = 120.0
 LAUNCH_THREAD_LOCK = threading.RLock()
 RESULTS_SIZE_CACHE_LOCK = threading.RLock()
 RESULTS_SIZE_CACHE: dict[str, dict[str, float | None]] = {}
@@ -177,7 +174,7 @@ def _submit_slurm_job(
     env_prefix = " ".join(f"{key}={shlex.quote(value)}" for key, value in sorted((env or {}).items()))
     if env_prefix:
         wrapped = f"{env_prefix} {wrapped}"
-    wrapped = f"{wrapped}; echo $? > {EXIT_CODE_FILE}"
+    wrapped = f"{wrapped}; rc=$?; echo $rc > {EXIT_CODE_FILE}; exit $rc"
     submit_cmd = [
         "sbatch",
         "--parsable",
@@ -478,7 +475,8 @@ def _launch_slurm(
 
 def _with_exit_code(command: Sequence[object]) -> list[str]:
     """Run `command` through sh, which writes its exit status to EXIT_CODE_FILE when it ends."""
-    return ["nohup", "sh", "-c", f'"$@"; echo $? > {EXIT_CODE_FILE}', "csauto-run", *_strip_nohup_prefix(command)]
+    script = f'"$@"; rc=$?; echo $rc > {EXIT_CODE_FILE}; exit $rc'
+    return ["nohup", "sh", "-c", script, "csauto-run", *_strip_nohup_prefix(command)]
 
 
 def exit_status_outcome(case_dir: Path, start_time: str | None) -> str | None:
@@ -554,6 +552,7 @@ def _launch_local(
             start_time=timestamp_now(),
             end_time=None,
             pid=proc.pid,
+            pid_identity=process_identity(proc.pid),
             job_id=None,
         )
         if cidfile:
@@ -759,22 +758,22 @@ def _is_zombie(pid: int) -> bool:
     return bool(fields) and fields[0] == "Z"
 
 
-def _process_start_epoch(pid: int) -> float | None:
-    """When the process started (seconds since the epoch), from procfs; None without it."""
+def process_identity(pid: int) -> str | None:
+    """ "<boot id>:<start ticks>" of a process, from procfs, or None without it.
+
+    Unlike wall-clock times, neither part changes when the clock is stepped
+    (WSL2 resyncs often), at a DST change or with another timezone, so it tells
+    a launched process from another one that later got the same PID.
+    """
     try:
+        boot_id = Path("/proc/sys/kernel/random/boot_id").read_text(encoding="utf-8").strip()
         stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8", errors="ignore")
-        boot = next(
-            float(line.split()[1])
-            for line in Path("/proc/stat").read_text(encoding="utf-8", errors="ignore").splitlines()
-            if line.startswith("btime ")
-        )
-        start_ticks = float(stat.rpartition(")")[2].split()[19])
-        return boot + start_ticks / os.sysconf("SC_CLK_TCK")
-    except (OSError, ValueError, IndexError, StopIteration):
+        return f"{boot_id}:{stat.rpartition(')')[2].split()[19]}"
+    except (OSError, IndexError):
         return None
 
 
-def is_process_alive(pid: int, started_at: float | None = None) -> bool:
+def is_process_alive(pid: int, identity: str | None = None) -> bool:
     """Check if a PID is alive (best effort, POSIX-oriented).
 
     A zombie counts as dead. `os.kill(pid, 0)` still succeeds for a process that
@@ -782,16 +781,16 @@ def is_process_alive(pid: int, started_at: float | None = None) -> bool:
     long-lived web server becomes: `run_cases` spawns it with Popen and never
     waits. Treating that as alive kept finished cases RUNNING forever.
 
-    With `started_at` (the recorded launch time), a live PID whose process
-    started at another time counts as dead: the PID was reused, for instance
-    after a reboot.
+    With `identity` (from process_identity at launch), a PID now held by
+    another process counts as dead: the PID was reused, for instance after a
+    reboot, possibly by another user's process.
     """
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
         return False
     except PermissionError:
-        return True
+        pass  # alive but owned by someone else: check the identity below
     except OSError:
         return False
     if _is_zombie(pid):
@@ -800,9 +799,9 @@ def is_process_alive(pid: int, started_at: float | None = None) -> bool:
         with contextlib.suppress(ChildProcessError, OSError):
             os.waitpid(pid, os.WNOHANG)
         return False
-    if started_at is not None:
-        process_start = _process_start_epoch(pid)
-        if process_start is not None and abs(process_start - started_at) > PID_START_TOLERANCE_S:
+    if identity is not None:
+        current = process_identity(pid)
+        if current is not None and current != identity:
             return False
     return True
 
@@ -815,7 +814,7 @@ def _run_alive(record: Mapping[str, Any], job_active: Callable[[str], bool | Non
             pid_number = int(pid)
         except (TypeError, ValueError):
             return False
-        return is_process_alive(pid_number, started_at=parse_start_time(record.get("start_time")))
+        return is_process_alive(pid_number, identity=record.get("pid_identity"))
     job_id = _normalize_job_id(record.get("job_id"))
     if job_id:
         return job_active(job_id)
@@ -919,8 +918,10 @@ def _compute_refresh_result(
             end_time = end_time or timestamp_now()
             pid = None
             job_id = None
-    elif status != STATUS_DONE and has_started:
-        # Only check for completion if a run was actually started.
+    elif status not in (STATUS_DONE, STATUS_PENDING) and has_started:
+        # Only check for completion if a run was actually started. A queued
+        # (PENDING) case still has the previous run's logs, which say nothing
+        # about the run it waits for.
         outcome = adapter.detect_outcome(case_dir, start_time)
         if outcome:
             status = outcome

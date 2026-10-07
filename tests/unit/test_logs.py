@@ -104,3 +104,25 @@ def test_tail_prints_the_requested_number_of_lines(tmp_path: Path, capsys) -> No
     printed = capsys.readouterr().out.splitlines()[1:]
     assert len(printed) == 200
     assert printed[0].startswith("line 0300") and printed[-1].startswith("line 0499")
+
+
+def test_tail_files_come_from_the_current_run_only(tmp_path: Path) -> None:
+    from csauto.logs import list_tail_files
+
+    adapter = get_solver_adapter("code_saturne")
+    case_dir = tmp_path / "case0001"
+    old_run = case_dir / "RESU" / "20260101-1000"
+    old_run.mkdir(parents=True)
+    for name in ("run_solver.log", "summary", "performance.log"):
+        (old_run / name).write_text("done\n", encoding="utf-8")
+    (case_dir / "csauto.stdout").write_text("", encoding="utf-8")
+    assert list_tail_files(case_dir, adapter)[0] == "run_solver.log"
+
+    new_run = case_dir / "RESU" / "20260101-1100"  # staging, no solver log yet
+    new_run.mkdir()
+    (new_run / "preprocessor.log").write_text("", encoding="utf-8")
+    os.utime(old_run, (time.time() - 60, time.time() - 60))
+
+    files = list_tail_files(case_dir, adapter)
+    assert "run_solver.log" not in files and "summary" not in files
+    assert "RESU/20260101-1100/preprocessor.log" in files

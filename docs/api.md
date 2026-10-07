@@ -323,7 +323,7 @@ Response:
 }
 ```
 
-`severity` is `error`, `warn`, `info` or `null`.
+`severity` is `error`, `warn` or `null`.
 
 ## `GET /api/resu_files`
 

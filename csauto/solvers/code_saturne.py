@@ -308,6 +308,18 @@ def _last_match(lines: Sequence[str], patterns: Sequence[re.Pattern[str]], cast:
     return None
 
 
+def _has_checkpoint(run_dir: Path) -> bool:
+    """True when the run folder holds code_saturne checkpoint files (*.csc)."""
+    checkpoint_dir = run_dir / "checkpoint"
+    try:
+        return checkpoint_dir.is_dir() and any(
+            child.is_file() and (child.name.endswith(".csc") or ".csc." in child.name)
+            for child in checkpoint_dir.iterdir()
+        )
+    except OSError:
+        return False
+
+
 def _require_positive_restart_value(
     restart_value: int | float | None,
     mode_label: str,
@@ -553,28 +565,12 @@ class CodeSaturneAdapter(SolverAdapter):
                         f"restart_path must be a run id (e.g. 20260308-0923) or a "
                         f"{self.results_dirname}/<run_id>/checkpoint path"
                     )
+            if not _has_checkpoint(self.results_root(case_dir) / restart_run_id):
+                raise ValueError(f"Run {restart_run_id} of {case_dir.name} has no checkpoint to restart from")
         else:
-            resu_root = self.results_root(case_dir)
-            if resu_root.is_dir():
-                try:
-                    resu_dirs = [p for p in resu_root.iterdir() if p.is_dir()]
-                    resu_dirs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-                except OSError:
-                    resu_dirs = []
-                for run_dir in resu_dirs:
-                    checkpoint_dir = run_dir / "checkpoint"
-                    if not checkpoint_dir.is_dir():
-                        continue
-                    try:
-                        has_checkpoint = any(
-                            child.is_file() and (child.name.endswith(".csc") or ".csc." in child.name)
-                            for child in checkpoint_dir.iterdir()
-                        )
-                    except OSError:
-                        has_checkpoint = False
-                    if has_checkpoint:
-                        restart_run_id = run_dir.name
-                        break
+            restart_run_id = next(
+                (run_dir.name for run_dir in self.list_run_dirs(case_dir) if _has_checkpoint(run_dir)), None
+            )
         if not restart_run_id:
             raise ValueError(f"No checkpoint found for {case_dir.name}")
         details["restart_run_id"] = restart_run_id

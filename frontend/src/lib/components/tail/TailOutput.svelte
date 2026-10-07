@@ -36,7 +36,6 @@
   function severityClass(sev: LogSeverity | null): string {
     if (sev === "error") return "tail-sev-error";
     if (sev === "warn") return "tail-sev-warn";
-    if (sev === "info") return "tail-sev-info";
     return "";
   }
 

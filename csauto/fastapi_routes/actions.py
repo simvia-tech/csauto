@@ -7,6 +7,7 @@ from typing import Any
 
 from ..control import control_case
 from ..execution import resolve_runtime
+from ..logs import find_case_file
 from ..maintenance import cleanup_runs
 from ..registry import STATUS_DONE, STATUS_FAILED, STATUS_PREPARED, STATUS_RUNNING, registry_transaction, update_case
 from ..runner import run_cases
@@ -65,7 +66,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         max_parallel: int | None = None
         restart: bool = False
         restart_mode: str = ""
-        restart_value: int | float | None = None
+        restart_value: float | None = None
         restart_path: str | None = None
 
     def normalize_cases(raw: list[str] | str | None) -> list[str] | None:
@@ -117,13 +118,9 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         if not payload.kind or payload.content is None:
             raise ctx.http_exception_cls(status_code=400, detail="Missing case, kind, content parameters")
         case_id, case_dir = ctx.validated_case_dir(payload.case)
-        target = ctx.adapter.locate_case_file(case_dir, payload.kind)
+        target = find_case_file(case_dir, payload.kind, ctx.adapter)
         if not target:
             raise ctx.http_exception_cls(status_code=404, detail=f"File {payload.kind} not found for {case_id}")
-        try:
-            target.resolve().relative_to(case_dir.resolve())
-        except ValueError as exc:
-            raise ctx.http_exception_cls(status_code=403, detail="Access denied") from exc
         try:
             target.write_text(payload.content, encoding="utf-8")
         except OSError as exc:
@@ -213,6 +210,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         if keep_resu and delete_resu:
             raise ctx.http_exception_cls(status_code=400, detail="keep_resu and delete_resu are mutually exclusive")
 
+        had_runs = {case_id for case_id in case_ids if ctx.adapter.list_run_dirs(ctx.runs_dir / case_id)}
         report = cleanup_runs(
             ctx.runs_dir,
             prune_resu=bool(payload.prune_resu),
@@ -230,7 +228,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         # A finished case whose runs were all deleted goes back to PREPARED.
         if payload.prune_resu and not payload.dry_run:
             with registry_transaction(ctx.runs_dir) as registry:
-                for case_id in case_ids:
+                for case_id in had_runs:
                     if ctx.adapter.list_run_dirs(ctx.runs_dir / case_id):
                         continue
                     current = registry.get(case_id, {}).get("status", "")
@@ -263,6 +261,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
             "bytes_freed": report.bytes_freed,
             "cid_removed": report.cid_removed,
             "pycache_removed": report.pycache_removed,
+            "skipped_active": report.skipped_active,
         }
 
     @app.post("/api/kill_case", response_model=SuccessResponse)

@@ -182,13 +182,16 @@
     const choice = await openCleanDialog(cases);
     if (!choice) return;
     try {
-      await cleanupCases({
+      const report = await cleanupCases({
         cases,
         keepLast: choice.keepLast,
         keepResu: choice.keepResu,
         deleteResu: choice.deleteResu,
         pruneResu: true,
       });
+      if (report.skipped_active?.length) {
+        showToast(`Skipped running cases: ${report.skipped_active.join(", ")}`);
+      }
       onRefresh();
       triggerGlobalRefresh();
     } catch (err) {

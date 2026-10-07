@@ -117,10 +117,12 @@ containers and Slurm jobs. Prefer a graceful stop when the solver offers one:
 Kill discards in-flight work.
 
 **Clean**: delete old run folders and/or shorten heavy logs for the selected
-finished cases. A popup lets you choose which run folders to keep or delete.
-Clean only deletes the folders the solver reports as runs (code_saturne: each
-`RESU/<run>`; code_aster: `RESU` itself, its single run) and never touches
-running cases. A case whose runs were all deleted returns to `PREPARED`. Clean
+finished cases. A popup lets you keep the latest N runs, delete them all, or,
+with a single case selected, pick the run folders to keep or delete (run
+folders are named per case). Clean only deletes the folders the solver reports
+as runs (code_saturne: each `RESU/<run>`; code_aster: `RESU` itself, its single
+run) and never touches running or queued cases; a notice lists the ones it
+skipped. A case whose runs were all deleted returns to `PREPARED`. Clean
 also shortens logs larger than 50 MB to their last 50 MB and removes the
 docker container id file (`.csauto.cid`).
 
@@ -255,7 +257,7 @@ Controls:
 - **File**: choose the log file
 - **Lines**: number of lines to display (default 80)
 - **Filter**: regex filter to match specific lines
-- **Severity**: filter by `Error`, `Warn`, `Info` or `All`. Lines are coloured
+- **Severity**: filter by `Error`, `Warn` or `All`. Lines are coloured
   with the same patterns Recent Errors uses for this solver
 
 The bottom bar shows:
@@ -281,7 +283,7 @@ Controls:
 - **Files**: select which log files to include (multi-select; the list comes
   from the solver; with code_saturne: `csauto.stderr`, `run_solver.log`,
   `listing`, `csauto.stdout`)
-- **Severity**: `All`, `Error`, `Warn`, `Info`
+- **Severity**: `All`, `Error`, `Warn`
 - **Search**: plain-text search within matched lines
 - **Context**: how many lines before and after each hit to display (default 6)
 

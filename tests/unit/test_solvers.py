@@ -82,7 +82,7 @@ class TestCodeSaturneAdapter:
         assert adapter.shared_dir_names == ("MESH", "POST")
         assert adapter.template_input_names == {"setup.xml", "run.cfg"}
         assert adapter.default_docker_image == "simvia/code_saturne"
-        assert adapter.container_root == "/mnt"
+        assert adapter.container_root == "/csauto"
         assert adapter.default_compare_kind == "setup.xml"
         assert [a.name for a in adapter.control_actions] == ["stop", "extend", "checkpoint", "flush"]
         assert adapter.control_action("extend").value_label

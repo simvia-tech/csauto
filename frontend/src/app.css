@@ -432,9 +432,6 @@ pre,
   background: rgba(255, 178, 16, 0.15);
   color: var(--color-edf-orange-clair);
 }
-.tail-sev-info {
-  color: var(--color-edf-gris-moyen);
-}
 .tail-query-hit {
   background: rgba(255, 178, 16, 0.5);
   color: var(--color-edf-noir);

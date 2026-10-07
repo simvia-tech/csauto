@@ -154,7 +154,7 @@ A **runtime** is the execution backend csauto uses to actually run the solver:
 
 The runtime is set in `csauto.toml` or via CLI flags. Whatever the runtime, the
 solver starts inside the case folder; containers mount the campaign folder at
-`/mnt`.
+`/csauto`.
 
 ### RESU directory
 

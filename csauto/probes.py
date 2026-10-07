@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import itertools
 import math
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -121,8 +122,11 @@ def locate_run_csv_files(
     return []
 
 
-def read_csv_table(path: Path) -> tuple[list[str], list[dict[str, str]]]:
-    """(columns, rows) of a comma-separated CSV file with a header line, keys and values stripped."""
+def read_csv_table(path: Path, max_rows: int | None = None) -> tuple[list[str], list[dict[str, str]]]:
+    """(columns, rows) of a comma-separated CSV file with a header line, keys and values stripped.
+
+    max_rows stops reading after that many rows (0 reads the header only).
+    """
     with path.open(newline="", encoding="utf-8", errors="ignore") as handle:
         reader = csv.DictReader(handle)
         if reader.fieldnames is None:
@@ -130,7 +134,7 @@ def read_csv_table(path: Path) -> tuple[list[str], list[dict[str, str]]]:
         columns = [name.strip() for name in reader.fieldnames if name is not None]
         rows = [
             {key.strip(): value.strip() if isinstance(value, str) else value for key, value in row.items() if key}
-            for row in reader
+            for row in itertools.islice(reader, max_rows)
         ]
     return columns, rows
 
@@ -263,7 +267,7 @@ def probe_position(
             continue
         try:
             rows_with_coords: list[tuple[Mapping[str, str], float, float, float | None]] = []
-            for row in adapter.read_probe_file(probe_path)[1][:200]:
+            for row in adapter.read_probe_file(probe_path, max_rows=200)[1]:
                 x = _extract_coord_value(row, "x")
                 y = _extract_coord_value(row, "y")
                 z = _extract_coord_value(row, "z")
@@ -354,7 +358,7 @@ def probe_columns(runs_dir: Path, case: str, probe_files: str | Sequence[str], a
         probe_path = locate_probe_file(case_dir, probe_file, adapter=adapter)
         if not probe_path or not probe_path.is_file():
             raise FileNotFoundError(f"Probe file not found: {probe_file}")
-        for name in adapter.read_probe_file(probe_path)[0]:
+        for name in adapter.read_probe_file(probe_path, max_rows=0)[0]:
             if name and name not in seen:
                 seen.add(name)
                 columns.append(name)

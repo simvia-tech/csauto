@@ -114,7 +114,7 @@ def test_build_runtime_run_command_singularity_slurm_uses_cleanenv_and_env(tmp_p
         "--nt",
         "2",
     ]
-    assert "--pwd" in cmd and cmd[cmd.index("--pwd") + 1] == "/mnt/case0001"
+    assert "--pwd" in cmd and cmd[cmd.index("--pwd") + 1] == "/csauto/case0001"
 
 
 def test_build_runtime_gui_command_native(tmp_path: Path) -> None:
@@ -142,10 +142,10 @@ def test_build_runtime_gui_command_singularity(tmp_path: Path, monkeypatch) -> N
         singularity_image="/images/code_saturne.sif",
     )
     cmd = build_runtime_gui_command(case_dir, selection)
-    container_case = "/mnt/case0001"
+    container_case = "/csauto/case0001"
     assert cmd[:2] == ["/usr/bin/apptainer", "exec"]
     assert "--bind" in cmd
-    assert f"{case_dir.parent.resolve()}:/mnt" in cmd
+    assert f"{case_dir.parent.resolve()}:/csauto" in cmd
     assert "--pwd" in cmd
     assert container_case in cmd
     assert cmd[-4:] == ["/images/code_saturne.sif", "code_saturne", "gui", "DATA/setup.xml"]
@@ -329,3 +329,14 @@ def test_build_runtime_gui_command_singularity_mounts_shared_dir_symlinks(tmp_pa
 
     assert f"{mesh.resolve()}:{mesh.resolve()}:ro" in cmd
     assert f"{post.resolve()}:{post.resolve()}" in cmd
+
+
+def test_check_shared_dir_symlinks_refuses_targets_under_the_container_root(tmp_path: Path) -> None:
+    runs_dir = tmp_path / "RUNS"
+    runs_dir.mkdir()
+    mesh = tmp_path / "data" / "MESH"
+    mesh.mkdir(parents=True)
+    (runs_dir / "MESH").symlink_to(mesh)
+    with pytest.raises(RuntimeError, match="collides with the campaign mount point"):
+        check_shared_dir_symlinks(runs_dir, RUNTIME_DOCKER, ("MESH",), container_root=str(mesh.parent.resolve()))
+    check_shared_dir_symlinks(runs_dir, RUNTIME_DOCKER, ("MESH",), container_root="/csauto")

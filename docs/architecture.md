@@ -124,7 +124,7 @@ Launch modes:
 - Slurm submission (`sbatch --wrap` or an adapter-built script, monitored via `squeue`)
 
 Containers mount the campaign folder at the adapter's `container_root`
-(`/mnt` by default) and run with `--rm`; symlinked shared dirs are mounted at
+(`/csauto` by default) and run with `--rm`; symlinked shared dirs are mounted at
 their own path so `../MESH` resolves inside the container.
 
 ## Testing strategy

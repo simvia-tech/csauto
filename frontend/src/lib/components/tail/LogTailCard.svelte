@@ -4,7 +4,7 @@
   Features:
   - Case and file selector (the server lists the case's log files, best first)
   - Line count control
-  - Severity filter (all / error / warn / info), severities computed by the
+  - Severity filter (all / error / warn), severities computed by the
     server with the solver's anomaly patterns
   - Regex search with highlighting
   - Overlap detection for new lines (flash animation)
@@ -75,7 +75,6 @@
     { value: "all", label: "All" },
     { value: "error", label: "Error" },
     { value: "warn", label: "Warn" },
-    { value: "info", label: "Info" },
   ];
 
   let hasFiles = $derived(availableFiles.length > 0);

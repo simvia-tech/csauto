@@ -58,7 +58,7 @@ class RestartMode(NamedTuple):
 
 ALL_DASHBOARD_PANELS = ("status", "residuals", "probes", "performance", "compare", "tail", "errors")
 ALL_RUNTIMES = (RUNTIME_NATIVE, RUNTIME_DOCKER, RUNTIME_SINGULARITY)
-ANOMALY_LABELS = ("error", "warn", "info")
+ANOMALY_LABELS = ("error", "warn")
 VALUE_KINDS = ("int", "float")
 
 CAPABILITY_RESIDUALS = "residuals"
@@ -92,8 +92,9 @@ class SolverAdapter(ABC):
     # Launch.
     supported_runtimes: ClassVar[frozenset[str]] = frozenset(ALL_RUNTIMES)
     # Where the campaign folder is mounted inside containers. Keep it out of
-    # the image user's home, or the solver's own dotfiles land in the campaign.
-    container_root: ClassVar[str] = "/mnt"
+    # the image user's home (the solver's dotfiles would land in the campaign)
+    # and away from host paths such as /mnt (WSL drives, data disks).
+    container_root: ClassVar[str] = "/csauto"
     # Shell commands run inside containers before the solver, for images whose
     # environment must be activated first (e.g. "source /opt/activate.sh").
     container_setup: ClassVar[str] = ""
@@ -274,7 +275,9 @@ class SolverAdapter(ABC):
         """Checks run once before a batch of launches; raise to refuse the batch."""
         from ..execution import check_shared_dir_symlinks
 
-        check_shared_dir_symlinks(runs_dir, runtime, shared_dirs=self.shared_dir_names)
+        check_shared_dir_symlinks(
+            runs_dir, runtime, shared_dirs=self.shared_dir_names, container_root=self.container_root
+        )
 
     # Run state.
 
@@ -408,15 +411,16 @@ class SolverAdapter(ABC):
         """Files holding the probe `probe_ref`: the latest one, or every run's oldest first."""
         return []
 
-    def read_probe_file(self, path: Path) -> tuple[list[str], list[dict[str, str]]]:
+    def read_probe_file(self, path: Path, max_rows: int | None = None) -> tuple[list[str], list[dict[str, str]]]:
         """(columns, rows) of one probe file. The default reads a comma-separated CSV.
 
         Override it to read another format (SERAFIN, MED...) directly. Time
         series need a "t" or "time" column (any case) or an "iteration" column.
+        max_rows caps the rows returned: 0 when only the columns are needed.
         """
         from ..probes import read_csv_table
 
-        return read_csv_table(path)
+        return read_csv_table(path, max_rows)
 
     def find_performance_log(self, case_dir: Path) -> Path | None:
         return None

@@ -8,7 +8,14 @@ from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from .registry import DOE_ROW_FILENAME, STATUS_PREPARED, registry_transaction, update_case
+from .registry import (
+    DOE_ROW_FILENAME,
+    STATUS_PREPARED,
+    read_campaign_solver,
+    registry_transaction,
+    update_case,
+    write_campaign_solver,
+)
 from .template import (
     ESCAPED_PLACEHOLDER_PATTERN,
     extract_condition_variables,
@@ -41,6 +48,11 @@ def _read_text(path: Path) -> str:
 def _write_text(path: Path, text: str) -> None:
     """Write text produced by _read_text, restoring the bytes it kept."""
     path.write_bytes(text.encode("utf-8", errors="surrogateescape"))
+
+
+def _legacy_form(text: str) -> bytes:
+    """How csauto 0.5 wrote a rendered file: LF line endings, non-UTF-8 bytes dropped."""
+    return text.replace("\r\n", "\n").replace("\r", "\n").encode("utf-8", errors="ignore")
 
 
 def _is_binary(path: Path) -> bool:
@@ -187,6 +199,8 @@ def _collect_render_targets(template_dir: Path, adapter) -> list[tuple[Path, str
             text = _read_text(path)
         except OSError:
             continue
+        if "\x00" in text:  # binary past the sniffed head
+            continue
         placeholders = extract_placeholders(text)
         cond_vars = extract_condition_variables(text)
         # A file whose only braces are escaped still needs rendering, to drop the backslashes.
@@ -248,7 +262,9 @@ def _existing_case_matches(
                 case_text = _read_text(case_path)
             except OSError:
                 return False
-            if case_text != rendered_targets[rel_path]:
+            if case_text != rendered_targets[rel_path] and _legacy_form(case_text) != _legacy_form(
+                rendered_targets[rel_path]
+            ):
                 return False
             continue
         try:
@@ -315,6 +331,9 @@ def generate_cases(
         raise FileNotFoundError(f"Template directory not found: {template_dir}")
 
     adapter = adapter or _default_adapter()
+    recorded = read_campaign_solver(output_dir)
+    if recorded and recorded != adapter.name:
+        raise ValueError(f"{output_dir} holds a {recorded} campaign; csauto.toml selects {adapter.name}.")
     template_setup = adapter.find_setup_file(template_dir)
 
     setup_text = _read_text(template_setup)
@@ -357,6 +376,8 @@ def generate_cases(
 
     _report_unused_columns(headers, required_columns, strict=strict)
     output_dir.mkdir(parents=True, exist_ok=True)
+    # Recorded before any case exists, so commands always know the campaign's solver.
+    write_campaign_solver(output_dir, adapter.name)
 
     setup_relative = template_setup.relative_to(template_dir)
     shared_root = template_dir.parent

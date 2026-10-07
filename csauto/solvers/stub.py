@@ -13,6 +13,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, ClassVar
 
+from ..pathutil import safe_subpath
 from ..registry import STATUS_DONE, STATUS_FAILED
 from .base import CompareKind, ControlAction, SolverAdapter
 
@@ -67,8 +68,8 @@ class StubAdapter(SolverAdapter):
         if direct:
             return direct
         for run_dir in self.list_run_dirs(case_dir):
-            candidate = run_dir / name
-            if candidate.is_file():
+            candidate = safe_subpath(run_dir, name)  # never leave the run folder
+            if candidate and candidate.is_file():
                 return candidate
         return None
 

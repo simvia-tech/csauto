@@ -655,7 +655,7 @@ def test_api_run_case_without_max_parallel_uses_running_plus_requested(
     }
     save_registry(runs_dir, registry)
 
-    monkeypatch.setattr("csauto.web_support.is_process_alive", lambda pid: int(pid) == 4242)
+    monkeypatch.setattr("csauto.web_support.is_process_alive", lambda pid, **_kw: int(pid) == 4242)
     monkeypatch.setattr(
         "csauto.fastapi_routes.actions.resolve_runtime",
         lambda **_kwargs: RuntimeSelection(runtime="docker", docker_image="dummy/image:latest"),

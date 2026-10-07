@@ -1,7 +1,13 @@
 import math
 from typing import Annotated, Any
 
-from ..logs import GENERIC_ANOMALY_PATTERNS, highlight_anomaly_line, list_tail_files, read_tail_lines
+from ..logs import (
+    GENERIC_ANOMALY_PATTERNS,
+    find_case_file,
+    highlight_anomaly_line,
+    list_tail_files,
+    read_tail_lines,
+)
 from ..probes import probe_columns, probe_position, render_probe_svg
 from ..web_support import log_case_action
 from .common import shared_models
@@ -75,7 +81,7 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
         case_id = ctx.validate_case(query.case)
         case_dir = ctx.runs_dir / case_id
         file_name = query.file or _default_tail_file(case_dir)
-        file_path = ctx.adapter.locate_case_file(case_dir, file_name) if case_dir.is_dir() else None
+        file_path = find_case_file(case_dir, file_name, ctx.adapter) if case_dir.is_dir() else None
         if not file_path:
             raise ctx.http_exception_cls(status_code=404, detail=f"File {file_name} not found for {case_id}")
         log_case_action(
@@ -108,7 +114,7 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
         ctx.require_auth(x_csauto_token, authorization)
         case_id, case_dir = ctx.validated_case_dir(query.case)
         file_name = query.file or _default_tail_file(case_dir)
-        file_path = ctx.adapter.locate_case_file(case_dir, file_name)
+        file_path = find_case_file(case_dir, file_name, ctx.adapter)
         if not file_path:
             raise ctx.http_exception_cls(status_code=404, detail=f"File {file_name} not found for {case_id}")
         patterns = (*GENERIC_ANOMALY_PATTERNS, *ctx.adapter.anomaly_patterns)

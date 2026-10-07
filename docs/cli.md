@@ -152,7 +152,7 @@ Notes:
 - Restart (from checkpoint) is available only via the web UI or API, not via this CLI command
 - Cases already `RUNNING` are skipped
 - The solver starts inside the case folder, whatever the runtime. Docker runs
-  use `docker run --rm` with the campaign folder mounted at `/mnt`
+  use `docker run --rm` with the campaign folder mounted at `/csauto`
 - How `--n` and `--nt` are used depends on the solver: code_saturne receives
   them as `-n` and `--nt`; code_aster runs `.csauto.export`, a copy of the case's
   export with `mpi_nbcpu` set from `--n` and `ncpus` from `--nt`
@@ -430,8 +430,10 @@ Each check prints `[OK]`, `[WARN]` or `[FAIL]`. Fix all failures before running.
 
 Removes old run folders and truncates oversized logs. `--prune-resu` deletes
 only the run folders the solver reports: each `RESU/<run>` for code_saturne,
-`RESU` itself for code_aster (one run per case). `RUNNING` and `PENDING` cases
-are skipped. This command does not change case statuses.
+`RESU` itself for code_aster (one run per case). Statuses are refreshed first,
+as `csauto status` does, so a run that has ended is not taken for a running
+one; `RUNNING` and `PENDING` cases are then skipped and listed. Unlike the
+dashboard's Clean, this command never resets a case to `PREPARED`.
 
 ```bash
 csauto cleanup <runs_dir> [options]

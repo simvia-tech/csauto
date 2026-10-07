@@ -569,3 +569,29 @@ def test_code_aster_clean_keeps_its_single_run_until_delete_all(tmp_path: Path) 
     assert cleanup_runs(runs_dir, prune_resu=True, keep_last=0, adapter=adapter).resu_removed == 1
     assert not (case_dir / "RESU").exists()
     assert (case_dir / "doe_row.csv").is_file()
+
+
+def test_keeping_folders_a_case_does_not_have_leaves_that_case_alone(tmp_path: Path) -> None:
+    runs_dir = _make_runs_dir(tmp_path)
+    case_a = _add_case(runs_dir, "caseA")
+    case_b = _add_case(runs_dir, "caseB")
+    for case_dir, runs in ((case_a, ("a1", "a2")), (case_b, ("b1", "b2"))):
+        for run in runs:
+            (case_dir / "RESU" / run).mkdir(parents=True)
+
+    report = cleanup_runs(runs_dir, prune_resu=True, keep_resu=["b2"])
+
+    assert report.resu_removed == 1
+    assert sorted(p.name for p in (case_a / "RESU").iterdir()) == ["a1", "a2"]
+    assert [p.name for p in (case_b / "RESU").iterdir()] == ["b2"]
+
+
+def test_cleanup_reports_the_cases_it_skipped(tmp_path: Path) -> None:
+    from csauto.registry import save_registry
+
+    runs_dir = _make_runs_dir(tmp_path)
+    _add_case(runs_dir, "case0001")
+    _add_case(runs_dir, "case0002")
+    save_registry(runs_dir, {"case0001": {"case_id": "case0001", "status": "PENDING"}})
+
+    assert cleanup_runs(runs_dir, prune_resu=True).skipped_active == ["case0001"]

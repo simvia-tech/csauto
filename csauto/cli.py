@@ -20,14 +20,14 @@ from .logs import (
     tail_log,
 )
 from .maintenance import cleanup_runs, run_doctor
-from .registry import read_campaign_solver, write_campaign_solver
+from .registry import read_campaign_solver
 from .residuals import (
     collect_residuals,
     plot_residuals,
 )
 from .runner import refresh_status, run_cases
 from .serve_commands import add_serve_subcommands, dispatch_serve_command
-from .solvers import get_solver_adapter
+from .solvers import available_solvers, get_solver_adapter
 from .warn import error, flush_warnings, warn
 
 
@@ -403,14 +403,26 @@ def _print_doctor(items: Sequence[object]) -> bool:
     return failed
 
 
-def _campaign_solver(runs_dir: Path | None, config: Config) -> str:
-    """The solver of the campaign in `runs_dir` when it was recorded, else the configured one."""
+def _use_campaign_solver(runs_dir: Path | None, config: Config) -> bool:
+    """Switch `config` to the solver the campaign in `runs_dir` was prepared for.
+
+    Returns True when that replaced the configured solver: the configuration's
+    solver-specific settings (docker image, solver executable, apptainer image)
+    then belong to another solver and are dropped.
+    """
     recorded = read_campaign_solver(runs_dir) if runs_dir is not None else None
-    if not recorded:
-        return config.solver
-    if config.path is not None and recorded != config.solver:
-        warn(f"{runs_dir} was prepared for {recorded}; ignoring solver = {config.solver!r} from {config.path}")
-    return recorded
+    if not recorded or recorded == config.solver:
+        return False
+    if recorded not in available_solvers():
+        raise ValueError(f"{runs_dir}/campaign.json names an unknown solver: {recorded!r}")
+    if config.path is not None:
+        warn(
+            f"{runs_dir} was prepared for {recorded}: ignoring solver, docker_image, saturne_bin "
+            f"and singularity_image from {config.path}"
+        )
+    config.solver = recorded
+    config.docker_image = config.saturne_bin = config.singularity_image = None
+    return True
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -418,19 +430,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     config_path = _preparse_config(argv_list)
     config = load_config(config_path)
     parser, args = parse_arguments(argv_list, config)
-    # Commands on an existing campaign use the solver it was prepared for, so
-    # they work from any directory; serve reads it from config.solver.
-    config.solver = _campaign_solver(getattr(args, "runs_dir", None), config)
-    adapter = get_solver_adapter(config.solver)
 
     try:
+        # Commands on an existing campaign use the solver it was prepared for, so
+        # they work from any directory; serve reads it from config.solver.
+        if _use_campaign_solver(getattr(args, "runs_dir", None), config):
+            parser, args = parse_arguments(argv_list, config)  # drop the other solver's defaults
+        adapter = get_solver_adapter(config.solver)
         if args.command is None:
             parser.print_help()
             return 0
         elif args.command == "prepare":
-            recorded = read_campaign_solver(args.output_root)
-            if recorded and recorded != adapter.name:
-                raise ValueError(f"{args.output_root} holds a {recorded} campaign; csauto.toml selects {adapter.name}.")
             headers, rows = load_doe(args.doe_csv)
             generate_cases(
                 headers,
@@ -441,7 +451,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                 adapter=adapter,
                 strict=args.strict,
             )
-            write_campaign_solver(args.output_root, adapter.name)
         elif args.command == "doe":
             from .doe_generate import check_spec_against_template, generate_rows, load_doe_spec, write_doe_csv
 
@@ -556,6 +565,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             if not (args.prune_resu or args.max_log_mb > 0 or args.clear_cid or args.clear_pyc):
                 print("No action specified. Use --prune-resu/--max-log-mb/--clear-cid/--clear-pyc.")
                 return 0
+            refresh_status(args.runs_dir, adapter=adapter)  # finalize runs that ended, so they are not skipped
             report = cleanup_runs(
                 args.runs_dir,
                 prune_resu=args.prune_resu,
@@ -575,6 +585,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"{prefix}.csauto.cid removed: {report.cid_removed}")
             if args.clear_pyc:
                 print(f"{prefix}__pycache__ removed: {report.pycache_removed}")
+            if report.skipped_active:
+                print(f"Skipped running or queued cases: {', '.join(report.skipped_active)}")
         elif args.command == "completion":
             from .completion import generate_bash, generate_zsh
 

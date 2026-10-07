@@ -1,8 +1,9 @@
 <!--
   CleanDialog: choose a cleanup action and optionally select run folders.
 
-  Loads the cases' run folders via API, then lets the user pick an action:
-  keep_latest, delete_all, keep_folder, or delete_folder.
+  Lets the user pick an action: keep_latest, delete_all, keep_folder, or
+  delete_folder. The folder actions need a single case, since run folders
+  are named per case.
 -->
 <script lang="ts">
   import { onMount } from "svelte";
@@ -36,16 +37,21 @@
     action === "keep_folder" || action === "delete_folder",
   );
 
-  const actionOptions = [
+  let actionOptions = $derived([
     { value: "keep_latest", label: "Keep latest N" },
     { value: "delete_all", label: "Delete all runs" },
-    { value: "keep_folder", label: "Keep specific folders" },
-    { value: "delete_folder", label: "Delete specific folders" },
-  ];
+    ...(cases.length === 1
+      ? [
+          { value: "keep_folder", label: "Keep specific folders" },
+          { value: "delete_folder", label: "Delete specific folders" },
+        ]
+      : []),
+  ]);
 
   let folderOptions = $derived(folders.map((f) => ({ value: f, label: f })));
 
   onMount(async () => {
+    if (cases.length !== 1) return;
     try {
       folders = await fetchResuDirs(cases);
     } catch {

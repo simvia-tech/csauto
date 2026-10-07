@@ -92,7 +92,7 @@ export interface StringListResponse {
 
 /* Log tail */
 
-export type LogSeverity = "error" | "warn" | "info";
+export type LogSeverity = "error" | "warn";
 
 export interface TailLine {
   text: string;
@@ -150,6 +150,7 @@ export interface CleanupResponse {
   bytes_freed: number;
   cid_removed: number;
   pycache_removed: number;
+  skipped_active: string[];
 }
 
 /* Action params (sent by frontend) */
