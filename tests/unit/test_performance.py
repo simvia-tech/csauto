@@ -3,7 +3,10 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-from csauto.logs import collect_performance, parse_performance_log, read_performance_rows
+from csauto.logs import collect_performance, read_performance_rows
+from csauto.solvers import get_solver_adapter
+
+parse_performance_log = get_solver_adapter("code_saturne").parse_performance
 
 
 def _write_performance_log(case_dir: Path, content: str) -> None:

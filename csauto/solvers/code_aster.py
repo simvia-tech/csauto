@@ -15,11 +15,26 @@ from pathlib import Path
 from typing import ClassVar
 
 from ..execution import RUNTIME_DOCKER, RUNTIME_NATIVE, RUNTIME_SINGULARITY, RuntimeSelection, shared_dir_symlink_mounts
-from ..logs import _is_recent, _parse_start_time, read_tail_lines
-from ..registry import STATUS_DONE, STATUS_FAILED
+from ..logs import scan_outcome
 from .base import CompareKind, SolverAdapterBase
 
 CODE_ASTER_EXPORT_EXTENSION = "export"
+OUTCOME_SUCCESS_PATTERNS = tuple(
+    re.compile(rf"DIAGNOSTIC JOB : {verdict}", re.IGNORECASE) for verdict in ("OK", "<A>_ALARM")
+)
+OUTCOME_FAILURE_PATTERNS = tuple(
+    re.compile(rf"DIAGNOSTIC JOB : {verdict}", re.IGNORECASE)
+    for verdict in (
+        "<F>_ABNORMAL_ABORT",
+        "<F>_SYNTAX_ERROR",
+        "<S>_MEMORY_ERROR",
+        "<S>_NO_CONVERGENCE",
+        "<S>_CPU_LIMIT",
+        "<S>_ERROR",
+        "NO_TEST_RESU",
+        "NOOK_TEST_RESU",
+    )
+)
 
 
 class CodeAsterAdapter(SolverAdapterBase):
@@ -153,28 +168,5 @@ class CodeAsterAdapter(SolverAdapterBase):
         raise FileNotFoundError(f".export file not found in template: {template_dir}")
 
     def detect_outcome(self, case_dir: Path, start_time: str | None = None) -> str | None:
-        success_patterns = [
-            re.compile(r"DIAGNOSTIC JOB : OK", re.IGNORECASE),
-            re.compile(r"DIAGNOSTIC JOB : <A>_ALARM", re.IGNORECASE),
-        ]
-        failure_patterns = [
-            re.compile(r"DIAGNOSTIC JOB : <F>_ABNORMAL_ABORT", re.IGNORECASE),
-            re.compile(r"DIAGNOSTIC JOB : <F>_SYNTAX_ERROR", re.IGNORECASE),
-            re.compile(r"DIAGNOSTIC JOB : <S>_MEMORY_ERROR", re.IGNORECASE),
-            re.compile(r"DIAGNOSTIC JOB : <S>_NO_CONVERGENCE", re.IGNORECASE),
-            re.compile(r"DIAGNOSTIC JOB : <S>_CPU_LIMIT", re.IGNORECASE),
-            re.compile(r"DIAGNOSTIC JOB : <S>_ERROR", re.IGNORECASE),
-            re.compile(r"DIAGNOSTIC JOB : NO_TEST_RESU", re.IGNORECASE),
-            re.compile(r"DIAGNOSTIC JOB : NOOK_TEST_RESU", re.IGNORECASE),
-        ]
         log_path = case_dir / self.results_dirname / self.logs_dirname / "run_solver.log"
-        if not log_path.is_file():
-            return None
-        if not _is_recent(log_path, _parse_start_time(start_time)):
-            return None
-        joined = "\n".join(read_tail_lines(log_path, lines=40))
-        if any(p.search(joined) for p in success_patterns):
-            return STATUS_DONE
-        if any(p.search(joined) for p in failure_patterns):
-            return STATUS_FAILED
-        return None
+        return scan_outcome([log_path], start_time, OUTCOME_SUCCESS_PATTERNS, OUTCOME_FAILURE_PATTERNS, lines=40)

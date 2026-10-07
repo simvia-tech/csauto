@@ -10,6 +10,7 @@ names.
 
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -64,6 +65,8 @@ class SolverAdapter(Protocol):
     shared_dir_names: tuple[str, ...]
     template_input_names: frozenset[str]
     anomaly_file_names: tuple[str, ...]
+    anomaly_patterns: tuple[tuple[str, re.Pattern[str]], ...]
+    anomaly_ignore_patterns: tuple[re.Pattern[str], ...]
     tail_file_names: tuple[str, ...]
     cleanup_log_names: frozenset[str]
     performance_fields: tuple[str, ...]
@@ -184,6 +187,9 @@ class SolverAdapterBase(ABC):
     shared_dir_names: ClassVar[tuple[str, ...]] = ()
     template_input_names: ClassVar[frozenset[str]] = frozenset()
     anomaly_file_names: ClassVar[tuple[str, ...]] = ("csauto.stderr", "csauto.stdout")
+    # (severity, pattern) pairs added to logs.GENERIC_ANOMALY_PATTERNS, and lines never reported.
+    anomaly_patterns: ClassVar[tuple[tuple[str, re.Pattern[str]], ...]] = ()
+    anomaly_ignore_patterns: ClassVar[tuple[re.Pattern[str], ...]] = ()
     # Log Tail candidates, best first; the first entry is the /api/tail default.
     tail_file_names: ClassVar[tuple[str, ...]] = ("csauto.stdout", "csauto.stderr")
     cleanup_log_names: ClassVar[frozenset[str]] = frozenset({"csauto.stdout", "csauto.stderr"})
@@ -347,6 +353,15 @@ class SolverAdapterBase(ABC):
     def latest_run_dir(self, case_dir: Path) -> Path | None:
         run_dirs = self.list_run_dirs(case_dir)
         return run_dirs[0] if run_dirs else None
+
+    def find_run_files(self, case_dir: Path, name: str, include_history: bool = False) -> list[Path]:
+        """`name` in each run directory: the most recent copy, or with include_history every copy oldest first."""
+        candidates = [run_dir / name for run_dir in self.list_run_dirs(case_dir) if (run_dir / name).is_file()]
+        if not include_history:
+            latest = max(candidates, key=lambda p: p.stat().st_mtime, default=None)
+            return [latest] if latest else []
+        candidates.sort(key=lambda p: (p.parent.stat().st_mtime, p.stat().st_mtime))
+        return candidates
 
     def list_result_files(self, case_dir: Path, limit: int = 2000, latest_subdir_only: bool = False) -> list[str]:
         """Return result files (no deep subfolders), relative to the case directory."""

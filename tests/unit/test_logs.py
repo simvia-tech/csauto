@@ -5,12 +5,21 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from csauto.logs import detect_run_outcome, highlight_anomaly_line
+from csauto.logs import GENERIC_ANOMALY_PATTERNS, highlight_anomaly_line
 from csauto.registry import STATUS_DONE, STATUS_FAILED
+from csauto.solvers import get_solver_adapter
+
+CODE_SATURNE = get_solver_adapter("code_saturne")
+CS_PATTERNS = (*GENERIC_ANOMALY_PATTERNS, *CODE_SATURNE.anomaly_patterns)
+
+
+def detect_run_outcome(case_dir: Path, start_time: str | None = None) -> str | None:
+    return CODE_SATURNE.detect_outcome(case_dir, start_time)
 
 
 def test_highlight_anomaly_ignores_no_error() -> None:
-    assert highlight_anomaly_line("No error detected") is None
+    assert highlight_anomaly_line("No error detected", CS_PATTERNS, CODE_SATURNE.anomaly_ignore_patterns) is None
+    assert highlight_anomaly_line("No error detected") is not None
 
 
 def test_highlight_anomaly_warn() -> None:
@@ -19,6 +28,13 @@ def test_highlight_anomaly_warn() -> None:
     html, severity = result
     assert severity == "warn"
     assert "err-hit" in html
+
+
+def test_cfd_warnings_come_from_the_adapter() -> None:
+    assert highlight_anomaly_line("clipping of k") is None
+    result = highlight_anomaly_line("clipping of k", CS_PATTERNS)
+    assert result is not None
+    assert result[1] == "warn"
 
 
 def test_detect_run_outcome_done(tmp_path: Path) -> None:

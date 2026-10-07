@@ -40,16 +40,6 @@ class ResidualCaseContext:
     is_launched: bool  # False for PREPARED cases that have never run
 
 
-def find_run_files(run_dirs: Sequence[Path], name: str, include_history: bool = False) -> list[Path]:
-    """Locate `name` in each run directory: the most recent copy, or with include_history every copy oldest first."""
-    candidates = [run_dir / name for run_dir in run_dirs if (run_dir / name).is_file()]
-    if not include_history:
-        latest = max(candidates, key=lambda p: p.stat().st_mtime, default=None)
-        return [latest] if latest else []
-    candidates.sort(key=lambda p: (p.parent.stat().st_mtime, p.stat().st_mtime))
-    return candidates
-
-
 def _normalize_residual_row(row: dict[str | None, str | None]) -> dict[str, str]:
     normalized: dict[str, str] = {}
     for raw_k, raw_v in row.items():

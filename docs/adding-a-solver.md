@@ -23,7 +23,7 @@ Three methods are abstract and must be implemented:
 | Method | Purpose |
 |---|---|
 | `run_argv(case_path, nprocs, nt, run_args)` | Solver argv fragment that starts a run, excluding the binary itself. The generic runtime wrapping composes it into `nohup <bin> ...` (native), `docker run ... <image> ...`, or `apptainer exec ... <image> <container_bin_name> ...`. |
-| `detect_outcome(case_dir, start_time)` | Read the solver's output and return `STATUS_DONE`, `STATUS_FAILED`, or `None` (still unknown). This is how csauto decides a run finished. |
+| `detect_outcome(case_dir, start_time)` | Read the solver's output and return `STATUS_DONE`, `STATUS_FAILED`, or `None` (still unknown). This is how csauto decides a run finished. Most adapters only pass their log paths and verdict regexes to `csauto.logs.scan_outcome`, which handles tail reading and the "written during this run" check. |
 | `find_setup_file(template_dir)` | Locate the solver's primary input file in a template or case directory, raising `FileNotFoundError` if absent. Used by `prepare`, `doctor`, and the GUI. |
 
 These class attributes have no default and must be set:
@@ -49,6 +49,11 @@ Then declare the conventions that differ from the base defaults:
   file list offered by the Recent Errors panel.
 - `tail_file_names` — logs the Log Tail panel prefers, best first. The first
   entry is the `/api/tail` default file.
+- `anomaly_patterns` / `anomaly_ignore_patterns` — `(severity, regex)` pairs
+  added to the generic anomaly set (`csauto.logs.GENERIC_ANOMALY_PATTERNS`:
+  crashes, tracebacks, NaN, `error:`, `warning`...), and regexes for lines never
+  reported. code_saturne adds CFD warnings (`cfl`, `clipping`, ...) and ignores
+  its own "No error detected" banner.
 - `compare_kinds` — `CompareKind(value, label)` entries that populate the
   compare panel's file selector. The first entry is the default;
   `default_compare_kind` is derived from it, so do not declare it yourself.

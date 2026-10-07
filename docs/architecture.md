@@ -90,6 +90,13 @@ An adapter supplies:
   directives, with `control_actions` declaring what the solver supports.
 - **Doctor**: `doctor_checks` for solver-specific environment validation.
 
+Generic mechanism, solver-declared vocabulary: modules outside
+`csauto/solvers/` hold the machinery (log tailing, the incremental anomaly
+scanner, outcome scanning, CSV reading, SVG rendering), and the adapter supplies
+the strings and file layout it runs on (log names, verdict and anomaly regexes,
+results subdirectories, file formats such as `performance.log`). A new solver
+writes its own vocabulary and reuses the machinery as is.
+
 Ownership across the runtime x solver matrix: docker mounts and labels,
 singularity exec prefixes, `sbatch --wrap` submission, local `Popen`, process
 and container termination, launch slots, and the registry are runtime/generic

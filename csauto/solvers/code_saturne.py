@@ -16,23 +16,10 @@ from ..execution import (
     singularity_paths,
     singularity_shell_exec_prefix,
 )
-from ..logs import (
-    ANOMALY_FILES_DEFAULT,
-    _is_recent,
-    _parse_start_time,
-    detect_run_outcome,
-    extract_last_iteration,
-    extract_restart_origin,
-    extract_run_status_iteration,
-    find_latest_performance_log,
-    locate_case_file,
-    locate_log_file,
-    locate_run_status_file,
-    parse_performance_log,
-)
+from ..logs import is_recent, parse_start_time, read_tail_lines, scan_outcome
+from ..pathutil import is_within_root
 from ..probes import list_run_csv_files, locate_run_csv_files
 from ..registry import STATUS_FAILED
-from ..residuals import find_run_files
 from ..svg_utils import as_float
 from .base import CompareKind, PerfColumn, SolverAdapterBase
 
@@ -59,6 +46,44 @@ NT_MAX_CONTROL_RE = re.compile(r"max_time_step\s+(\d+)\s*\(current:")
 PROBES_DIRNAME = "monitoring"
 PROFILES_DIRNAME = "profiles"
 RESIDUALS_FILENAME = "residuals.csv"
+PERFORMANCE_FILENAME = "performance.log"
+RUN_STATUS_RUNNING = "run_status.running"
+# The solver's main logs, best first: run_solver.log, or listing on older versions.
+SOLVER_LOG_NAMES = ("run_solver.log", "listing")
+# Friendly names locate_case_file also looks up in the RESU run directories.
+RUN_FILE_NAMES = frozenset({*SOLVER_LOG_NAMES, RESIDUALS_FILENAME, RUN_STATUS_RUNNING, PERFORMANCE_FILENAME})
+# Root-level console logs some setups write, searched for progress.
+ROOT_LISTING_NAMES = ("listing", "listing.txt", "listing.log", "listing.out")
+
+OUTCOME_SUCCESS_PATTERNS = tuple(
+    re.compile(text, re.IGNORECASE)
+    for text in (
+        r"END OF CALCULATION",
+        r"FINAL STAGE OF THE CALCULATION",
+        r"CALCULATION COMPLETED",
+        r"Calculation ended normally",
+    )
+)
+OUTCOME_FAILURE_PATTERNS = (re.compile(r"FATAL ERROR", re.IGNORECASE), re.compile(r"ERROR DETECTED", re.IGNORECASE))
+# code_saturne reports a clean run with "No error detected", which the generic
+# error pattern would otherwise flag.
+ANOMALY_IGNORE_PATTERNS = (re.compile(r"\bno errors? detected\b", re.IGNORECASE),)
+# CFD vocabulary on top of the generic anomaly patterns.
+CFD_WARNING_PATTERN = re.compile(r"(divergence|unstable|not converged|cfl|clipping)", re.IGNORECASE)
+PROGRESS_PATTERNS = (
+    re.compile(r"[Ii]teration\s+(\d+)"),
+    re.compile(r"[Tt]ime\s+step\s+(\d+)"),
+    re.compile(r"Iter\s*=\s*(\d+)"),
+)
+RUN_STATUS_STEP_RE = re.compile(r"time step:\s*(\d+)", re.IGNORECASE)
+RESTART_ITER_PATTERNS = (
+    re.compile(r"\bnt_prev\b\s*[:=]\s*(\d+)", re.IGNORECASE),
+    re.compile(r"NUMBER OF THE PREVIOUS TIME STEP\s+nt_prev\s*=\s*(\d+)", re.IGNORECASE),
+)
+RESTART_TIME_PATTERNS = (
+    re.compile(r"\bt_prev\b\s*[:=]\s*([-+0-9.eE]+)", re.IGNORECASE),
+    re.compile(r"physical time\s+([-+0-9.eE]+)", re.IGNORECASE),
+)
 
 
 def _find_input_file(template_dir: Path, name: str) -> Path | None:
@@ -133,6 +158,152 @@ def parse_residuals_from_log(log_path: Path) -> tuple[list[str], list[dict[str, 
     return fields, rows
 
 
+PERFORMANCE_FIELDS = (
+    "elapsed_time",
+    "mpi_ranks",
+    "threads",
+    "io_time",
+    "linear_solver_time",
+    "gradients_time",
+    "balances_time",
+)
+
+
+def parse_performance_log(path: Path) -> dict[str, str | None]:
+    """Extract timing and parallel metrics from a performance.log file."""
+    try:
+        content = path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return dict.fromkeys(PERFORMANCE_FIELDS, None)
+
+    value_pattern = r"([0-9.+\-eE]+)"
+    patterns = {
+        "elapsed_time": [
+            re.compile(rf"(?<!total\s)elapsed time\s*[:=]\s*{value_pattern}", re.IGNORECASE),
+            re.compile(rf"total\s+elapsed time\s*[:=]\s*{value_pattern}", re.IGNORECASE),
+        ],
+        "mpi_ranks": [re.compile(r"(?:mpi\s+(?:tasks|ranks)|number of tasks)\s*[:=]\s*(\d+)", re.IGNORECASE)],
+        "threads": [re.compile(r"(?:(?:omp|openmp)\s+)?(?:threads?|thread\(s\)?)\s*[:=]\s*(\d+)", re.IGNORECASE)],
+        "io_time": [
+            re.compile(rf"(?:i/?o|input\s*/\s*output)\s+time(?:\s*\(s\))?\s*[:=]\s*{value_pattern}", re.IGNORECASE),
+            re.compile(
+                rf"total\s+elapsed\s+time\s+for\s+(?:all\s+)?(?:i/?o|input\s*/\s*output)(?:\s+operations?)?\s*[:=]\s*{value_pattern}",
+                re.IGNORECASE,
+            ),
+            re.compile(
+                rf"time\s+(?:for|spent in)\s+(?:i/?o|input\s*/\s*output)(?:\s*\(s\))?\s*[:=]?\s*{value_pattern}",
+                re.IGNORECASE,
+            ),
+        ],
+        "linear_solver_time": [
+            re.compile(
+                rf"(?:linear(?:\s+equation)?\s+solver|linear\s+system\s+solver)\s+time(?:\s*\(s\))?\s*[:=]\s*{value_pattern}",
+                re.IGNORECASE,
+            ),
+            re.compile(
+                rf"total\s+elapsed\s+time\s+for\s+(?:all\s+)?linear(?:\s+equation)?\s+system\s+solvers?\s*[:=]\s*{value_pattern}",
+                re.IGNORECASE,
+            ),
+            re.compile(
+                rf"time\s+(?:for|spent in)\s+(?:the\s+)?(?:linear(?:\s+equation)?\s+solver|linear\s+system\s+solver)"
+                rf"(?:\s*\(s\))?\s*[:=]?\s*{value_pattern}",
+                re.IGNORECASE,
+            ),
+        ],
+        "gradients_time": [
+            re.compile(
+                rf"(?:gradients?|gradient computations?)\s+time(?:\s*\(s\))?\s*[:=]\s*{value_pattern}",
+                re.IGNORECASE,
+            ),
+            re.compile(
+                rf"total\s+elapsed\s+time\s+for\s+(?:all\s+)?gradient(?:\s+computations?)?\s*[:=]\s*{value_pattern}",
+                re.IGNORECASE,
+            ),
+            re.compile(
+                rf"time\s+(?:for|spent in)\s+(?:gradients?|gradient computations?)(?:\s*\(s\))?\s*[:=]?\s*{value_pattern}",
+                re.IGNORECASE,
+            ),
+        ],
+        "balances_time": [
+            re.compile(
+                rf"(?:balances?|balance computations?)\s+time(?:\s*\(s\))?\s*[:=]\s*{value_pattern}",
+                re.IGNORECASE,
+            ),
+            re.compile(
+                rf"total\s+elapsed\s+time\s+for\s+(?:all\s+)?balances?(?:\s+computations?)?\s*[:=]\s*{value_pattern}",
+                re.IGNORECASE,
+            ),
+            re.compile(
+                rf"time\s+(?:for|spent in)\s+(?:balances?|balance computations?)(?:\s*\(s\))?\s*[:=]?\s*{value_pattern}",
+                re.IGNORECASE,
+            ),
+        ],
+    }
+    result: dict[str, str | None] = dict.fromkeys(PERFORMANCE_FIELDS, None)
+    for key in PERFORMANCE_FIELDS:
+        for pattern in patterns.get(key, []):
+            match = pattern.search(content)
+            if match:
+                result[key] = match.group(1)
+                break
+    if result["io_time"] is None:
+        io_total = 0.0
+        io_found = False
+        io_blocks = re.findall(
+            r"code_saturne\s+IO\s+files\s+(?:read|written)\s*:(.*?)(?=^\s*-{10,}\s*$|\Z)",
+            content,
+            flags=re.IGNORECASE | re.DOTALL | re.MULTILINE,
+        )
+        for block in io_blocks:
+            for match in re.finditer(
+                r"^\s*(?:global|local|open)\s*:\s*([0-9.+\-eE]+)\s*s\b",
+                block,
+                flags=re.IGNORECASE | re.MULTILINE,
+            ):
+                try:
+                    io_total += float(match.group(1))
+                    io_found = True
+                except ValueError:
+                    continue
+        if io_found:
+            result["io_time"] = format(io_total, ".6g")
+    return result
+
+
+def _extract_last_iteration(log_path: Path) -> int | None:
+    """The last iteration number printed in the tail of a log, if any."""
+    for line in reversed(read_tail_lines(log_path, lines=400)):
+        for pattern in PROGRESS_PATTERNS:
+            match = pattern.search(line)
+            if match:
+                return int(match.group(1))
+    return None
+
+
+def _extract_run_status_iteration(status_path: Path) -> int | None:
+    """The time step code_saturne records in run_status.running."""
+    try:
+        content = status_path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return None
+    match = RUN_STATUS_STEP_RE.search(content)
+    return int(match.group(1)) if match else None
+
+
+def _last_match(lines: Sequence[str], patterns: Sequence[re.Pattern[str]], cast: Any) -> Any:
+    """The value captured by the last line matching any pattern, converted with `cast`."""
+    for raw in reversed(lines):
+        for pattern in patterns:
+            match = pattern.search(raw)
+            if not match:
+                continue
+            try:
+                return cast(match.group(1))
+            except (ValueError, TypeError):
+                continue
+    return None
+
+
 def _require_positive_restart_value(
     restart_value: int | float | None,
     mode_label: str,
@@ -159,7 +330,9 @@ class CodeSaturneAdapter(SolverAdapterBase):
     results_dirname: ClassVar[str] = "RESU"
     shared_dir_names: ClassVar[tuple[str, ...]] = ("MESH", "POST")
     template_input_names: ClassVar[frozenset[str]] = frozenset({"setup.xml", "run.cfg"})
-    anomaly_file_names: ClassVar[tuple[str, ...]] = ANOMALY_FILES_DEFAULT
+    anomaly_file_names: ClassVar[tuple[str, ...]] = ("csauto.stderr", "run_solver.log", "listing", "csauto.stdout")
+    anomaly_patterns: ClassVar[tuple[tuple[str, re.Pattern[str]], ...]] = (("warn", CFD_WARNING_PATTERN),)
+    anomaly_ignore_patterns: ClassVar[tuple[re.Pattern[str], ...]] = ANOMALY_IGNORE_PATTERNS
     tail_file_names: ClassVar[tuple[str, ...]] = (
         "run_solver.log",
         "listing",
@@ -439,33 +612,86 @@ class CodeSaturneAdapter(SolverAdapterBase):
         return None, None
 
     def detect_outcome(self, case_dir: Path, start_time: str | None = None) -> str | None:
-        outcome = detect_run_outcome(case_dir, start_time)
+        log_dirs = [case_dir, *self.list_run_dirs(case_dir)]
+        outcome = scan_outcome(
+            [log_dir / name for log_dir in log_dirs for name in SOLVER_LOG_NAMES],
+            start_time,
+            OUTCOME_SUCCESS_PATTERNS,
+            OUTCOME_FAILURE_PATTERNS,
+            self.anomaly_ignore_patterns,
+        )
         if outcome:
             return outcome
         # The logs gave no verdict. A run that fails before the solver starts (a
         # missing mesh, say) writes no run_solver.log at all, only a status
         # marker beside it. Restricted to the current run, so a marker left by a
         # previous run never overrides the log of this one.
-        start_ts = _parse_start_time(start_time)
+        start_ts = parse_start_time(start_time)
         for run_dir in self.list_run_dirs(case_dir):
             for name in RUN_STATUS_FAILURE_NAMES:
                 marker = run_dir / name
-                if marker.is_file() and _is_recent(marker, start_ts):
+                if marker.is_file() and is_recent(marker, start_ts):
                     return STATUS_FAILED
         return None
 
     def read_progress(self, case_dir: Path, start_time: str | None = None) -> int | None:
-        run_status_path = locate_run_status_file(case_dir, start_time)
-        if run_status_path:
-            return extract_run_status_iteration(run_status_path)
-        log_path = locate_log_file(case_dir, start_time)
-        return extract_last_iteration(log_path) if log_path else None
+        start_ts = parse_start_time(start_time)
+        markers = [run_dir / RUN_STATUS_RUNNING for run_dir in self.list_run_dirs(case_dir)]
+        markers = [m for m in markers if m.is_file() and is_recent(m, start_ts)]
+        if markers:
+            return _extract_run_status_iteration(max(markers, key=lambda p: p.stat().st_mtime))
+        return self.current_iteration(case_dir, start_time)
 
     def read_restart_origin(self, case_dir: Path) -> dict[str, int | float]:
-        return extract_restart_origin(case_dir)
+        """Iteration and physical time the latest run restarted from, read from its logs."""
+        latest = self.latest_run_dir(case_dir)
+        if latest is None:
+            return {}
+        iter_value: int | None = None
+        time_value: float | None = None
+        for name in ("setup.log", *SOLVER_LOG_NAMES):
+            lines = read_tail_lines(latest / name, lines=12000)
+            if iter_value is None:
+                iter_value = _last_match(lines, RESTART_ITER_PATTERNS, int)
+            if time_value is None:
+                time_value = _last_match(lines, RESTART_TIME_PATTERNS, float)
+            if iter_value is not None and time_value is not None:
+                break
+        result: dict[str, int | float] = {}
+        if iter_value is not None and iter_value >= 0:
+            result["iteration"] = iter_value
+        if time_value is not None and time_value >= 0:
+            result["time"] = time_value
+        return result
 
     def locate_case_file(self, case_dir: Path, name: str) -> Path | None:
-        return locate_case_file(case_dir, name)
+        """Resolve case-relative paths, run files in the newest RESU run that has them, and setup.xml."""
+        direct = super().locate_case_file(case_dir, name)
+        if direct:
+            return direct
+        if name in RUN_FILE_NAMES:
+            root = case_dir.resolve()
+            for run_dir in self.list_run_dirs(case_dir):
+                candidate = run_dir / name
+                if candidate.is_file() and is_within_root(candidate, root):
+                    return candidate
+        if name == "setup.xml":
+            try:
+                return self.find_setup_file(case_dir)
+            except (FileNotFoundError, ValueError):
+                return None
+        return None
+
+    def _locate_log_file(self, case_dir: Path, start_time: str | None = None) -> Path | None:
+        """The current run's most recently written solver log, else its newest console log."""
+        start_ts = parse_start_time(start_time)
+        candidates = [case_dir / name for name in (*ROOT_LISTING_NAMES, "csauto.stdout")]
+        candidates += [path for name in SOLVER_LOG_NAMES if (path := self.locate_case_file(case_dir, name))]
+        current = [p for p in dict.fromkeys(candidates) if p.is_file() and is_recent(p, start_ts)]
+        if not current:
+            return None
+        solver_logs = [p for p in current if p.name in {*SOLVER_LOG_NAMES, *ROOT_LISTING_NAMES}]
+        return max(solver_logs or current, key=lambda p: p.stat().st_mtime)
 
     def find_setup_file(self, template_dir: Path) -> Path:
         setup_path = _find_input_file(template_dir, "setup.xml")
@@ -501,10 +727,10 @@ class CodeSaturneAdapter(SolverAdapterBase):
         return [DoctorItem(level="ok", message="setup.xml present in every case")]
 
     def find_residuals_files(self, case_dir: Path, include_history: bool = False) -> list[Path]:
-        return find_run_files(self.list_run_dirs(case_dir), RESIDUALS_FILENAME, include_history=include_history)
+        return self.find_run_files(case_dir, RESIDUALS_FILENAME, include_history=include_history)
 
     def parse_live_residuals(self, case_dir: Path) -> tuple[list[str], list[dict[str, str]]]:
-        log_path = locate_case_file(case_dir, "run_solver.log")
+        log_path = self.locate_case_file(case_dir, "run_solver.log")
         if not log_path:
             return [], []
         return parse_residuals_from_log(log_path)
@@ -525,7 +751,8 @@ class CodeSaturneAdapter(SolverAdapterBase):
         )
 
     def find_performance_log(self, case_dir: Path) -> Path | None:
-        return find_latest_performance_log(case_dir)
+        found = self.find_run_files(case_dir, PERFORMANCE_FILENAME)
+        return found[0] if found else None
 
     def parse_performance(self, path: Path) -> dict[str, str | None]:
         return parse_performance_log(path)
@@ -581,10 +808,8 @@ class CodeSaturneAdapter(SolverAdapterBase):
 
     def current_iteration(self, case_dir: Path, start_time: str | None = None) -> int | None:
         """Best-effort read of the case's current time step from its live log."""
-        log_path = locate_log_file(case_dir, start_time)
-        if log_path is None:
-            return None
-        return extract_last_iteration(log_path)
+        log_path = self._locate_log_file(case_dir, start_time)
+        return _extract_last_iteration(log_path) if log_path else None
 
     def configured_max_time_step(self, case_dir: Path) -> int | None:
         """Best-effort read of the run's actual configured iteration limit (nt_max).

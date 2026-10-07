@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime
 
 import pytest
@@ -464,3 +465,22 @@ def test_code_saturne_finds_its_input_files(tmp_path) -> None:
         (nested / sub / "setup.xml").write_text("<xml/>", encoding="utf-8")
     with pytest.raises(ValueError, match=r"Multiple setup\.xml"):
         adapter.find_setup_file(nested)
+
+
+def test_code_saturne_locates_run_files_newest_first(tmp_path) -> None:
+    adapter = get_solver_adapter("code_saturne")
+    case_dir = tmp_path / "case0001"
+    old_run = case_dir / "RESU" / "old"
+    new_run = case_dir / "RESU" / "new"
+    for run_dir in (old_run, new_run):
+        run_dir.mkdir(parents=True)
+    (old_run / "performance.log").write_text("old", encoding="utf-8")
+    (new_run / "listing").write_text("new", encoding="utf-8")
+    os.utime(old_run, (1, 1))
+    (case_dir / "setup.xml").write_text("<xml/>", encoding="utf-8")
+
+    assert adapter.locate_case_file(case_dir, "listing") == new_run / "listing"
+    assert adapter.locate_case_file(case_dir, "performance.log") == old_run / "performance.log"
+    assert adapter.find_performance_log(case_dir) == old_run / "performance.log"
+    assert adapter.locate_case_file(case_dir, "setup.xml") == case_dir / "setup.xml"
+    assert adapter.locate_case_file(case_dir, "setup.log") is None
