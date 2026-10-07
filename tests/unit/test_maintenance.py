@@ -501,6 +501,7 @@ def test_doctor_says_none_when_the_solver_has_no_capability(tmp_path: Path) -> N
         container_root = "/bare"
         default_docker_image = ""
         results_dirname = "OUT"
+        dashboard_panels = ("status", "tail", "errors")
 
         def run_argv(self, case_path, nprocs, nt, run_args=None):
             return []

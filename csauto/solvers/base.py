@@ -45,9 +45,10 @@ CAPABILITY_CONTROL = "control"
 CAPABILITY_RESTART = "restart"
 CAPABILITY_GUI = "gui"
 
-# Panels any run feeds, whatever the solver: status comes from the registry,
-# tail and errors from the csauto.stdout / csauto.stderr launcher logs.
-ALWAYS_ON_PANELS = ("status", "tail", "errors")
+# Panels any run can feed, whatever the solver: status comes from the registry,
+# tail and errors from the csauto.stdout / csauto.stderr launcher logs. Every
+# other panel is feedable when the capability of the same name is.
+GENERIC_PANELS = frozenset({"status", "tail", "errors"})
 
 
 @runtime_checkable
@@ -186,15 +187,17 @@ class SolverAdapterBase(ABC):
     performance_columns: ClassVar[tuple[PerfColumn, ...]] = ()
     compare_kinds: ClassVar[tuple[CompareKind, ...]] = ()
     control_actions: ClassVar[frozenset[str]] = frozenset()
+    # Required, no default: the dashboard tabs, in ALL_DASHBOARD_PANELS order.
+    # tests/unit/test_solvers.py checks every declared tab is feedable.
+    dashboard_panels: ClassVar[tuple[str, ...]]
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
-        for reserved in ("dashboard_panels", "capabilities"):
-            if reserved in cls.__dict__:
-                raise TypeError(
-                    f"{cls.__name__} must not declare {reserved!r}: it is derived "
-                    f"from what the adapter implements (see docs/adding-a-solver.md)."
-                )
+        if "capabilities" in cls.__dict__:
+            raise TypeError(
+                f"{cls.__name__} must not declare 'capabilities': it is derived "
+                f"from what the adapter implements (see docs/adding-a-solver.md)."
+            )
 
     def _provides(self, method_name: str) -> bool:
         """True when the adapter defines its own version instead of the empty base default."""
@@ -223,12 +226,6 @@ class SolverAdapterBase(ABC):
         if self.control_actions:
             caps.add(CAPABILITY_CONTROL)
         return frozenset(caps)
-
-    @property
-    def dashboard_panels(self) -> tuple[str, ...]:
-        """Feedable panels, in ALL_DASHBOARD_PANELS display order."""
-        caps = self.capabilities
-        return tuple(panel for panel in ALL_DASHBOARD_PANELS if panel in ALWAYS_ON_PANELS or panel in caps)
 
     @property
     def default_compare_kind(self) -> str:

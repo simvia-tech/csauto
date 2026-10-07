@@ -339,32 +339,30 @@ def test_stub_capabilities_cover_compare_and_control() -> None:
     assert adapter.performance_fields == ()
 
 
-def test_always_on_panels_are_present_for_every_adapter() -> None:
+def test_every_adapter_declares_feedable_panels_in_display_order() -> None:
+    """Each adapter chooses its tabs; a tab it cannot feed, or an unknown name, is a bug."""
     from csauto.solvers import available_solvers, get_solver_adapter
-    from csauto.solvers.base import ALWAYS_ON_PANELS
+    from csauto.solvers.base import ALL_DASHBOARD_PANELS, GENERIC_PANELS
 
     for name in available_solvers():
-        panels = get_solver_adapter(name).dashboard_panels
-        assert set(ALWAYS_ON_PANELS) <= set(panels), name
+        adapter = get_solver_adapter(name)
+        assert "dashboard_panels" in type(adapter).__dict__, f"{name} must declare dashboard_panels"
+        panels = adapter.dashboard_panels
+        assert set(panels) <= set(ALL_DASHBOARD_PANELS), f"{name} declares unknown panels"
+        assert list(panels) == [p for p in ALL_DASHBOARD_PANELS if p in panels], f"{name} panels out of order"
+        for panel in panels:
+            assert panel in GENERIC_PANELS or panel in adapter.capabilities, f"{name} cannot feed {panel!r}"
 
 
-def test_dashboard_panels_follow_declaration_order() -> None:
-    """Panels are ordered by ALL_DASHBOARD_PANELS, not by capability name."""
-    from csauto.solvers.base import ALL_DASHBOARD_PANELS
+def test_adapter_may_leave_out_a_panel_it_could_feed() -> None:
     from csauto.solvers.stub import StubAdapter
 
-    panels = StubAdapter().dashboard_panels
-    assert list(panels) == [p for p in ALL_DASHBOARD_PANELS if p in panels]
+    class QuietStub(StubAdapter):
+        dashboard_panels = ("status", "tail")
 
-
-def test_adapter_cannot_declare_dashboard_panels() -> None:
-    """A class attribute would shadow the derived property and silently reintroduce the bug."""
-    from csauto.solvers.base import SolverAdapterBase
-
-    with pytest.raises(TypeError, match="must not declare 'dashboard_panels'"):
-
-        class BadAdapter(SolverAdapterBase):
-            dashboard_panels = ("status",)
+    adapter = QuietStub()
+    assert "compare" in adapter.capabilities
+    assert adapter.dashboard_panels == ("status", "tail")
 
 
 def test_adapter_cannot_declare_capabilities() -> None:

@@ -34,6 +34,7 @@ class CodeAsterAdapter(SolverAdapterBase):
         "MESH",
         "RESU",
     )
+    dashboard_panels: ClassVar[tuple[str, ...]] = ("status", "compare", "tail", "errors")
     # doe_row.csv is written into every generated case by the generic DOE code,
     # so it is comparable whatever the solver. The .export file would be a better
     # candidate but its name varies per case (find_setup_file globs *.export)

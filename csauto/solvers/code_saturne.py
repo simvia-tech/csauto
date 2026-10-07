@@ -103,6 +103,15 @@ class CodeSaturneAdapter(SolverAdapterBase):
         PerfColumn("mpi_ranks", "MPI Ranks", "int"),
         PerfColumn("threads", "Threads", "int"),
     )
+    dashboard_panels: ClassVar[tuple[str, ...]] = (
+        "status",
+        "residuals",
+        "probes",
+        "performance",
+        "compare",
+        "tail",
+        "errors",
+    )
     compare_kinds: ClassVar[tuple[CompareKind, ...]] = (
         CompareKind("setup.xml", "setup.xml"),
         CompareKind("doe_row.csv", "doe_row.csv"),

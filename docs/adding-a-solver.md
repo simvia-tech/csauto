@@ -36,6 +36,7 @@ These class attributes have no default and must be set:
 | `container_root` | `"/home/code_saturne"` | bind-mount target inside containers |
 | `default_docker_image` | `"simvia/code_saturne"` | `docker` runtime default |
 | `results_dirname` | `"RESU"` | per-case results directory |
+| `dashboard_panels` | `("status", "residuals", ...)` | the dashboard tabs, see below |
 
 Then declare the conventions that differ from the base defaults:
 
@@ -55,11 +56,31 @@ Then declare the conventions that differ from the base defaults:
   do not declare those either.
 - `control_actions` — the live-control directives your `apply_control`
   implements (code_saturne declares `stop`, `extend`, `checkpoint`, `flush`).
-## Dashboard panels are derived, not declared
+## Dashboard panels are declared, capabilities are derived
 
-You never declare which panels your solver gets: `dashboard_panels` and
-`capabilities` are computed from what your adapter actually provides, and
-declaring either of them raises `TypeError` at import time.
+Your adapter lists its dashboard tabs in `dashboard_panels`, in display order
+(`status`, `residuals`, `probes`, `performance`, `compare`, `tail`, `errors`).
+Nothing else changes that list: not the runtime, not the execution backend,
+not a setting. A tab whose data the selected case does not have yet shows its
+empty state rather than disappearing.
+
+Each tab you list must be feedable, and `tests/unit/test_solvers.py` fails
+otherwise (an unknown tab name fails too):
+
+| Tab | Fed by |
+|---|---|
+| `status` | the registry, always feedable |
+| `tail`, `errors` | the `csauto.stdout` / `csauto.stderr` launcher logs and `anomaly_file_names`, always feedable |
+| `residuals` | an override of `find_residuals_files` |
+| `probes` | an override of `list_probe_files` |
+| `performance` | a non-empty `performance_columns` |
+| `compare` | a non-empty `compare_kinds` |
+
+You may leave out a tab you could feed: listing it is your choice.
+
+`capabilities` stays derived from what your adapter provides, and declaring it
+raises `TypeError` at import time. It drives the action buttons and the API
+checks:
 
 | Capability | Granted when your adapter |
 |---|---|
@@ -71,13 +92,8 @@ declaring either of them raises `TypeError` at import time.
 | `performance` | declares a non-empty `performance_columns` |
 | `control` | declares a non-empty `control_actions` |
 
-The `status`, `tail` and `errors` panels are always present: they are fed by the
-registry and by the `csauto.stdout` / `csauto.stderr` launcher logs, which exist
-for every solver.
-
-Implement what your solver can feed and the panel appears; implement nothing and
-the panel, along with its action buttons, is absent from the dashboard and
-refused by the API with a 400. Run `csauto doctor RUNS` to see what was derived:
+An action your adapter cannot perform is absent from the dashboard and refused
+by the API with a 400. Run `csauto doctor RUNS` to see both lists:
 
 ```
 [OK] solver code_aster: panels status, compare, tail, errors
