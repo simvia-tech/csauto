@@ -1,5 +1,5 @@
 <!--
-  ResidualPlotCard — residual convergence plots for selected cases.
+  ResidualPlotCard: residual convergence plots for selected cases.
 
   Fetches available columns from the API, renders SVG plots via the backend,
   and supports start-from-restart with restart origin detection.
@@ -29,6 +29,7 @@
     fetchResidualsSvg,
     fetchRestartOrigin,
   } from "$lib/api/endpoints";
+  import { getAppConfig } from "$lib/stores/appConfig.svelte";
   import {
     startTimer,
     stopTimer,
@@ -47,32 +48,28 @@
   let state = $derived(getPlotState());
   let fetchError = $state("");
 
-  /** Excluded column names (not plottable) */
-  const EXCLUDED = new Set(["iteration", "wall_distance", "walldistance"]);
-
-  /** Preferred default columns */
-  const PREFERRED = ["velocity", "pressure"];
-
   async function loadColumns() {
     if (!state.selectedCases.length) return;
     try {
-      const cols = await fetchResidualColumns(state.selectedCases);
-      fetchError = "";
-      const filtered = cols.filter(
-        (c) => !EXCLUDED.has(c.toLowerCase().replace(/\s+/g, "_")),
+      /* "iteration" is the x axis, not a residual. */
+      const columns = (await fetchResidualColumns(state.selectedCases)).filter(
+        (c) => c !== "iteration",
       );
-      setPlotColumns(filtered);
-      if (filtered.length === 0) {
+      fetchError = "";
+      setPlotColumns(columns);
+      if (columns.length === 0) {
         setPlotSelectedColumns([]);
         setPlotSvg("");
         return;
       }
+      /* Same default as the server: the adapter's default columns that
+         exist, else the first two. */
       if (state.selectedColumns.length === 0) {
-        const preferred = filtered.filter((c) =>
-          PREFERRED.some((p) => c.toLowerCase().includes(p)),
-        );
+        const defaults = (
+          getAppConfig()?.default_residual_columns ?? []
+        ).filter((c) => columns.includes(c));
         setPlotSelectedColumns(
-          preferred.length > 0 ? preferred : [filtered[0]],
+          defaults.length > 0 ? defaults : columns.slice(0, 2),
         );
       }
     } catch (err) {

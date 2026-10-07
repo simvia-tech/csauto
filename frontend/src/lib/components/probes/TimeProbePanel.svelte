@@ -1,5 +1,5 @@
 <!--
-  TimeProbePanel — time-domain probe monitoring plots.
+  TimeProbePanel: time-domain probe plots.
 
   Shows probe file selector, column selector, position display,
   and SVG plot with auto-refresh.

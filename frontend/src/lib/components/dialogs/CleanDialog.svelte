@@ -1,7 +1,7 @@
 <!--
-  CleanDialog — choose cleanup action and optionally select RESU folders.
+  CleanDialog: choose a cleanup action and optionally select run folders.
 
-  Loads available RESU folders via API, then lets the user pick an action:
+  Loads the cases' run folders via API, then lets the user pick an action:
   keep_latest, delete_all, keep_folder, or delete_folder.
 -->
 <script lang="ts">
@@ -38,7 +38,7 @@
 
   const actionOptions = [
     { value: "keep_latest", label: "Keep latest N" },
-    { value: "delete_all", label: "Delete all RESU" },
+    { value: "delete_all", label: "Delete all runs" },
     { value: "keep_folder", label: "Keep specific folders" },
     { value: "delete_folder", label: "Delete specific folders" },
   ];
@@ -57,7 +57,7 @@
   async function confirm() {
     if (showFolders && selectedFolders.length === 0) {
       await appAlert(
-        "Please select at least one RESU folder.",
+        "Please select at least one run folder.",
         "Missing selection",
       );
       return;
@@ -109,7 +109,7 @@
 
   {#if showFolders}
     <div class="mb-3">
-      <FormLabel text="RESU folders">
+      <FormLabel text="Run folders">
         {#if loadingFolders}
           <span class="text-xs text-muted">Loading...</span>
         {:else if folders.length === 0}

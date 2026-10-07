@@ -64,3 +64,22 @@ def test_generic_module_has_no_solver_literals(module_path: Path) -> None:
 def test_accepted_residue_names_existing_modules() -> None:
     for rel in ACCEPTED_RESIDUE:
         assert rel == "*" or (PACKAGE_DIR / rel).is_file(), rel
+
+
+# The dashboard source gets the same scan. Its residue: the HTTP verb POST, and
+# the Probes panel's Profiles view, a generic view fed by list_profile_files.
+FRONTEND_DIR = PACKAGE_DIR.parent / "frontend" / "src"
+FRONTEND_FILES = sorted(p for p in FRONTEND_DIR.rglob("*") if p.suffix in {".svelte", ".ts", ".js"})
+FRONTEND_RESIDUE = ("POST", "profiles")
+
+
+@pytest.mark.parametrize("path", FRONTEND_FILES, ids=lambda p: p.relative_to(FRONTEND_DIR).as_posix())
+def test_dashboard_source_has_no_solver_literals(path: Path) -> None:
+    hits: list[str] = []
+    for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        scrubbed = line
+        for allowed in FRONTEND_RESIDUE:
+            scrubbed = scrubbed.replace(allowed, "")
+        if TOKEN_RE.search(scrubbed):
+            hits.append(f"{path.relative_to(FRONTEND_DIR)}:{lineno}: {line.strip()}")
+    assert not hits, "solver-specific literals in the dashboard source:\n" + "\n".join(hits)

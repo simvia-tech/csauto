@@ -1,5 +1,5 @@
 <!--
-  StatusTable — sortable, selectable table of case status rows.
+  StatusTable: sortable, selectable table of case status rows.
 
   Features:
   - Click to select, Shift+click for range, Ctrl+click for toggle
@@ -89,7 +89,7 @@
       { key: "last_iter", label: "Last Iter", kind: "calc" },
       { key: "duration", label: "Duration", kind: "calc" },
       { key: "last_mod", label: "Last Modified", kind: "calc" },
-      { key: "resu_size_mb", label: "RESU Size (MB)", kind: "calc" },
+      { key: "resu_size_mb", label: "Results (MB)", kind: "calc" },
     ];
     const trailing = allTrailing.filter((c) => visibleBase.has(c.key));
     const actions: Column[] = hasCapability("gui")
@@ -137,7 +137,7 @@
     const newNote = await appPrompt(
       "Case note:",
       current,
-      `Note — ${row.case_id}`,
+      `Note: ${row.case_id}`,
       "",
       true,
     );
@@ -213,7 +213,7 @@
     if (col.kind === "doe")
       return row.doe?.[col.key] != null && String(row.doe[col.key]) !== ""
         ? String(row.doe[col.key])
-        : "—";
+        : "-";
     return "";
   }
 

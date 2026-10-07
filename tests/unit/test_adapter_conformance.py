@@ -99,8 +99,9 @@ def test_capabilities_come_with_what_they_need(adapter) -> None:
     if "control" in caps:
         assert adapter._provides("apply_control"), "control_actions need apply_control"
     for options in (adapter.control_actions, adapter.restart_modes, adapter.compare_kinds):
-        names = [option[0] for option in options]
-        assert len(names) == len(set(names)), "duplicate names"
+        for field in (0, 1):  # names identify options, labels tell them apart in the dashboard
+            values = [option[field] for option in options]
+            assert len(values) == len(set(values)), f"duplicate names or labels in {options}"
 
 
 def test_launch_command_for_every_supported_runtime(adapter, finished_case: Path) -> None:

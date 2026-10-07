@@ -93,8 +93,8 @@
     state.files.map((f) => ({
       value: f,
       label: f
+        .replace(/^.*\//, "")
         .replace(/\.csv$/i, "")
-        .replace(/^profiles\//i, "")
         .replace(/_/g, " "),
     })),
   );

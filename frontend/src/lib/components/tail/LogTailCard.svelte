@@ -1,10 +1,11 @@
 <!--
-  LogTailCard — live log tailing with severity filtering and search highlighting.
+  LogTailCard: live log tailing with severity filtering and search highlighting.
 
   Features:
-  - Case and file selector (auto-discovers available files)
+  - Case and file selector (the server lists the case's log files, best first)
   - Line count control
-  - Severity filter (all / error / warn / info)
+  - Severity filter (all / error / warn / info), severities computed by the
+    server with the solver's anomaly patterns
   - Regex search with highlighting
   - Overlap detection for new lines (flash animation)
   - Pause / resume
@@ -23,8 +24,7 @@
   import FieldRow from "$lib/components/shared/FieldRow.svelte";
   import FormLabel from "$lib/components/shared/FormLabel.svelte";
   import TailOutput from "./TailOutput.svelte";
-  import { fetchTail, fetchResuFiles } from "$lib/api/endpoints";
-  import { getAppConfig } from "$lib/stores/appConfig.svelte";
+  import { fetchTailFiles, fetchTailLines } from "$lib/api/endpoints";
   import {
     startTimer,
     stopTimer,
@@ -34,8 +34,8 @@
     onGlobalRefresh,
   } from "$lib/stores/refresh.svelte";
   import { getRows } from "$lib/stores/status.svelte";
-  import { classifySeverity, passesSeverityFilter } from "$lib/utils/severity";
   import { toCaseOptions } from "$lib/utils/options";
+  import type { TailLine } from "$lib/api/types";
 
   interface Props {
     allCases: string[];
@@ -51,7 +51,7 @@
   let availableFiles = $state<string[]>([]);
   let lines = $state(DEFAULT_TAIL_LINES);
 
-  let rawLines = $state<string[]>([]);
+  let rawLines = $state<TailLine[]>([]);
   let newLineIndexes = $state<Set<number>>(new Set());
   let paused = $state(false);
   let autoRefresh = $state(getAutoRefreshEnabled("tail"));
@@ -75,6 +75,7 @@
     { value: "all", label: "All" },
     { value: "error", label: "Error" },
     { value: "warn", label: "Warn" },
+    { value: "info", label: "Info" },
   ];
 
   let hasFiles = $derived(availableFiles.length > 0);
@@ -84,68 +85,34 @@
     ),
   );
 
-  /** Log files declared by the solver adapter, best first, for auto-selection */
-  let tailFiles = $derived(
-    getAppConfig()?.tail_files ?? ["csauto.stdout", "csauto.stderr"],
-  );
-
-  function filePriority(name: string): number {
-    const base = name.split("/").pop() ?? name;
-    const index = tailFiles.indexOf(base);
-    return index === -1 ? 99 : index;
-  }
-
+  /* Follow the server's best file until the user picks another, and fall
+     back to it when the picked one is gone. */
   async function loadFiles() {
     if (!caseId) return;
     try {
-      const files = await fetchResuFiles(caseId);
-      const logFiles = files.filter((f) => {
-        const base = f.split("/").pop() ?? f;
-        return (
-          f.endsWith(".log") ||
-          f.endsWith("/summary") ||
-          tailFiles.includes(base)
-        );
-      });
-      const sorted = logFiles.sort((a, b) => filePriority(a) - filePriority(b));
-      availableFiles = sorted;
-      if (sorted.length > 0) {
-        const bestFile = sorted[0];
-        if (!file || !sorted.includes(file)) {
-          file = bestFile;
-          userPickedFile = false;
-        } else if (
-          !userPickedFile &&
-          filePriority(bestFile) < filePriority(file)
-        ) {
-          file = bestFile;
-        }
-      }
-      if (availableFiles.length === 0) {
-        file = "";
-        rawLines = [];
-      }
+      availableFiles = await fetchTailFiles(caseId);
     } catch (err) {
       console.error("Failed to load tail files:", err);
       availableFiles = [];
+      return;
     }
+    if (!userPickedFile || !availableFiles.includes(file)) {
+      file = availableFiles[0] ?? "";
+      userPickedFile = false;
+    }
+    if (!file) rawLines = [];
   }
 
   async function loadTail(force = false) {
     if (!caseId) return;
     if (paused && !force) return;
-    /* Always re-check files to discover new logs as simulation progresses */
+    /* Always re-check files to discover new logs as the run progresses */
     await loadFiles();
     if (!file) return;
 
     try {
-      const text = await fetchTail(caseId, file, lines);
+      const currentLines = (await fetchTailLines(caseId, file, lines)).lines;
       fetchError = "";
-      const split = text.split("\n");
-      const currentLines =
-        split.length > 0 && split[split.length - 1] === ""
-          ? split.slice(0, -1)
-          : split;
 
       if (rawLines.length > 0) {
         const overlap = computeOverlap(rawLines, currentLines);
@@ -163,12 +130,12 @@
     }
   }
 
-  function computeOverlap(prev: string[], curr: string[]): number {
+  function computeOverlap(prev: TailLine[], curr: TailLine[]): number {
     const maxCheck = Math.min(prev.length, curr.length);
     for (let offset = 0; offset < maxCheck; offset++) {
       let match = true;
       for (let i = 0; i < Math.min(prev.length - offset, curr.length); i++) {
-        if (prev[offset + i] !== curr[i]) {
+        if (prev[offset + i].text !== curr[i].text) {
           match = false;
           break;
         }
@@ -180,16 +147,13 @@
 
   let filteredLines = $derived.by(() => {
     let result = rawLines.map((line, i) => ({
-      text: line,
+      ...line,
       index: i,
-      severity: classifySeverity(line),
       isNew: newLineIndexes.has(i),
     }));
 
     if (severityFilter !== "all") {
-      result = result.filter((l) =>
-        passesSeverityFilter(l.severity, severityFilter),
-      );
+      result = result.filter((l) => l.severity === severityFilter);
     }
 
     if (searchQuery.trim()) {
@@ -241,7 +205,7 @@
     }
   });
 
-  /* Auto-refresh — restart timer when dependencies change */
+  /* Auto-refresh: restart the timer when dependencies change */
   $effect(() => {
     if (autoRefresh && !paused && caseId) {
       startTimer("tail", () => loadTail(false), getTailRefreshMs());
@@ -280,16 +244,17 @@
     {/if}
   {/snippet}
 
-  {#if hasFiles}
-    <FieldRow>
-      <FormLabel text="Case">
-        <Dropdown
-          class="w-[130px]"
-          options={caseOptions}
-          value={caseId}
-          onchange={handleCaseChange}
-        />
-      </FormLabel>
+  <!-- The case selector stays visible so a case without logs can be left. -->
+  <FieldRow>
+    <FormLabel text="Case">
+      <Dropdown
+        class="w-[130px]"
+        options={caseOptions}
+        value={caseId}
+        onchange={handleCaseChange}
+      />
+    </FormLabel>
+    {#if hasFiles}
       <FormLabel text="File">
         <Dropdown
           class="w-[150px]"
@@ -324,8 +289,8 @@
           onchange={(v) => (severityFilter = v)}
         />
       </FormLabel>
-    </FieldRow>
-  {/if}
+    {/if}
+  </FieldRow>
 
   {#if rawLines.length > 0}
     <TailOutput lines={filteredLines} {searchQuery} {autoScroll} />
@@ -386,7 +351,11 @@
     </div>
   {:else}
     <p class="text-sm text-muted italic text-center py-8">
-      No log data available. Please run a simulation first.
+      {#if caseId && !hasFiles}
+        No log file yet for this case.
+      {:else}
+        No log data available. Please run a simulation first.
+      {/if}
     </p>
   {/if}
 

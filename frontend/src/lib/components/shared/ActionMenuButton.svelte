@@ -1,11 +1,14 @@
 <!--
-  ActionMenuButton — a small "More" button that opens a fixed-position dropdown
-  of action items (label + icon + onClick), e.g. secondary case-control actions.
+  ActionMenuButton: a small button ("More" unless labelled) that opens a
+  fixed-position dropdown of action items (label + onClick), e.g. the live
+  control actions of running cases.
 
-  Closes on selection, outside click, scroll, or Escape.
+  Closes on selection, outside click, scroll, or Escape. Opening focuses the
+  first enabled item (the list is portaled to the end of <body>, so Tab alone
+  would never reach it); Escape or a selection puts focus back on the button.
 -->
 <script lang="ts">
-  import { tick, type Component } from "svelte";
+  import { tick } from "svelte";
   import Icon from "./Icon.svelte";
   import Portal from "./Portal.svelte";
   import Button from "./Button.svelte";
@@ -13,7 +16,6 @@
 
   interface MenuItem {
     label: string;
-    icon: Component;
     onClick: () => void;
     disabled?: boolean;
   }
@@ -47,13 +49,35 @@
     if (open) {
       await tick();
       updateListPosition();
+      listEl
+        ?.querySelector<HTMLButtonElement>("button:not(:disabled)")
+        ?.focus({ preventScroll: true });
     }
+  }
+
+  function close() {
+    open = false;
+    buttonWrapEl?.querySelector("button")?.focus();
   }
 
   function select(item: MenuItem) {
     if (item.disabled) return;
-    open = false;
+    close();
     item.onClick();
+  }
+
+  /* Up/Down step through the enabled items, as in any menu (left alone they
+     would scroll the page, which closes the menu). */
+  function onListKeydown(e: KeyboardEvent) {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    e.preventDefault();
+    const enabled = Array.from(
+      listEl?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ??
+        [],
+    );
+    const i = enabled.indexOf(document.activeElement as HTMLButtonElement);
+    const step = e.key === "ArrowDown" ? 1 : enabled.length - 1;
+    enabled[(i + step) % enabled.length]?.focus();
   }
 
   function handleMousedown(e: MouseEvent) {
@@ -72,7 +96,7 @@
 <svelte:window
   onmousedown={handleMousedown}
   onkeydown={(e) => {
-    if (e.key === "Escape") open = false;
+    if (e.key === "Escape" && open) close();
   }}
   onscroll={() => {
     if (open) open = false;
@@ -91,6 +115,8 @@
     <ul
       bind:this={listEl}
       role="menu"
+      tabindex="-1"
+      onkeydown={onListKeydown}
       class="bg-white border border-border rounded-md p-1 grid gap-0.5 shadow-lg"
       style={listStyle}
     >
@@ -104,12 +130,8 @@
             class="w-full flex items-center gap-2 text-left py-[7px] px-[10px] bg-transparent border border-transparent rounded-md text-[12.5px] text-ink transition-[background] duration-[120ms] ease-in-out disabled:opacity-40 disabled:pointer-events-none {item.disabled
               ? ''
               : 'cursor-pointer hover:bg-edf-gris-clair hover:border-border'}"
-            onmousedown={(e) => {
-              e.stopPropagation();
-              select(item);
-            }}
+            onclick={() => select(item)}
           >
-            <Icon icon={item.icon} size={14} />
             {item.label}
           </button>
         </li>

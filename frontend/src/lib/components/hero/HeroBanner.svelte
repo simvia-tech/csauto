@@ -1,5 +1,5 @@
 <!--
-  HeroBanner — compact top bar with title, metrics, and settings.
+  HeroBanner: compact top bar with the solver's logo (or name), metrics, and settings.
 
   Counts show "shown / total" when a search filter is active.
 -->
@@ -7,10 +7,8 @@
   import Icon from "$lib/components/shared/Icon.svelte";
   import SettingsDialog from "$lib/components/settings/SettingsDialog.svelte";
   import { Settings } from "lucide-svelte";
-
-  import codeSaturneLogo from "../../../assets/code-saturne.svg";
-  import codeAsterLogo from "../../../assets/code-aster.svg";
   import { getAppConfig } from "$lib/stores/appConfig.svelte";
+  import { solverLogoUrl } from "$lib/api/endpoints";
 
   interface Props {
     totalCases: number;
@@ -31,6 +29,7 @@
   }: Props = $props();
 
   let isFiltered = $derived(shownCases !== totalCases);
+  let config = $derived(getAppConfig());
   let settingsOpen = $state(false);
 </script>
 
@@ -39,13 +38,16 @@
   style="padding-inline: max(16px, calc((100vw - 1200px) / 2));"
 >
   <div class="flex items-center gap-3 mr-auto">
-    {#if !getAppConfig() || getAppConfig()?.solver === "code_saturne"}
-      <img src={codeSaturneLogo} alt="CODE_SATURNE" class="h-7 w-auto" />
-    {:else if getAppConfig()?.solver === "code_aster"}
-      <img src={codeAsterLogo} alt="CODE_ASTER" class="h-7 w-auto" />
-    {:else}
+    <!-- Nothing until the config says which solver this is. -->
+    {#if config?.logo}
+      <img
+        src={solverLogoUrl(config.solver)}
+        alt={config.solver}
+        class="h-7 w-auto"
+      />
+    {:else if config}
       <span class="text-lg font-bold text-ink tracking-tight"
-        >{getAppConfig()?.solver}</span
+        >{config.solver}</span
       >
     {/if}
   </div>

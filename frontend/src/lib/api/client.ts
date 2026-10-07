@@ -82,7 +82,7 @@ export async function apiPost<T = unknown>(
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => res.statusText);
-    throw new Error(`POST ${url} failed: ${res.status} — ${detail}`);
+    throw new Error(`POST ${url} failed (${res.status}): ${detail}`);
   }
   return res.json() as Promise<T>;
 }

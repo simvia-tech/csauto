@@ -1,8 +1,8 @@
 <!--
-  CardShell — reusable card wrapper with eyebrow, title, and action slot.
+  CardShell: reusable card wrapper with eyebrow, title, and action slot.
 
   Usage:
-    <CardShell eyebrow="Monitoring" title="Status" wide>
+    <CardShell eyebrow="Overview" title="Status" wide>
       {#snippet actions()}<button class="btn">Refresh</button>{/snippet}
       <StatusTable />
     </CardShell>

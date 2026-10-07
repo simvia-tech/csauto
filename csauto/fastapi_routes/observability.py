@@ -171,7 +171,8 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
     def _svg_or_404(path: Path | None) -> Any:
         if not path or not path.is_file():
             raise ctx.http_exception_cls(status_code=404, detail=f"No such image for solver {ctx.adapter.name}")
-        return FileResponse(path, media_type="image/svg+xml")
+        # Revalidate every time: the same URL serves whichever solver this server runs.
+        return FileResponse(path, media_type="image/svg+xml", headers={"Cache-Control": "no-cache"})
 
     # Branding images are public, like the dashboard's own assets.
     @app.get("/api/solver_logo", response_model=None)
