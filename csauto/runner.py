@@ -584,6 +584,9 @@ def run_cases(
     adapter: SolverAdapter | None = None,
 ) -> None:
     """Launch solver runs for each case directory."""
+    # Commands start inside the case folder, so every path handed to them
+    # (the docker cidfile, the case itself) must be absolute.
+    runs_dir = runs_dir.resolve()
     if nprocs <= 0 or nt <= 0:
         raise ValueError("nprocs and nt must be > 0")
     if max_parallel <= 0:

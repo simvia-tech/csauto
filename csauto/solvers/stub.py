@@ -40,7 +40,6 @@ class StubAdapter(SolverAdapter):
     name: ClassVar[str] = "stub"
     native_bin_name: ClassVar[str] = "python3"
     container_bin_name: ClassVar[str] = ""
-    container_root: ClassVar[str] = "/stub"
     default_docker_image: ClassVar[str] = ""
     results_dirname: ClassVar[str] = "OUT"
     dashboard_panels: ClassVar[tuple[str, ...]] = ("status", "compare", "tail", "errors")

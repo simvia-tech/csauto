@@ -39,3 +39,13 @@ def test_render_template_preserves_shell_expansions() -> None:
     rendered = render_template(text, row, "case0004")
     assert "echo ${HOME}" in rendered
     assert "<root>A</root>" in rendered
+
+
+def test_escaped_placeholder_is_kept_literally() -> None:
+    text = "print(f'step \\{i}')\nv = {velocity}\n"
+    assert extract_placeholders(text) == {"velocity"}
+    assert render_template(text, {"velocity": "2"}, "case0001") == "print(f'step {i}')\nv = 2\n"
+
+
+def test_format_specs_and_shell_variables_are_not_placeholders() -> None:
+    assert extract_placeholders("f'{x:.3e}' ${HOME} {'a': 1}") == set()

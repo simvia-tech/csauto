@@ -181,7 +181,20 @@ _COORD_ALIASES: dict[str, set[str]] = {
     "y": {"y", "coordy", "ycoord", "positiony", "yposition", "probey", "y2", "coord2"},
     "z": {"z", "coordz", "zcoord", "positionz", "zposition", "probez", "z3", "coord3"},
 }
-_COORD_INDEX_ALIASES = {"probe", "probeid", "probeindex", "index", "idx", "id", "point", "column", "col"}
+_COORD_INDEX_ALIASES = {
+    "probe",
+    "probeid",
+    "probeindex",
+    "probename",
+    "name",
+    "label",
+    "index",
+    "idx",
+    "id",
+    "point",
+    "column",
+    "col",
+}
 
 
 def _extract_coord_value(row: Mapping[str, str], axis: str) -> float | None:

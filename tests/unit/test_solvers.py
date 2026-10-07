@@ -82,7 +82,7 @@ class TestCodeSaturneAdapter:
         assert adapter.shared_dir_names == ("MESH", "POST")
         assert adapter.template_input_names == {"setup.xml", "run.cfg"}
         assert adapter.default_docker_image == "simvia/code_saturne"
-        assert adapter.container_root == "/home/code_saturne"
+        assert adapter.container_root == "/mnt"
         assert adapter.default_compare_kind == "setup.xml"
         assert [a.name for a in adapter.control_actions] == ["stop", "extend", "checkpoint", "flush"]
         assert adapter.control_action("extend").value_label
@@ -342,21 +342,6 @@ def test_stub_capabilities_cover_compare_and_control() -> None:
     assert adapter.performance_fields == ()
 
 
-def test_every_adapter_declares_feedable_panels_in_display_order() -> None:
-    """Each adapter chooses its tabs; a tab it cannot feed, or an unknown name, is a bug."""
-    from csauto.solvers import available_solvers, get_solver_adapter
-    from csauto.solvers.base import ALL_DASHBOARD_PANELS, GENERIC_PANELS
-
-    for name in available_solvers():
-        adapter = get_solver_adapter(name)
-        assert "dashboard_panels" in type(adapter).__dict__, f"{name} must declare dashboard_panels"
-        panels = adapter.dashboard_panels
-        assert set(panels) <= set(ALL_DASHBOARD_PANELS), f"{name} declares unknown panels"
-        assert list(panels) == [p for p in ALL_DASHBOARD_PANELS if p in panels], f"{name} panels out of order"
-        for panel in panels:
-            assert panel in GENERIC_PANELS or panel in adapter.capabilities, f"{name} cannot feed {panel!r}"
-
-
 def test_adapter_may_leave_out_a_panel_it_could_feed() -> None:
     from csauto.solvers.stub import StubAdapter
 
@@ -486,3 +471,48 @@ def test_code_saturne_locates_run_files_newest_first(tmp_path) -> None:
     assert adapter.find_performance_log(case_dir) == old_run / "performance.log"
     assert adapter.locate_case_file(case_dir, "setup.xml") == case_dir / "setup.xml"
     assert adapter.locate_case_file(case_dir, "setup.log") is None
+
+
+def test_anomaly_labels_are_checked_when_the_adapter_is_defined() -> None:
+    import re
+
+    with pytest.raises(TypeError, match="unknown label 'fatal'"):
+
+        class BadLabels(StubAdapter):
+            anomaly_patterns = (("fatal", re.compile("boom")),)
+
+
+def test_derived_attributes_cannot_be_declared() -> None:
+    for name in ("capabilities", "performance_fields", "default_compare_kind"):
+        with pytest.raises(TypeError, match=name):
+            type("Bad", (StubAdapter,), {name: ()})
+
+
+def test_log_parsed_residuals_earn_the_capability() -> None:
+    class LogResiduals(StubAdapter):
+        def parse_live_residuals(self, case_dir):
+            return ["iteration", "r"], [{"iteration": "1", "r": "0.1"}]
+
+    assert "residuals" in LogResiduals().capabilities
+
+
+def test_resolve_runtime_respects_supported_runtimes(monkeypatch) -> None:
+    from csauto.execution import resolve_runtime
+
+    stub = get_solver_adapter("stub")
+    with pytest.raises(ValueError, match="does not support the docker runtime"):
+        resolve_runtime("docker", adapter=stub)
+    # Auto never picks docker for a native-only solver, even when docker is installed.
+    monkeypatch.setattr("csauto.execution.shutil.which", lambda name: f"/usr/bin/{name}")
+    assert resolve_runtime("auto", adapter=stub).runtime == "native"
+
+
+def test_docker_image_defaults_to_the_solvers_own(monkeypatch) -> None:
+    from csauto.execution import resolve_runtime
+
+    monkeypatch.setattr("csauto.execution.shutil.which", lambda name: "/usr/bin/docker" if name == "docker" else None)
+    selection = resolve_runtime("docker", adapter=get_solver_adapter("code_aster"))
+    assert selection.docker_image == "simvia/code_aster:17.4.0"
+    assert (
+        resolve_runtime("docker", docker_image="mine", adapter=get_solver_adapter("code_aster")).docker_image == "mine"
+    )

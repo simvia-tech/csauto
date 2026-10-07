@@ -329,7 +329,6 @@ class CodeSaturneAdapter(SolverAdapter):
     name: ClassVar[str] = "code_saturne"
     native_bin_name: ClassVar[str] = "code_saturne"
     container_bin_name: ClassVar[str] = "code_saturne"
-    container_root: ClassVar[str] = "/home/code_saturne"
     default_docker_image: ClassVar[str] = "simvia/code_saturne"
     results_dirname: ClassVar[str] = "RESU"
     shared_dir_names: ClassVar[tuple[str, ...]] = ("MESH", "POST")

@@ -95,3 +95,38 @@ def test_generate_cases_duplicate_case_id_raises(tmp_path: Path) -> None:
     with pytest.raises(ValueError) as excinfo:
         generate_cases(headers, rows, template_dir, output_dir)
     assert str(excinfo.value) == "Duplicate case_id in DOE: caseA"
+
+
+def test_generate_cases_keeps_non_utf8_bytes_and_binaries(tmp_path: Path) -> None:
+    from csauto.solvers import get_solver_adapter
+
+    template_dir = tmp_path / "TEMPLATE"
+    template_dir.mkdir()
+    (template_dir / "study.export").write_text("F comm study.comm D 1\n", encoding="utf-8")
+    (template_dir / "study.comm").write_bytes("# débit imposé\nQ = {inflow}\n".encode("latin-1"))
+    (template_dir / "mesh.med").write_bytes(b"\x89HDF\x00{inflow}\xff")
+
+    generate_cases(
+        ["inflow"], [{"inflow": "2.5"}], template_dir, tmp_path / "RUNS", adapter=get_solver_adapter("code_aster")
+    )
+
+    case_dir = tmp_path / "RUNS" / "case0001"
+    assert (case_dir / "study.comm").read_bytes() == "# débit imposé\nQ = 2.5\n".encode("latin-1")
+    assert (case_dir / "mesh.med").read_bytes() == b"\x89HDF\x00{inflow}\xff"
+    # Rendering is stable, so preparing again recognises the existing case.
+    generate_cases(
+        ["inflow"], [{"inflow": "2.5"}], template_dir, tmp_path / "RUNS", adapter=get_solver_adapter("code_aster")
+    )
+
+
+def test_missing_column_error_names_the_file_and_the_escape(tmp_path: Path) -> None:
+    from csauto.solvers import get_solver_adapter
+
+    template_dir = tmp_path / "TEMPLATE"
+    template_dir.mkdir()
+    (template_dir / "study.export").write_text("F comm study.comm D 1\n", encoding="utf-8")
+    (template_dir / "study.comm").write_text("print(f'step {i}')\n", encoding="utf-8")
+    with pytest.raises(ValueError) as excinfo:
+        generate_cases(["x"], [{"x": "1"}], template_dir, tmp_path / "RUNS", adapter=get_solver_adapter("code_aster"))
+    assert "i in study.comm" in str(excinfo.value)
+    assert "\\{i}" in str(excinfo.value)

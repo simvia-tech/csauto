@@ -32,7 +32,6 @@ class CodeAsterAdapter(SolverAdapter):
     name: ClassVar[str] = "code_aster"
     native_bin_name: ClassVar[str] = "run_aster"
     container_bin_name: ClassVar[str] = "run_aster"
-    container_root: ClassVar[str] = "/home/user"
     default_docker_image: ClassVar[str] = "simvia/code_aster:17.4.0"
     container_setup: ClassVar[str] = "source /opt/activate.sh"
     results_dirname: ClassVar[str] = "RESU"

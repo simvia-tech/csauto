@@ -114,7 +114,7 @@ def test_build_runtime_run_command_singularity_slurm_uses_cleanenv_and_env(tmp_p
         "--nt",
         "2",
     ]
-    assert "--pwd" in cmd and cmd[cmd.index("--pwd") + 1] == "/home/code_saturne/case0001"
+    assert "--pwd" in cmd and cmd[cmd.index("--pwd") + 1] == "/mnt/case0001"
 
 
 def test_build_runtime_gui_command_native(tmp_path: Path) -> None:
@@ -142,10 +142,10 @@ def test_build_runtime_gui_command_singularity(tmp_path: Path, monkeypatch) -> N
         singularity_image="/images/code_saturne.sif",
     )
     cmd = build_runtime_gui_command(case_dir, selection)
-    container_case = "/home/code_saturne/case0001"
+    container_case = "/mnt/case0001"
     assert cmd[:2] == ["/usr/bin/apptainer", "exec"]
     assert "--bind" in cmd
-    assert f"{case_dir.parent.resolve()}:/home/code_saturne" in cmd
+    assert f"{case_dir.parent.resolve()}:/mnt" in cmd
     assert "--pwd" in cmd
     assert container_case in cmd
     assert cmd[-4:] == ["/images/code_saturne.sif", "code_saturne", "gui", "DATA/setup.xml"]

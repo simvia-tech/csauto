@@ -518,3 +518,54 @@ def test_doctor_says_none_when_the_solver_has_no_capability(tmp_path: Path) -> N
 
     items = run_doctor(runs_dir, check_setup=False, check_display=False, adapter=BareAdapter())
     assert _has_item(items, "ok", "solver bare: capabilities none")
+
+
+def test_cleanup_only_deletes_the_folders_the_adapter_counts_as_runs(tmp_path: Path) -> None:
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    class RunsOnly(CodeSaturneAdapter):
+        def list_run_dirs(self, case_dir, *, newest_first=True):
+            return sorted((p for p in self.results_root(case_dir).glob("run_*")), reverse=newest_first)
+
+    runs_dir = _make_runs_dir(tmp_path)
+    case_dir = _add_case(runs_dir, "case0001")
+    for name in ("run_1", "run_2", "restart_db"):
+        (case_dir / "RESU" / name).mkdir(parents=True)
+
+    report = cleanup_runs(runs_dir, prune_resu=True, keep_last=0, adapter=RunsOnly())
+
+    assert report.resu_removed == 2
+    assert [p.name for p in (case_dir / "RESU").iterdir()] == ["restart_db"]
+
+
+def test_cleanup_skips_running_cases(tmp_path: Path) -> None:
+    from csauto.registry import save_registry
+
+    runs_dir = _make_runs_dir(tmp_path)
+    case_dir = _add_case(runs_dir, "case0001")
+    (case_dir / "RESU" / "run_1").mkdir(parents=True)
+    log = case_dir / "csauto.stdout"
+    log.write_text("x" * 4096, encoding="utf-8")
+    save_registry(runs_dir, {"case0001": {"case_id": "case0001", "path": str(case_dir), "status": "RUNNING"}})
+
+    report = cleanup_runs(runs_dir, prune_resu=True, keep_last=0, max_log_mb=0.001)
+
+    assert report.resu_removed == 0 and report.logs_truncated == 0
+    assert (case_dir / "RESU" / "run_1").is_dir()
+    assert log.stat().st_size == 4096
+
+
+def test_code_aster_clean_keeps_its_single_run_until_delete_all(tmp_path: Path) -> None:
+    from csauto.solvers import get_solver_adapter
+
+    runs_dir = _make_runs_dir(tmp_path)
+    case_dir = _add_case(runs_dir, "case0001", with_setup=False)
+    (case_dir / "RESU" / "base").mkdir(parents=True)
+    (case_dir / "RESU" / "results.rmed").write_bytes(b"\x00")
+    adapter = get_solver_adapter("code_aster")
+
+    assert cleanup_runs(runs_dir, prune_resu=True, keep_last=1, adapter=adapter).resu_removed == 0
+    assert (case_dir / "RESU" / "base").is_dir()
+    assert cleanup_runs(runs_dir, prune_resu=True, keep_last=0, adapter=adapter).resu_removed == 1
+    assert not (case_dir / "RESU").exists()
+    assert (case_dir / "doe_row.csv").is_file()

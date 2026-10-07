@@ -203,3 +203,37 @@ def test_probe_rendering_follows_an_adapter_declared_layout(tmp_path: Path) -> N
     assert [row["value"] for row in rows] == ["1.0", "2.0"]
     svg = render_probe_svg(runs_dir, ["case0001"], "probe_density.csv", ["value"], adapter=adapter)
     assert "<path" in svg
+
+
+def test_residual_rows_without_iteration_are_plotted_in_order(tmp_path: Path, capsys) -> None:
+    from csauto.solvers.stub import StubAdapter
+
+    class LogResiduals(StubAdapter):
+        def parse_live_residuals(self, case_dir):
+            return ["r"], [{"r": "1e-1"}, {"r": "1e-2"}, {"r": "1e-3"}]
+
+    runs_dir = tmp_path / "RUNS"
+    (runs_dir / "case0001").mkdir(parents=True)
+    svg = render_residuals_svg(runs_dir, ["case0001"], ["r"], adapter=LogResiduals())
+    assert "<path" in svg
+    assert "no iteration column" in capsys.readouterr().err
+
+
+def test_probe_axis_names_are_case_insensitive(tmp_path: Path) -> None:
+    runs_dir = tmp_path / "RUNS"
+    probe_dir = runs_dir / "case0001" / "RESU" / "001" / "monitoring"
+    probe_dir.mkdir(parents=True)
+    (probe_dir / "probe_h.csv").write_text("Time,value\n0.0,1.0\n1.0,2.0\n", encoding="utf-8")
+    svg = render_probe_svg(runs_dir, ["case0001"], "probe_h.csv", ["value"], axis="time")
+    assert "<path" in svg
+
+
+def test_probe_position_is_unknown_for_an_unmatched_probe(tmp_path: Path) -> None:
+    from csauto.probes import probe_position
+
+    case_dir = tmp_path / "RUNS" / "case0001"
+    probe_dir = case_dir / "RESU" / "001" / "monitoring"
+    probe_dir.mkdir(parents=True)
+    (probe_dir / "gauges_coords.csv").write_text("name,x,y\ngauge_A,1,1\n", encoding="utf-8")
+    assert probe_position(case_dir, "gauges_h.csv", column_ref="gauge_A")["x"] == 1.0
+    assert probe_position(case_dir, "gauges_h.csv", column_ref="gauge_B") == {}

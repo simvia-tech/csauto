@@ -17,7 +17,7 @@ def test_build_run_command_without_display(monkeypatch, tmp_path: Path) -> None:
     case_dir.mkdir()
     cmd = build_runtime_run_command(case_dir, 4, 2, _docker())
     assert cmd[:4] == ["nohup", "docker", "run", "--rm"]
-    assert cmd[cmd.index("-w") + 1] == "/home/code_saturne/case0001"
+    assert cmd[cmd.index("-w") + 1] == "/mnt/case0001"
     assert "csauto.case_id=case0001" in cmd
     assert f"csauto.campaign={campaign_label(tmp_path)}" in cmd
     image = cmd.index("my_image")

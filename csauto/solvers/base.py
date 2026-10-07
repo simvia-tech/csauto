@@ -85,13 +85,15 @@ class SolverAdapter(ABC):
     name: ClassVar[str]  # value of `solver` in csauto.toml
     native_bin_name: ClassVar[str]  # executable looked up in PATH by the native runtime
     container_bin_name: ClassVar[str]  # executable started inside docker/apptainer images
-    container_root: ClassVar[str]  # where the campaign folder is mounted inside containers
     default_docker_image: ClassVar[str]  # docker image used when csauto.toml sets none
     results_dirname: ClassVar[str]  # results folder inside each case, e.g. "RESU"
     dashboard_panels: ClassVar[tuple[str, ...]]  # dashboard tabs, in ALL_DASHBOARD_PANELS order
 
     # Launch.
     supported_runtimes: ClassVar[frozenset[str]] = frozenset(ALL_RUNTIMES)
+    # Where the campaign folder is mounted inside containers. Keep it out of
+    # the image user's home, or the solver's own dotfiles land in the campaign.
+    container_root: ClassVar[str] = "/mnt"
     # Shell commands run inside containers before the solver, for images whose
     # environment must be activated first (e.g. "source /opt/activate.sh").
     container_setup: ClassVar[str] = ""

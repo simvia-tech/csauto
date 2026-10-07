@@ -11,6 +11,7 @@ from csauto.registry import (
     STATUS_DONE,
     STATUS_FAILED,
     STATUS_PENDING,
+    STATUS_PREPARED,
     STATUS_RUNNING,
     load_registry,
     registry_transaction,
@@ -1088,3 +1089,85 @@ def test_failed_launch_leaves_the_case_failed_not_pending(monkeypatch, runs_dir:
         )
 
     assert load_registry(runs_dir)["case0001"]["status"] == STATUS_FAILED
+
+
+def test_exit_status_decides_when_the_logs_give_no_verdict(runs_dir: Path, case_factory) -> None:
+    from csauto.runner import EXIT_CODE_FILE, final_outcome
+    from csauto.solvers import get_solver_adapter
+
+    case_dir = case_factory(runs_dir, "case0001")
+    adapter = get_solver_adapter("code_saturne")
+    assert final_outcome(adapter, case_dir, None) == STATUS_FAILED  # no verdict, no exit status
+    (case_dir / EXIT_CODE_FILE).write_text("0\n", encoding="utf-8")
+    assert final_outcome(adapter, case_dir, None) == STATUS_DONE
+    (case_dir / EXIT_CODE_FILE).write_text("3\n", encoding="utf-8")
+    assert final_outcome(adapter, case_dir, None) == STATUS_FAILED
+    # An exit status left by an earlier run does not count.
+    later = (datetime.now() + timedelta(minutes=5)).isoformat(timespec="seconds")
+    (case_dir / EXIT_CODE_FILE).write_text("0\n", encoding="utf-8")
+    assert final_outcome(adapter, case_dir, later) == STATUS_FAILED
+
+
+def test_a_live_process_stays_running_even_after_its_log_verdict(
+    monkeypatch, runs_dir: Path, case_factory, registry_factory
+) -> None:
+    case_dir = case_factory(runs_dir, "case0001")
+    (case_dir / "run_solver.log").write_text("END OF CALCULATION\n", encoding="utf-8")
+    start = (datetime.now() - timedelta(seconds=5)).isoformat(timespec="seconds")
+    with registry_transaction(runs_dir) as registry:
+        update_case(registry, "case0001", path=str(case_dir), status=STATUS_RUNNING, pid=4242, start_time=start)
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: True)
+    assert refresh_status(runs_dir)[0]["status"] == STATUS_RUNNING
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: False)
+    assert refresh_status(runs_dir)[0]["status"] == STATUS_DONE
+
+
+def test_a_reused_pid_counts_as_dead(monkeypatch) -> None:
+    import os
+
+    from csauto import runner
+
+    monkeypatch.setattr(runner, "_is_zombie", lambda _pid: False)
+    now = datetime.now().timestamp()
+    assert runner.is_process_alive(os.getpid())
+    monkeypatch.setattr(runner, "_process_start_epoch", lambda _pid: now)
+    assert runner.is_process_alive(os.getpid(), started_at=now - 30)
+    assert not runner.is_process_alive(os.getpid(), started_at=now - 3600)
+
+
+def test_a_refused_launch_restores_the_case_and_continues_the_batch(monkeypatch, runs_dir: Path, case_factory) -> None:
+    for case_id in ("case0001", "case0002"):
+        case_factory(runs_dir, case_id)
+    with registry_transaction(runs_dir) as registry:
+        update_case(registry, "case0001", status=STATUS_DONE)
+        update_case(registry, "case0002", status=STATUS_PREPARED)
+    started: list[str] = []
+
+    def restart_stub(self, case_dir, *_args):
+        if case_dir.name == "case0001":
+            raise ValueError("No checkpoint found for case0001")
+        started.append(case_dir.name)
+        return [], {}
+
+    monkeypatch.setattr("csauto.solvers.code_saturne.CodeSaturneAdapter.build_restart_args", restart_stub)
+    monkeypatch.setattr("csauto.runner._launch_local", lambda case_dir, case_id, *_a: started.append("launched"))
+    saturne_bin = runs_dir / "code_saturne"
+    saturne_bin.write_text("#!/bin/sh\n", encoding="utf-8")
+    saturne_bin.chmod(0o755)
+
+    with pytest.raises(RuntimeError, match="1 case\\(s\\) not launched: case0001: No checkpoint"):
+        run_cases(runs_dir, 1, 1, 1, runtime="native", saturne_bin=str(saturne_bin), restart=True, source="test")
+
+    registry = load_registry(runs_dir)
+    assert registry["case0001"]["status"] == STATUS_DONE  # not stranded in PENDING
+    assert started == ["case0002", "launched"]
+
+
+def test_cases_with_custom_ids_are_found(runs_dir: Path) -> None:
+    from csauto.registry import campaign_case_dirs
+
+    for case_id in ("mesh.fine", "run-A"):
+        (runs_dir / case_id).mkdir()
+        (runs_dir / case_id / "doe_row.csv").write_text(f"case_id\n{case_id}\n", encoding="utf-8")
+    (runs_dir / "MESH").mkdir()
+    assert [p.name for p in campaign_case_dirs(runs_dir)] == ["mesh.fine", "run-A"]
