@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import functools
 
-from .base import SolverAdapter, SolverAdapterBase
+from .base import SolverAdapter
 
 DEFAULT_SOLVER = "code_saturne"
 _SOLVER_NAMES = ("code_saturne", "stub", "code_aster")
@@ -48,7 +48,6 @@ def _adapter_for(normalized: str) -> SolverAdapter:
 __all__ = [
     "DEFAULT_SOLVER",
     "SolverAdapter",
-    "SolverAdapterBase",
     "available_solvers",
     "get_solver_adapter",
 ]

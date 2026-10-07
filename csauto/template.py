@@ -3,8 +3,11 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 
-# Match csauto placeholders while ignoring shell expansions like ${HOME}.
-PLACEHOLDER_PATTERN = re.compile(r"(?<!\$){\s*([A-Za-z0-9_.-]+)\s*}")
+# `{name}` placeholders. Shell expansions like ${HOME} are left alone, and
+# `\{name}` is an escape rendered as a literal `{name}`, for files where
+# braces are code (Python f-strings and sets in code_aster .comm files).
+PLACEHOLDER_PATTERN = re.compile(r"(?<![$\\]){\s*([A-Za-z0-9_.-]+)\s*}")
+ESCAPED_PLACEHOLDER_PATTERN = re.compile(r"\\({\s*[A-Za-z0-9_.-]+\s*})")
 COND_START_PATTERN = re.compile(r"<!--\s*IF\s+(.+?)\s*-->", re.IGNORECASE)
 COND_END_PATTERN = re.compile(r"<!--\s*ENDIF\s*-->", re.IGNORECASE)
 COND_EXPR_PATTERN = re.compile(r"^([A-Za-z0-9_.-]+)\s*(==|=|!=)\s*(.+)$")
@@ -115,4 +118,4 @@ def render_template(
         joined = ", ".join(sorted(set(remaining)))
         raise ValueError(f"Unresolved placeholders after rendering for {case_id}: {joined}")
 
-    return rendered
+    return ESCAPED_PLACEHOLDER_PATTERN.sub(r"\1", rendered)

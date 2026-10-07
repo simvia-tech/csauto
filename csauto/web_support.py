@@ -8,10 +8,11 @@ from pathlib import Path
 from typing import Any
 
 from .docker import find_container_id_for_case, read_container_id, terminate_container
+from .execution import RUNTIME_DOCKER
 from .logs import read_tail_lines
 from .pathutil import is_within_root
-from .registry import STATUS_FAILED, append_history, load_registry, registry_transaction, timestamp_now, update_case
-from .runner import is_process_alive, terminate_pid
+from .registry import append_history, load_registry, registry_transaction, timestamp_now, update_case
+from .runner import final_outcome, is_process_alive, terminate_pid
 
 
 def _default_adapter() -> Any:
@@ -300,8 +301,8 @@ def kill_case(
             container_id = read_container_id(cidfile, wait=1.0)
             if container_id:
                 record["container_id"] = container_id
-        if not container_id:
-            container_id = find_container_id_for_case(case_id)
+        if not container_id and record.get("runtime") == RUNTIME_DOCKER:
+            container_id = find_container_id_for_case(case_id, runs_dir)
             if container_id:
                 record["container_id"] = container_id
 
@@ -357,7 +358,7 @@ def kill_case(
     if job_error and pid_raw is None and not container_id:
         raise job_error
 
-    outcome = adapter.detect_outcome(case_dir, start_time) or STATUS_FAILED
+    outcome = final_outcome(adapter, case_dir, start_time)
     with registry_transaction(runs_dir) as registry:
         update_case(
             registry,

@@ -22,6 +22,10 @@ REGISTRY_FILENAME = "registry.json"
 REGISTRY_LOCKFILE = f"{REGISTRY_FILENAME}.lock"
 REGISTRY_THREAD_LOCK = threading.RLock()
 HISTORY_FILENAME = ".csauto.history.jsonl"
+# Records which solver a campaign was prepared for, so commands run from any
+# directory use the right adapter.
+CAMPAIGN_FILENAME = "campaign.json"
+DOE_ROW_FILENAME = "doe_row.csv"
 
 try:
     import fcntl
@@ -148,6 +152,29 @@ def update_case(registry: dict[str, dict[str, Any]], case_id: str, **updates: An
 def timestamp_now() -> str:
     """Return current timestamp as ISO string."""
     return datetime.now().isoformat(timespec="seconds")
+
+
+def campaign_case_dirs(runs_dir: Path) -> list[Path]:
+    """Case folders of a campaign: those in its registry, plus any folder holding a doe_row.csv."""
+    if not runs_dir.is_dir():
+        return []
+    names = set(load_registry(runs_dir)) | {p.parent.name for p in runs_dir.glob(f"*/{DOE_ROW_FILENAME}")}
+    return sorted(runs_dir / name for name in names if (runs_dir / name).is_dir())
+
+
+def read_campaign_solver(runs_dir: Path) -> str | None:
+    """The solver a campaign was prepared for, or None for campaigns prepared before it was recorded."""
+    try:
+        data = json.loads((runs_dir / CAMPAIGN_FILENAME).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    solver = data.get("solver") if isinstance(data, dict) else None
+    return str(solver) if solver else None
+
+
+def write_campaign_solver(runs_dir: Path, solver: str) -> None:
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    (runs_dir / CAMPAIGN_FILENAME).write_text(json.dumps({"solver": solver}, indent=2) + "\n", encoding="utf-8")
 
 
 def history_path(case_dir: Path) -> Path:

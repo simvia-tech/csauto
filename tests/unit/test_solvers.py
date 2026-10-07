@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 
@@ -83,10 +84,11 @@ class TestCodeSaturneAdapter:
         assert adapter.default_docker_image == "simvia/code_saturne"
         assert adapter.container_root == "/home/code_saturne"
         assert adapter.default_compare_kind == "setup.xml"
-        assert adapter.control_actions == {"stop", "extend", "checkpoint", "flush"}
+        assert [a.name for a in adapter.control_actions] == ["stop", "extend", "checkpoint", "flush"]
+        assert adapter.control_action("extend").value_label
 
     def test_run_argv(self, adapter):
-        assert adapter.run_argv("/runs/case1", 2, 4) == ["run", "--case", "/runs/case1", "-n", "2", "--nt", "4"]
+        assert adapter.run_argv(Path("/runs/case1"), 2, 4) == ["run", "--case", ".", "-n", "2", "--nt", "4"]
 
     def test_run_argv_with_extra_args(self, adapter):
         argv = adapter.run_argv("/runs/case1", 1, 1, run_args=["--parametric-args=--restart=x", ""])
@@ -94,7 +96,7 @@ class TestCodeSaturneAdapter:
         assert "" not in argv
 
     def test_gui_argv(self, adapter):
-        assert adapter.gui_argv("/runs/case1/setup.xml") == ["gui", "/runs/case1/setup.xml"]
+        assert adapter.gui_argv("DATA/setup.xml") == ["gui", "DATA/setup.xml"]
 
     def test_build_run_command_matches_execution_native(self, adapter, tmp_path):
         selection = RuntimeSelection(runtime="native", docker_image="img", saturne_bin="/bin/true")
@@ -145,85 +147,85 @@ class TestCodeAsterAdapter:
     def adapter(self):
         return get_solver_adapter("code_aster")
 
-    def test_shared_dir_mounts_keep_their_names(self, adapter, tmp_path):
-        runs_dir = tmp_path / "RUNS"
-        case_dir = runs_dir / "case1"
-        case_dir.mkdir(parents=True)
-        (case_dir / "study.export").write_text("P time_limit 300\n", encoding="utf-8")
-        (runs_dir / "MESH").mkdir()
-        resu_target = tmp_path / "resu_store"
-        resu_target.mkdir()
-        (runs_dir / "RESU").symlink_to(resu_target, target_is_directory=True)
-
-        selection = RuntimeSelection(runtime="docker", docker_image="img")
-        script = adapter.build_run_command(case_dir, 1, 1, selection)[-1]
-
-        assert f"{resu_target.resolve()}:/home/user/case1/RESU" in script
-        assert "/home/user/case1/MESH" not in script
-
-    def test_singularity_command_cleans_case_local_tmp_dirs(self, adapter, tmp_path):
-        case_dir = tmp_path / "RUNS" / "case1"
-        case_dir.mkdir(parents=True)
-        (case_dir / "study.export").write_text("P time_limit 300\n", encoding="utf-8")
-        selection = RuntimeSelection(
-            runtime="singularity",
-            docker_image="img",
-            singularity_image="/images/aster.sif",
-            singularity_bin="apptainer",
-        )
-
-        script = adapter.build_run_command(case_dir, 1, 1, selection)[-1]
-
-        assert script.count("rm -rf") == 1
-        assert f"{case_dir.resolve()}/.apptainer_tmp" in script
-        assert f"{case_dir.resolve()}/TMP" in script
-        assert "~" not in script
-
-    def test_relaunch_does_not_duplicate_the_mess_entry(self, adapter, tmp_path):
+    def test_launch_runs_a_copy_of_the_export_with_n_and_nt(self, adapter, tmp_path):
         case_dir = tmp_path / "RUNS" / "case1"
         case_dir.mkdir(parents=True)
         export = case_dir / "cube.export"
-        export.write_text("P time_limit 300\nF comm study.comm D 1", encoding="utf-8")
+        export.write_text("P ncpus 1\nP mpi_nbcpu 1\nF comm study.comm D 1\n", encoding="utf-8")
 
-        selection = RuntimeSelection(runtime="docker", docker_image="img")
-        for _ in range(2):
-            script = adapter.build_run_command(case_dir, 1, 1, selection)[-1]
+        adapter.prepare_launch(case_dir, 4, 2)
 
-        assert "run_aster cube.export" in script
-        content = export.read_text(encoding="utf-8")
-        assert content.count("F mess RESU/LOGS/run_solver.log R 6") == 1
-        assert "D 1\nF mess" in content
+        run_export = (case_dir / ".csauto.export").read_text(encoding="utf-8")
+        assert run_export.splitlines() == ["F comm study.comm D 1", "P mpi_nbcpu 4", "P ncpus 2"]
+        assert export.read_text(encoding="utf-8").startswith("P ncpus 1")  # the case's export is untouched
+        assert (case_dir / "RESU").is_dir()
+        assert adapter.run_argv(case_dir, 4, 2) == [".csauto.export"]
+        # The copy is hidden, so it never counts as a second export.
+        assert adapter.find_setup_file(case_dir) == export
 
-    def test_build_run_command_requires_an_export_file(self, adapter, tmp_path):
+    def test_find_setup_file_names_the_candidates(self, adapter, tmp_path):
+        with pytest.raises(FileNotFoundError):
+            adapter.find_setup_file(tmp_path)
+        (tmp_path / "a.export").write_text("", encoding="utf-8")
+        (tmp_path / "b.export").write_text("", encoding="utf-8")
+        with pytest.raises(ValueError, match=r"a\.export, b\.export"):
+            adapter.find_setup_file(tmp_path)
+
+    def test_generic_launch_in_every_runtime(self, adapter, tmp_path, monkeypatch):
+        monkeypatch.delenv("DISPLAY", raising=False)
         case_dir = tmp_path / "RUNS" / "case1"
         case_dir.mkdir(parents=True)
-        selection = RuntimeSelection(runtime="docker", docker_image="img")
-        with pytest.raises(FileNotFoundError):
-            adapter.build_run_command(case_dir, 1, 1, selection)
-        assert not list(case_dir.iterdir())
+        native = adapter.build_run_command(
+            case_dir, 1, 1, RuntimeSelection("native", "img", saturne_bin="/x/run_aster")
+        )
+        assert native == ["nohup", "/x/run_aster", ".csauto.export"]
+        apptainer = adapter.build_run_command(
+            case_dir,
+            1,
+            1,
+            RuntimeSelection("singularity", "img", singularity_bin="apptainer", singularity_image="a.sif"),
+        )
+        assert apptainer[-6:] == [
+            "a.sif",
+            "bash",
+            "-c",
+            'source /opt/activate.sh && exec "$0" "$@"',
+            "run_aster",
+            ".csauto.export",
+        ]
 
-    def test_detect_outcome_done(self, adapter, tmp_path):
+    def test_detect_outcome_reads_the_diagnostic_on_stdout(self, adapter, tmp_path):
         case_dir = tmp_path / "case1"
-        logpath = case_dir / "RESU/LOGS"
-        logpath.mkdir(parents=True, exist_ok=True)
-        (logpath / "run_solver.log").write_text("DIAGNOSTIC JOB : OK\n", encoding="utf-8")
+        case_dir.mkdir()
+        stdout = case_dir / "csauto.stdout"
+        stdout.write_text("--- DIAGNOSTIC JOB : OK\n", encoding="utf-8")
         assert adapter.detect_outcome(case_dir) == STATUS_DONE
-
-    def test_detect_outcome_failed(self, adapter, tmp_path):
-        case_dir = tmp_path / "case1"
-        logpath = case_dir / "RESU/LOGS"
-        logpath.mkdir(parents=True, exist_ok=True)
-        (logpath / "run_solver.log").write_text("DIAGNOSTIC JOB : <F>_ABNORMAL_ABORT\n", encoding="utf-8")
-        assert adapter.detect_outcome(case_dir) == STATUS_FAILED
+        stdout.write_text("--- DIAGNOSTIC JOB : <A>_ALARM\n", encoding="utf-8")
+        assert adapter.detect_outcome(case_dir) == STATUS_DONE
+        for verdict in ("<F>_ABNORMAL_ABORT", "<F>_ERROR", "<S>_CPU_LIMIT", "NOOK_TEST_RESU", "?"):
+            stdout.write_text(f"--- DIAGNOSTIC JOB : {verdict}\n", encoding="utf-8")
+            assert adapter.detect_outcome(case_dir) == STATUS_FAILED, verdict
+        stdout.write_text("still running\n", encoding="utf-8")
+        assert adapter.detect_outcome(case_dir) is None
 
     def test_detect_outcome_ignores_logs_from_previous_runs(self, adapter, tmp_path):
         case_dir = tmp_path / "case1"
-        logpath = case_dir / "RESU/LOGS"
-        logpath.mkdir(parents=True, exist_ok=True)
-        log_file = logpath / "run_solver.log"
-        log_file.write_text("DIAGNOSTIC JOB : OK\n", encoding="utf-8")
-        relaunch = datetime.fromtimestamp(log_file.stat().st_mtime + 60)
+        case_dir.mkdir()
+        stdout = case_dir / "csauto.stdout"
+        stdout.write_text("--- DIAGNOSTIC JOB : OK\n", encoding="utf-8")
+        relaunch = datetime.fromtimestamp(stdout.stat().st_mtime + 60)
         assert adapter.detect_outcome(case_dir, start_time=relaunch.isoformat()) is None
+
+    def test_results_folder_is_the_single_run(self, adapter, tmp_path):
+        case_dir = tmp_path / "case1"
+        case_dir.mkdir()
+        assert adapter.list_run_dirs(case_dir) == []
+        (case_dir / "RESU").mkdir()
+        assert adapter.list_run_dirs(case_dir) == [case_dir / "RESU"]
+
+    def test_export_compare_kind_resolves_to_the_case_export(self, adapter, tmp_path):
+        (tmp_path / "study.export").write_text("", encoding="utf-8")
+        assert adapter.locate_case_file(tmp_path, "export") == tmp_path / "study.export"
 
 
 class TestStubAdapter:
@@ -238,9 +240,9 @@ class TestStubAdapter:
         return run_dir
 
     def test_run_argv_shape(self, adapter):
-        argv = adapter.run_argv("/runs/case1", 1, 5)
+        argv = adapter.run_argv(Path("/runs/case1"), 1, 5)
         assert argv[0] == "-c"
-        assert argv[-2:] == ["/runs/case1", "5"]
+        assert len(argv) == 2  # the script reads its steps from stub.toml, in the case folder
 
     def test_find_setup_file(self, adapter, tmp_path):
         with pytest.raises(FileNotFoundError):
@@ -307,8 +309,8 @@ def test_code_aster_declares_doe_row_compare_kind() -> None:
     from csauto.solvers.code_aster import CodeAsterAdapter
 
     adapter = CodeAsterAdapter()
-    assert adapter.compare_kinds == (CompareKind("doe_row.csv", "doe_row.csv"),)
-    assert adapter.default_compare_kind == "doe_row.csv"
+    assert adapter.compare_kinds == (CompareKind("export", "Export file"), CompareKind("doe_row.csv", "doe_row.csv"))
+    assert adapter.default_compare_kind == "export"
 
 
 def test_code_saturne_exposes_every_capability_and_panel() -> None:
@@ -367,11 +369,11 @@ def test_adapter_may_leave_out_a_panel_it_could_feed() -> None:
 
 
 def test_adapter_cannot_declare_capabilities() -> None:
-    from csauto.solvers.base import SolverAdapterBase
+    from csauto.solvers.base import SolverAdapter
 
     with pytest.raises(TypeError, match="must not declare 'capabilities'"):
 
-        class BadAdapter(SolverAdapterBase):
+        class BadAdapter(SolverAdapter):
             capabilities = frozenset({"residuals"})
 
 

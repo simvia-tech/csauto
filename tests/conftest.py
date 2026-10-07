@@ -24,6 +24,8 @@ def make_case(runs_dir: Path, case_id: str = "case0001") -> Path:
     case_dir = runs_dir / case_id
     (case_dir / "DATA").mkdir(parents=True, exist_ok=True)
     (case_dir / "DATA" / "setup.xml").write_text("<root/>", encoding="utf-8")
+    # csauto prepare writes one per case; it is how a folder is known to be a case.
+    (case_dir / "doe_row.csv").write_text(f"case_id\n{case_id}\n", encoding="utf-8")
     return case_dir
 
 

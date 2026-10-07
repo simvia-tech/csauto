@@ -265,7 +265,12 @@ def render_residuals_svg(
     restart_iterations: Sequence[float] | None = None,
     adapter=None,
 ) -> str:
-    """Generate an SVG string of residuals vs iteration for selected cases/columns."""
+    """Generate an SVG string of residuals vs iteration for selected cases/columns.
+
+    Without `columns`, plots the adapter's default_residual_columns, else the
+    first two residuals.
+    """
+    adapter = adapter or _default_adapter()
     header, rows = read_residual_rows(
         runs_dir,
         cases,
@@ -273,8 +278,8 @@ def render_residuals_svg(
         include_history=include_history,
         adapter=adapter,
     )
-    available_cols = [c for c in header if c != "case_id"]
-    cols = list(columns) if columns else ["velocity"]
+    available_cols = [c for c in header if c not in {"case_id", "iteration"}]
+    cols = list(columns) if columns else [c for c in adapter.default_residual_columns if c in available_cols]
     missing = [c for c in cols if c not in available_cols]
     if missing:
         warn(f"columns missing from residuals: {', '.join(missing)}")
@@ -297,10 +302,18 @@ def render_residuals_svg(
     y_min = float("inf")
     y_max = float("-inf")
 
+    # Rows without an iteration are numbered in order, per case.
+    row_numbers: dict[str, int] = {}
+    unnumbered = False
     for row in rows:
         case_id = row.get("case_id", "")
+        row_numbers[case_id] = row_numbers.get(case_id, 0) + 1
+        iteration = row.get("iteration", "")
+        if iteration in ("", None):
+            unnumbered = True
+            iteration = row_numbers[case_id]
         try:
-            x = float(row.get("iteration", "") or 0.0)
+            x = float(iteration)
         except ValueError:
             continue
         if x < x_from_value:
@@ -323,6 +336,8 @@ def render_residuals_svg(
             if y_max < y:
                 y_max = y
 
+    if unnumbered:
+        warn("some residual rows have no iteration column; they are plotted in row order")
     if not series:
         return empty_svg(width, height, "No numeric data to plot")
 

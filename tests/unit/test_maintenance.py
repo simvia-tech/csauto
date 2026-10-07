@@ -16,6 +16,7 @@ def _make_runs_dir(tmp_path: Path) -> Path:
 def _add_case(runs_dir: Path, case_id: str, with_setup: bool = True) -> Path:
     case_dir = runs_dir / case_id
     case_dir.mkdir(parents=True, exist_ok=True)
+    (case_dir / "doe_row.csv").write_text(f"case_id\n{case_id}\n", encoding="utf-8")
     if with_setup:
         (case_dir / "DATA").mkdir(parents=True, exist_ok=True)
         (case_dir / "DATA" / "setup.xml").write_text("<root/>", encoding="utf-8")
@@ -48,7 +49,7 @@ def test_run_doctor_fails_when_no_case_directory_found(tmp_path: Path) -> None:
     runs_dir = _make_runs_dir(tmp_path)
     items = run_doctor(runs_dir, check_display=False)
     assert _has_item(items, "ok", "write OK")
-    assert _has_item(items, "fail", "no case* directory found")
+    assert _has_item(items, "fail", "no case found")
 
 
 def test_run_doctor_detects_case_directories(tmp_path: Path) -> None:
@@ -324,7 +325,7 @@ def test_run_doctor_runtime_auto_warns_when_none_detected(
     _patch_which(monkeypatch, {})
 
     items = run_doctor(runs_dir, runtime="auto", check_display=False)
-    assert _has_item(items, "warn", "no runtime found (code_saturne, docker, apptainer/singularity)")
+    assert _has_item(items, "warn", "no runtime found for code_saturne (code_saturne, docker, apptainer/singularity)")
 
 
 def test_run_doctor_runtime_auto_detects_native_from_saturne_bin_file(
@@ -492,9 +493,9 @@ def test_doctor_reports_derived_panels_and_capabilities(tmp_path: Path) -> None:
 
 
 def test_doctor_says_none_when_the_solver_has_no_capability(tmp_path: Path) -> None:
-    from csauto.solvers.base import SolverAdapterBase
+    from csauto.solvers.base import SolverAdapter
 
-    class BareAdapter(SolverAdapterBase):
+    class BareAdapter(SolverAdapter):
         name = "bare"
         native_bin_name = "bare"
         container_bin_name = "bare"

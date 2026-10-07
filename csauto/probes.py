@@ -121,6 +121,30 @@ def locate_run_csv_files(
     return []
 
 
+def read_csv_table(path: Path) -> tuple[list[str], list[dict[str, str]]]:
+    """(columns, rows) of a comma-separated CSV file with a header line, keys and values stripped."""
+    with path.open(newline="", encoding="utf-8", errors="ignore") as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames is None:
+            return [], []
+        columns = [name.strip() for name in reader.fieldnames if name is not None]
+        rows = [
+            {key.strip(): value.strip() if isinstance(value, str) else value for key, value in row.items() if key}
+            for row in reader
+        ]
+    return columns, rows
+
+
+def _axis_names(axis: str) -> set[str]:
+    """Lowercase column names accepted for an x axis: time accepts "t" too."""
+    lowered = axis.lower()
+    if lowered in {"time", "t"}:
+        return {"time", "t"}
+    if lowered in {"iteration", "iter"}:
+        return {"iteration", "iter"}
+    return {lowered}
+
+
 def locate_probe_file(case_dir: Path, probe_ref: str, adapter=None) -> Path | None:
     """Resolve a probe file reference to a real file path."""
     adapter = adapter or _default_adapter()
@@ -205,43 +229,34 @@ def _select_coord_row(
     try:
         idx = int(ref)
     except (ValueError, TypeError):
-        idx = None
-    if idx is not None:
-        if idx > 0 and idx <= len(rows):
-            return rows[idx - 1]
-        if idx >= 0 and idx < len(rows):
-            return rows[idx]
-    return rows[0]
+        return None
+    if 0 < idx <= len(rows):
+        return rows[idx - 1]
+    if 0 <= idx < len(rows):
+        return rows[idx]
+    return None
 
 
 def probe_position(
     case_dir: Path, probe_ref: str, column_ref: str | None = None, adapter=None
 ) -> dict[str, float | str]:
-    """Return probe coordinates inferred from an associated coords CSV."""
+    """Return probe coordinates inferred from an associated coords file, or {} when unknown."""
     if not probe_ref:
         return {}
+    adapter = adapter or _default_adapter()
     for candidate in _coords_probe_candidates(probe_ref):
         probe_path = locate_probe_file(case_dir, candidate, adapter=adapter)
         if not probe_path or not probe_path.is_file():
             continue
         try:
             rows_with_coords: list[tuple[Mapping[str, str], float, float, float | None]] = []
-            with probe_path.open(newline="", encoding="utf-8", errors="ignore") as handle:
-                reader = csv.DictReader(handle)
-                for idx, row in enumerate(reader, start=1):
-                    if idx > 200:
-                        break
-                    if not row:
-                        continue
-                    normalized_row = {
-                        str(k).strip(): v.strip() if isinstance(v, str) else v for k, v in row.items() if k is not None
-                    }
-                    x = _extract_coord_value(normalized_row, "x")
-                    y = _extract_coord_value(normalized_row, "y")
-                    z = _extract_coord_value(normalized_row, "z")
-                    if x is None or y is None:
-                        continue
-                    rows_with_coords.append((normalized_row, x, y, z))
+            for row in adapter.read_probe_file(probe_path)[1][:200]:
+                x = _extract_coord_value(row, "x")
+                y = _extract_coord_value(row, "y")
+                z = _extract_coord_value(row, "z")
+                if x is None or y is None:
+                    continue
+                rows_with_coords.append((row, x, y, z))
             selected = _select_coord_row(rows_with_coords, column_ref)
             if selected is not None:
                 _row, x, y, z = selected
@@ -292,29 +307,15 @@ def read_probe_rows(
                     warn(f"probe not found for {case_id}: {probe_file}")
                 continue
             for probe_path in probe_paths:
-                with probe_path.open(newline="", encoding="utf-8", errors="ignore") as handle:
-                    reader = csv.DictReader(handle)
-                    if reader.fieldnames is None:
-                        warn(f"probe has no header for {case_id}")
-                        continue
-                    normalized_fields = [f.strip() for f in reader.fieldnames if f is not None]
-                    if header is None:
-                        header = ["case_id", "probe", *normalized_fields]
-                    else:
-                        if "probe" not in header:
-                            header.append("probe")
-                        for field in normalized_fields:
-                            if field and field not in header:
-                                header.append(field)
-                    for row in reader:
-                        rec = {"case_id": case_id, "probe": probe_file}
-                        for raw_k, raw_v in row.items():
-                            if raw_k is None:
-                                continue
-                            key = raw_k.strip()
-                            val = raw_v.strip() if isinstance(raw_v, str) else raw_v
-                            rec[key] = val
-                        records.append(rec)
+                fields, probe_rows = adapter.read_probe_file(probe_path)
+                if not fields:
+                    warn(f"probe has no header for {case_id}")
+                    continue
+                if header is None:
+                    header = ["case_id", "probe", *fields]
+                else:
+                    header.extend(field for field in fields if field and field not in header)
+                records.extend({"case_id": case_id, "probe": probe_file, **row} for row in probe_rows)
 
     if not records and not allow_empty:
         raise ValueError("No probe data collected.")
@@ -327,6 +328,7 @@ def read_probe_rows(
 
 def probe_columns(runs_dir: Path, case: str, probe_files: str | Sequence[str], adapter=None) -> list[str]:
     """Return probe column names (excluding case_id)."""
+    adapter = adapter or _default_adapter()
     case_dir = runs_dir / case
     if not case_dir.is_dir():
         raise FileNotFoundError(f"Case not found: {case}")
@@ -339,17 +341,10 @@ def probe_columns(runs_dir: Path, case: str, probe_files: str | Sequence[str], a
         probe_path = locate_probe_file(case_dir, probe_file, adapter=adapter)
         if not probe_path or not probe_path.is_file():
             raise FileNotFoundError(f"Probe file not found: {probe_file}")
-        with probe_path.open(newline="", encoding="utf-8", errors="ignore") as handle:
-            reader = csv.DictReader(handle)
-            if reader.fieldnames is None:
-                continue
-            for field in reader.fieldnames:
-                if field is None:
-                    continue
-                name = field.strip()
-                if name and name not in seen:
-                    seen.add(name)
-                    columns.append(name)
+        for name in adapter.read_probe_file(probe_path)[0]:
+            if name and name not in seen:
+                seen.add(name)
+                columns.append(name)
     return columns
 
 
@@ -378,7 +373,8 @@ def render_probe_svg(
         include_history=include_history,
         adapter=adapter,
     )
-    available_cols = [c for c in header if c not in {"case_id", axis, "probe"}]
+    axis_names = _axis_names(axis)
+    available_cols = [c for c in header if c not in {"case_id", "probe"} and c.lower() not in axis_names]
     cols = list(columns) if columns else available_cols[:2]
     missing = [c for c in cols if c not in available_cols]
     if missing:
@@ -402,22 +398,10 @@ def render_probe_svg(
     y_min = float("inf")
     y_max = float("-inf")
 
-    ax_lower = axis.lower()
-    if ax_lower in {"time", "t"}:
-        axis_candidates_base = ["time", "t"]
-    elif ax_lower in {"iteration", "iter"}:
-        axis_candidates_base = ["iteration"]
-    else:
-        axis_candidates_base = [axis]
-
     for row in rows:
         case_id = row.get("case_id", "")
         probe_name = row.get("probe") if multi_probe else None
-        x_val = None
-        for ax_name in axis_candidates_base:
-            x_val = as_float(row.get(ax_name))
-            if x_val is not None:
-                break
+        x_val = next((as_float(value) for key, value in row.items() if key.lower() in axis_names), None)
         if x_val is None:
             continue
         if x_val < x_threshold:

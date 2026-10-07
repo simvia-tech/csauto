@@ -57,9 +57,8 @@ def test_build_runtime_run_command_native(tmp_path: Path) -> None:
         saturne_bin="/opt/code_saturne/bin/code_saturne",
     )
     cmd = build_runtime_run_command(case_dir, nprocs=4, nt=2, selection=selection)
-    assert cmd[:3] == ["nohup", "/opt/code_saturne/bin/code_saturne", "run"]
-    assert "--case" in cmd
-    assert str(case_dir) in cmd
+    # Every runtime starts inside the case folder, so the case is ".".
+    assert cmd[:5] == ["nohup", "/opt/code_saturne/bin/code_saturne", "run", "--case", "."]
     assert "-n" in cmd and cmd[cmd.index("-n") + 1] == "4"
     assert "--nt" in cmd and cmd[cmd.index("--nt") + 1] == "2"
 
@@ -109,7 +108,7 @@ def test_build_runtime_run_command_singularity_slurm_uses_cleanenv_and_env(tmp_p
         "code_saturne",
         "run",
         "--case",
-        "/home/code_saturne/case0001",
+        ".",
         "-n",
         "4",
         "--nt",
@@ -128,11 +127,7 @@ def test_build_runtime_gui_command_native(tmp_path: Path) -> None:
         saturne_bin="/opt/code_saturne/bin/code_saturne",
     )
     cmd = build_runtime_gui_command(case_dir, selection)
-    assert cmd == [
-        "/opt/code_saturne/bin/code_saturne",
-        "gui",
-        str(case_dir / "DATA" / "setup.xml"),
-    ]
+    assert cmd == ["/opt/code_saturne/bin/code_saturne", "gui", "DATA/setup.xml"]
 
 
 def test_build_runtime_gui_command_singularity(tmp_path: Path, monkeypatch) -> None:
@@ -148,13 +143,12 @@ def test_build_runtime_gui_command_singularity(tmp_path: Path, monkeypatch) -> N
     )
     cmd = build_runtime_gui_command(case_dir, selection)
     container_case = "/home/code_saturne/case0001"
-    container_setup = f"{container_case}/DATA/setup.xml"
     assert cmd[:2] == ["/usr/bin/apptainer", "exec"]
     assert "--bind" in cmd
     assert f"{case_dir.parent.resolve()}:/home/code_saturne" in cmd
     assert "--pwd" in cmd
     assert container_case in cmd
-    assert cmd[-4:] == ["/images/code_saturne.sif", "code_saturne", "gui", container_setup]
+    assert cmd[-4:] == ["/images/code_saturne.sif", "code_saturne", "gui", "DATA/setup.xml"]
 
 
 def test_build_singularity_slurm_script_uses_stage_solver_finalize(tmp_path: Path) -> None:

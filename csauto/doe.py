@@ -8,7 +8,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from .registry import STATUS_PREPARED, registry_transaction, update_case
+from .registry import DOE_ROW_FILENAME, STATUS_PREPARED, registry_transaction, update_case
 from .template import (
     extract_condition_variables,
     extract_placeholders,
@@ -27,6 +27,24 @@ RESERVED_COLUMNS = {"case_id"}
 CASE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 DOE_ROW_CACHE_LOCK = threading.RLock()
 DOE_ROW_CACHE: dict[Path, dict[str, Any]] = {}
+
+
+BINARY_SNIFF_BYTES = 8192
+
+
+def _read_text(path: Path) -> str:
+    """Read a template file as UTF-8, keeping any other byte as is (surrogateescape)."""
+    return path.read_bytes().decode("utf-8", errors="surrogateescape")
+
+
+def _write_text(path: Path, text: str) -> None:
+    """Write text produced by _read_text, restoring the bytes it kept."""
+    path.write_bytes(text.encode("utf-8", errors="surrogateescape"))
+
+
+def _is_binary(path: Path) -> bool:
+    with path.open("rb") as handle:
+        return b"\x00" in handle.read(BINARY_SNIFF_BYTES)
 
 
 def _is_temp_or_hidden(relative: Path) -> bool:
@@ -92,7 +110,7 @@ def _report_unused_columns(headers: Iterable[str], used_columns: set[str], *, st
 
 def _write_doe_row(case_dir: Path, headers: Sequence[str], row: Mapping[str, str], case_id: str) -> None:
     """Persist the DOE row used for a generated case."""
-    doe_path = case_dir / "doe_row.csv"
+    doe_path = case_dir / DOE_ROW_FILENAME
     fieldnames = list(headers)
     if "case_id" not in fieldnames:
         fieldnames.append("case_id")
@@ -163,10 +181,10 @@ def _collect_render_targets(template_dir: Path, adapter) -> list[tuple[Path, str
         if _is_temp_or_hidden(relative):
             continue
         try:
-            text = path.read_text(encoding="utf-8", errors="ignore")
+            if _is_binary(path):
+                continue
+            text = _read_text(path)
         except OSError:
-            continue
-        if "\x00" in text:
             continue
         placeholders = extract_placeholders(text)
         cond_vars = extract_condition_variables(text)
@@ -225,8 +243,8 @@ def _existing_case_matches(
             return False
         if rel_path in rendered_targets:
             try:
-                case_text = case_path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
+                case_text = _read_text(case_path)
+            except OSError:
                 return False
             if case_text != rendered_targets[rel_path]:
                 return False
@@ -268,11 +286,11 @@ def collect_template_variables(template_dir: Path, adapter=None) -> set[str]:
     adapter = adapter or _default_adapter()
     if not template_dir.is_dir():
         raise FileNotFoundError(f"Template directory not found: {template_dir}")
-    setup_text = adapter.find_setup_file(template_dir).read_text(encoding="utf-8")
+    setup_text = _read_text(adapter.find_setup_file(template_dir))
     variables = extract_placeholders(setup_text) | extract_condition_variables(setup_text)
     run_cfg_path = adapter.find_run_config(template_dir)
     if run_cfg_path:
-        run_cfg_text = run_cfg_path.read_text(encoding="utf-8")
+        run_cfg_text = _read_text(run_cfg_path)
         variables |= extract_placeholders(run_cfg_text) | extract_condition_variables(run_cfg_text)
     for _, _, extra_placeholders, extra_condition in _collect_render_targets(template_dir, adapter):
         variables |= extra_placeholders | extra_condition
@@ -297,33 +315,43 @@ def generate_cases(
     adapter = adapter or _default_adapter()
     template_setup = adapter.find_setup_file(template_dir)
 
-    setup_text = template_setup.read_text(encoding="utf-8")
+    setup_text = _read_text(template_setup)
     placeholders = extract_placeholders(setup_text)
     condition_vars = extract_condition_variables(setup_text)
+    variables_by_file: dict[str, set[str]] = {template_setup.name: placeholders | condition_vars}
     run_cfg_path = adapter.find_run_config(template_dir)
     run_cfg_template_text: str | None = None
     run_cfg_placeholders: set[str] = set()
     run_cfg_condition_vars: set[str] = set()
     run_cfg_relative: Path | None = None
     if run_cfg_path:
-        run_cfg_template_text = run_cfg_path.read_text(encoding="utf-8")
+        run_cfg_template_text = _read_text(run_cfg_path)
         run_cfg_relative = run_cfg_path.relative_to(template_dir)
         run_cfg_placeholders = extract_placeholders(run_cfg_template_text)
         run_cfg_condition_vars = extract_condition_variables(run_cfg_template_text)
         placeholders |= run_cfg_placeholders
         condition_vars |= run_cfg_condition_vars
+        variables_by_file[run_cfg_relative.as_posix()] = run_cfg_placeholders | run_cfg_condition_vars
 
     extra_targets = _collect_render_targets(template_dir, adapter)
-    for _, _, extra_placeholders, extra_condition in extra_targets:
+    for rel_path, _, extra_placeholders, extra_condition in extra_targets:
         placeholders |= extra_placeholders
         condition_vars |= extra_condition
+        variables_by_file[rel_path.as_posix()] = extra_placeholders | extra_condition
 
     header_set = set(headers)
     required_columns = placeholders | condition_vars
     missing_columns = sorted(name for name in required_columns if name not in header_set)
     if missing_columns:
-        joined = ", ".join(missing_columns)
-        raise ValueError(f"Variables without matching DOE columns: {joined}")
+        where = "; ".join(
+            f"{name} in {', '.join(sorted(f for f, names in variables_by_file.items() if name in names))}"
+            for name in missing_columns
+        )
+        example = missing_columns[0]
+        raise ValueError(
+            f"Variables without matching DOE columns: {where}. Add the column to the DOE, or write "
+            f"\\{{{example}}} in the template to keep a literal {{{example}}} (for example in Python code)."
+        )
 
     _report_unused_columns(headers, required_columns, strict=strict)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -363,29 +391,21 @@ def generate_cases(
             shutil.copytree(template_dir, case_dir)
             rendered = render_template(setup_text, row, case_id)
 
-            target_setup = case_dir / setup_relative
-            target_setup.write_text(rendered, encoding="utf-8")
+            _write_text(case_dir / setup_relative, rendered)
             if run_cfg_template_text and run_cfg_relative:
-                target_run_cfg = case_dir / run_cfg_relative
-                target_run_cfg.write_text(
-                    render_template(run_cfg_template_text, row, case_id),
-                    encoding="utf-8",
-                )
+                _write_text(case_dir / run_cfg_relative, render_template(run_cfg_template_text, row, case_id))
             for rel_path, extra_text, _placeholders_set, _ in extra_targets:
                 target_path = case_dir / rel_path
                 if not target_path.exists():
                     continue
-                target_path.write_text(
-                    render_template(extra_text, row, case_id),
-                    encoding="utf-8",
-                )
+                _write_text(target_path, render_template(extra_text, row, case_id))
             _write_doe_row(case_dir, headers, row, case_id)
             _ensure_registry_case(registry, case_id, case_dir)
 
 
 def read_doe_row(case_dir: Path) -> tuple[dict[str, str], list[str]]:
     """Read the stored DOE row for a case (values and column order)."""
-    doe_path = case_dir / "doe_row.csv"
+    doe_path = case_dir / DOE_ROW_FILENAME
     try:
         stat = doe_path.stat()
     except OSError:

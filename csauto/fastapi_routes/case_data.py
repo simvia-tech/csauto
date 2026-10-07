@@ -1,7 +1,7 @@
 import math
 from typing import Annotated, Any
 
-from ..logs import read_tail_lines
+from ..logs import GENERIC_ANOMALY_PATTERNS, highlight_anomaly_line, list_tail_files, read_tail_lines
 from ..probes import probe_columns, probe_position, render_probe_svg
 from ..web_support import log_case_action
 from .common import shared_models
@@ -26,6 +26,14 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
         case: str | None = None
         file: str | None = None
         n: int = Field(default=200, ge=1)
+
+    class TailLineModel(BaseModel):
+        text: str
+        severity: str | None = None
+
+    class TailLinesResponse(BaseModel):
+        file: str
+        lines: list[TailLineModel]
 
     class ResuFilesQuery(BaseModel):
         case: str | None = None
@@ -73,6 +81,38 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
             actor=request.client.host if request.client else None,
         )
         return PlainTextResponse("".join(read_tail_lines(file_path, query.n)))
+
+    @app.get("/api/tail_files", response_model=StringListResponse)
+    def api_tail_files(
+        query: Annotated[CaseQuery, Query()],
+        x_csauto_token: str | None = Header(default=None),
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        """Log files the Log Tail panel can show for a case, best first."""
+        ctx.require_auth(x_csauto_token, authorization)
+        _case_id, case_dir = ctx.validated_case_dir(query.case)
+        return {"files": list_tail_files(case_dir, ctx.adapter)}
+
+    @app.get("/api/tail_lines", response_model=TailLinesResponse)
+    def api_tail_lines(
+        query: Annotated[TailQuery, Query()],
+        x_csauto_token: str | None = Header(default=None),
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        """Last lines of a case file, each with the severity the solver's anomaly patterns give it."""
+        ctx.require_auth(x_csauto_token, authorization)
+        case_id, case_dir = ctx.validated_case_dir(query.case)
+        file_name = query.file or ctx.adapter.tail_file_names[0]
+        file_path = ctx.adapter.locate_case_file(case_dir, file_name)
+        if not file_path:
+            raise ctx.http_exception_cls(status_code=404, detail=f"File {file_name} not found for {case_id}")
+        patterns = (*GENERIC_ANOMALY_PATTERNS, *ctx.adapter.anomaly_patterns)
+        lines = []
+        for raw in read_tail_lines(file_path, query.n):
+            text = raw.rstrip("\n")
+            hit = highlight_anomaly_line(text, patterns, ctx.adapter.anomaly_ignore_patterns)
+            lines.append({"text": text, "severity": hit[1] if hit else None})
+        return {"file": file_name, "lines": lines}
 
     @app.get("/api/resu_files", response_model=StringListResponse)
     def api_resu_files(

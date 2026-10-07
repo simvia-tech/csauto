@@ -76,7 +76,9 @@ def test_generate_cases_missing_column_error_message(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError) as excinfo:
         generate_cases(headers, rows, template_dir, output_dir)
-    assert str(excinfo.value) == "Variables without matching DOE columns: bar"
+    message = str(excinfo.value)
+    assert message.startswith("Variables without matching DOE columns: bar in setup.xml.")
+    assert "\\{bar}" in message
 
 
 def test_generate_cases_duplicate_case_id_raises(tmp_path: Path) -> None:

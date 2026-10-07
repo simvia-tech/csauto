@@ -89,7 +89,7 @@ def highlight_anomaly_line(
     for label, pattern in patterns:
         for match in pattern.finditer(line):
             matches.append((match.start(), match.end()))
-            if severity is None or ANOMALY_SEVERITY[label] > ANOMALY_SEVERITY.get(severity, -1):
+            if severity is None or ANOMALY_SEVERITY.get(label, 0) > ANOMALY_SEVERITY.get(severity, -1):
                 severity = label
     if not matches:
         return None
@@ -320,6 +320,41 @@ def collect_recent_errors(
     return results
 
 
+def list_tail_files(case_dir: Path, adapter=None) -> list[str]:
+    """Log files of a case for the Log Tail panel, best first, without duplicates.
+
+    Each `tail_file_names` entry the adapter resolves comes first, under its
+    friendly name. Glob entries (such as "*.mess") match files in the case
+    folder and in the latest run folder. Other *.log files of the latest run
+    follow.
+    """
+    adapter = adapter or _default_adapter()
+    files: list[str] = []
+    seen: set[Path] = set()
+
+    def add(name: str, path: Path) -> None:
+        resolved = path.resolve()
+        if path.is_file() and resolved not in seen:
+            seen.add(resolved)
+            files.append(name)
+
+    latest = adapter.latest_run_dir(case_dir)
+    folders = [case_dir, *([latest] if latest and latest != case_dir else [])]
+    for name in adapter.tail_file_names:
+        if any(char in name for char in "*?["):
+            for folder in folders:
+                for path in sorted(folder.glob(name)):
+                    add(path.relative_to(case_dir).as_posix(), path)
+            continue
+        path = adapter.locate_case_file(case_dir, name)
+        if path:
+            add(name, path)
+    if latest:
+        for path in sorted(latest.glob("*.log")):
+            add(path.relative_to(case_dir).as_posix(), path)
+    return files
+
+
 def read_case_file_text(case_dir: Path, name: str, adapter=None) -> str:
     """Read a case file content as text."""
     adapter = adapter or _default_adapter()
@@ -484,6 +519,7 @@ __all__ = [
     "collect_recent_errors",
     "highlight_anomaly_line",
     "is_recent",
+    "list_tail_files",
     "parse_start_time",
     "read_case_file_text",
     "read_performance_rows",

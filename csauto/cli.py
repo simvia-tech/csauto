@@ -20,6 +20,7 @@ from .logs import (
     tail_log,
 )
 from .maintenance import cleanup_runs, run_doctor
+from .registry import read_campaign_solver, write_campaign_solver
 from .residuals import (
     collect_residuals,
     plot_residuals,
@@ -27,7 +28,7 @@ from .residuals import (
 from .runner import refresh_status, run_cases
 from .serve_commands import add_serve_subcommands, dispatch_serve_command
 from .solvers import get_solver_adapter
-from .warn import error, flush_warnings
+from .warn import error, flush_warnings, warn
 
 
 def serve_fastapi(*args: Any, **kwargs: Any) -> Any:
@@ -114,9 +115,8 @@ def parse_arguments(
         dest="mesh_mode",
         choices=["copy", "symlink"],
         default=config.mesh_mode,
-        help="How to place the solver's shared dirs (meshes, postprocessing) into output_root: 'copy' (default) "
-        "or 'symlink'. 'symlink' avoids duplicating large meshes but is not supported with the docker/singularity "
-        "runtimes unless the mesh lives inside output_root already.",
+        help="How to place the solver's shared dirs (meshes, postprocessing) into output_root: 'symlink' "
+        "(default, no duplication; containers get the symlink targets mounted) or 'copy'.",
     )
     prepare_parser.add_argument(
         "--strict",
@@ -201,7 +201,7 @@ def parse_arguments(
         "--docker-image",
         dest="docker_image",
         default=config.docker_image,
-        help="Docker image to use (default from csauto.toml).",
+        help="Docker image to use (default: docker_image in csauto.toml, else the solver's own image).",
     )
     run_parser.add_argument(
         "--saturne-bin",
@@ -298,32 +298,14 @@ def parse_arguments(
     )
 
     control_parser = subparsers.add_parser(
-        "control", help="Send a live control directive to a running case (stop/extend/checkpoint/flush)."
+        "control",
+        help="Send a live control action to a running case (the actions depend on the solver; "
+        "csauto doctor lists them).",
     )
     control_parser.add_argument("runs_dir", type=Path, help="Directory containing generated cases")
     control_parser.add_argument("case", help="Case name (caseXXXX)")
-    control_action_group = control_parser.add_mutually_exclusive_group(required=True)
-    control_action_group.add_argument(
-        "--stop",
-        action="store_true",
-        help="Graceful stop: finish the current time step, checkpoint, and exit (no restart needed).",
-    )
-    control_action_group.add_argument(
-        "--extend",
-        type=int,
-        metavar="N",
-        help="Extend the run by N additional time steps beyond its current progress.",
-    )
-    control_action_group.add_argument(
-        "--checkpoint",
-        action="store_true",
-        help="Request a checkpoint at the next time step.",
-    )
-    control_action_group.add_argument(
-        "--flush",
-        action="store_true",
-        help="Flush logs and time plots at the next time step.",
-    )
+    control_parser.add_argument("action", help="Action name (csauto doctor lists the solver's actions)")
+    control_parser.add_argument("value", nargs="?", type=float, help="Value, for actions that take one")
 
     add_serve_subcommands(subparsers, config)
 
@@ -421,11 +403,24 @@ def _print_doctor(items: Sequence[object]) -> bool:
     return failed
 
 
+def _campaign_solver(runs_dir: Path | None, config: Config) -> str:
+    """The solver of the campaign in `runs_dir` when it was recorded, else the configured one."""
+    recorded = read_campaign_solver(runs_dir) if runs_dir is not None else None
+    if not recorded:
+        return config.solver
+    if config.path is not None and recorded != config.solver:
+        warn(f"{runs_dir} was prepared for {recorded}; ignoring solver = {config.solver!r} from {config.path}")
+    return recorded
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     argv_list = list(argv or sys.argv[1:])
     config_path = _preparse_config(argv_list)
     config = load_config(config_path)
     parser, args = parse_arguments(argv_list, config)
+    # Commands on an existing campaign use the solver it was prepared for, so
+    # they work from any directory; serve reads it from config.solver.
+    config.solver = _campaign_solver(getattr(args, "runs_dir", None), config)
     adapter = get_solver_adapter(config.solver)
 
     try:
@@ -433,6 +428,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             parser.print_help()
             return 0
         elif args.command == "prepare":
+            recorded = read_campaign_solver(args.output_root)
+            if recorded and recorded != adapter.name:
+                raise ValueError(f"{args.output_root} holds a {recorded} campaign; csauto.toml selects {adapter.name}.")
             headers, rows = load_doe(args.doe_csv)
             generate_cases(
                 headers,
@@ -443,6 +441,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 adapter=adapter,
                 strict=args.strict,
             )
+            write_campaign_solver(args.output_root, adapter.name)
         elif args.command == "doe":
             from .doe_generate import check_spec_against_template, generate_rows, load_doe_spec, write_doe_csv
 
@@ -527,18 +526,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 adapter=adapter,
             )
         elif args.command == "control":
-            if args.stop:
-                control_action, control_value = "stop", None
-            elif args.extend is not None:
-                control_action, control_value = "extend", args.extend
-            elif args.checkpoint:
-                control_action, control_value = "checkpoint", None
-            else:
-                control_action, control_value = "flush", None
             details = control_case(
-                args.runs_dir, args.case, control_action, value=control_value, source="cli", adapter=adapter
+                args.runs_dir, args.case, args.action, value=args.value, source="cli", adapter=adapter
             )
-            print(f"control: {control_action} -> {details}")
+            print(f"control: {args.action} -> {details}")
         elif dispatch_serve_command(
             args,
             config,

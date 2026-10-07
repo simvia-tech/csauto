@@ -17,7 +17,7 @@ except ImportError:  # pragma: no cover - Python < 3.11
 class Config:
     solver: str = DEFAULT_SOLVER
     runtime: str = "auto"
-    docker_image: str = "simvia/code_saturne"
+    docker_image: str | None = None  # None: the solver adapter's default image
     saturne_bin: str | None = None
     singularity_image: str | None = None
     singularity_bin: str | None = None
@@ -159,7 +159,7 @@ def load_config(path: Path | None = None) -> Config:
     if "runtime" in data:
         config.runtime = _parse_runtime(data.get("runtime"), config_path=config_path)
     if "docker_image" in data:
-        config.docker_image = _coerce_str(data.get("docker_image"), config.docker_image)
+        config.docker_image = _coerce_str(data.get("docker_image"), "").strip() or None
     if "saturne_bin" in data:
         config.saturne_bin = _coerce_str(data.get("saturne_bin"), "").strip() or None
     if "singularity_image" in data:

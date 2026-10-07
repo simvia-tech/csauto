@@ -21,7 +21,7 @@ from ..pathutil import is_within_root
 from ..probes import list_run_csv_files, locate_run_csv_files
 from ..registry import STATUS_FAILED
 from ..svg_utils import as_float
-from .base import CompareKind, PerfColumn, SolverAdapterBase
+from .base import CompareKind, ControlAction, PerfColumn, RestartMode, SolverAdapter
 
 if TYPE_CHECKING:
     from ..execution import RuntimeSelection
@@ -51,7 +51,11 @@ RUN_STATUS_RUNNING = "run_status.running"
 # The solver's main logs, best first: run_solver.log, or listing on older versions.
 SOLVER_LOG_NAMES = ("run_solver.log", "listing")
 # Friendly names locate_case_file also looks up in the RESU run directories.
-RUN_FILE_NAMES = frozenset({*SOLVER_LOG_NAMES, RESIDUALS_FILENAME, RUN_STATUS_RUNNING, PERFORMANCE_FILENAME})
+RUN_SUMMARY_FILENAME = "summary"
+RUN_FILE_NAMES = frozenset(
+    {*SOLVER_LOG_NAMES, RESIDUALS_FILENAME, RUN_STATUS_RUNNING, PERFORMANCE_FILENAME, RUN_SUMMARY_FILENAME}
+)
+LOGOS = Path(__file__).with_name("logos")
 # Root-level console logs some setups write, searched for progress.
 ROOT_LISTING_NAMES = ("listing", "listing.txt", "listing.log", "listing.out")
 
@@ -321,7 +325,7 @@ def _require_positive_restart_value(
     return v
 
 
-class CodeSaturneAdapter(SolverAdapterBase):
+class CodeSaturneAdapter(SolverAdapter):
     name: ClassVar[str] = "code_saturne"
     native_bin_name: ClassVar[str] = "code_saturne"
     container_bin_name: ClassVar[str] = "code_saturne"
@@ -341,6 +345,7 @@ class CodeSaturneAdapter(SolverAdapterBase):
         "csauto.stdout",
         "csauto.stderr",
         "performance.log",
+        RUN_SUMMARY_FILENAME,
     )
     cleanup_log_names: ClassVar[frozenset[str]] = frozenset(
         {
@@ -376,16 +381,29 @@ class CodeSaturneAdapter(SolverAdapterBase):
         CompareKind("run_solver.log", "run_solver.log"),
         CompareKind("performance.log", "performance.log"),
     )
-    control_actions: ClassVar[frozenset[str]] = frozenset({"stop", "extend", "checkpoint", "flush"})
+    # Directives written to the run's control_file, read by code_saturne at each time step.
+    control_actions: ClassVar[tuple[ControlAction, ...]] = (
+        ControlAction("stop", "Stop gracefully"),
+        ControlAction("extend", "Extend", "Additional time steps"),
+        ControlAction("checkpoint", "Write a checkpoint"),
+        ControlAction("flush", "Flush logs and plots"),
+    )
+    restart_modes: ClassVar[tuple[RestartMode, ...]] = (
+        RestartMode("iterations", "Additional iterations", "Iterations"),
+        RestartMode("physical_time", "Additional physical time", "Time (s)", "float"),
+    )
+    default_residual_columns: ClassVar[tuple[str, ...]] = ("velocity", "pressure")
+    logo_file: ClassVar[Path | None] = LOGOS / "code_saturne.svg"
+    icon_file: ClassVar[Path | None] = LOGOS / "code_saturne_icon.svg"
 
-    def run_argv(self, case_path: str | Path, nprocs: int, nt: int, run_args: Sequence[str] | None = None) -> list[str]:
-        argv = ["run", "--case", str(case_path), "-n", str(nprocs), "--nt", str(nt)]
+    def run_argv(self, case_dir: Path, nprocs: int, nt: int, run_args: Sequence[str] | None = None) -> list[str]:
+        argv = ["run", "--case", ".", "-n", str(nprocs), "--nt", str(nt)]
         if run_args:
             argv.extend(str(arg) for arg in run_args if str(arg) != "")
         return argv
 
-    def gui_argv(self, setup_path: str | Path) -> list[str]:
-        return ["gui", str(setup_path)]
+    def gui_argv(self, setup_path: str) -> list[str]:
+        return ["gui", setup_path]
 
     def build_slurm_script(
         self,
@@ -765,7 +783,7 @@ class CodeSaturneAdapter(SolverAdapterBase):
         case_dir: Path,
         action: str,
         *,
-        value: int | None = None,
+        value: int | float | None = None,
         start_time: str | None = None,
     ) -> dict[str, Any]:
         """Drop a code_saturne control_file directive for a running case."""
@@ -791,7 +809,8 @@ class CodeSaturneAdapter(SolverAdapterBase):
             self.write_control_directive(case_dir, f"max_time_step {target}")
             details.update(increment=increment, previous_max_time_step=base, target_time_step=target)
         else:
-            raise ValueError(f"Invalid control action: {action!r} (expected one of {sorted(self.control_actions)})")
+            names = ", ".join(a.name for a in self.control_actions)
+            raise ValueError(f"Invalid control action: {action!r} (expected one of: {names})")
         return details
 
     def write_control_directive(self, case_dir: Path, directive: str) -> Path:

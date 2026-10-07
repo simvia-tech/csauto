@@ -35,12 +35,11 @@ SOLVER_TOKENS = (
 TOKEN_RE = re.compile(r"(?<![A-Za-z0-9])(" + "|".join(map(re.escape, SOLVER_TOKENS)) + r")(?![A-Za-z0-9])")
 
 # Deliberate residue, the same list as "Accepted residue" in docs/architecture.md:
-# TOML keys, CLI flags and the HTTP API keep their historical names, and
-# config.py keeps the code_saturne docker image default. Each entry is removed
-# from a line before the tokens are searched.
+# the TOML key and CLI flag saturne_bin / --saturne-bin and the historical HTTP
+# names keep their spelling. Each entry is removed from a line before the
+# tokens are searched.
 ACCEPTED_RESIDUE: dict[str, tuple[str, ...]] = {
     "*": ("saturne_bin", "--saturne-bin"),
-    "config.py": ('"simvia/code_saturne"',),
     # The /api/probes scope value naming the profiles role.
     "fastapi_routes/case_data.py": ('"profiles"',),
 }

@@ -1246,7 +1246,16 @@ def test_api_app_config_exposes_solver_and_panels(web_env) -> None:
         "residuals",
         "restart",
     ]
-    assert data["control_actions"] == ["checkpoint", "extend", "flush", "stop"]
+    assert [a["name"] for a in data["control_actions"]] == ["stop", "extend", "checkpoint", "flush"]
+    assert data["control_actions"][1] == {
+        "name": "extend",
+        "label": "Extend",
+        "value_label": "Additional time steps",
+        "value_kind": "int",
+    }
+    assert [m["name"] for m in data["restart_modes"]] == ["iterations", "physical_time"]
+    assert data["default_residual_columns"] == ["velocity", "pressure"]
+    assert data["logo"] is True and data["icon"] is True
 
 
 def test_api_app_config_reflects_a_solver_without_analytics(

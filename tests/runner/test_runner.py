@@ -113,7 +113,9 @@ def test_run_cases_native_runtime_updates_registry(monkeypatch, runs_dir: Path, 
     assert record["pid"] == 23456
     assert record["runtime"] == "native"
     assert popen_calls
-    assert popen_calls[0][:3] == ["nohup", str(saturne_bin.resolve()), "run"]
+    # The command runs behind a shell that records its exit status.
+    assert popen_calls[0][:5] == ["nohup", "sh", "-c", '"$@"; echo $? > .csauto.exitcode', "csauto-run"]
+    assert popen_calls[0][5:7] == [str(saturne_bin.resolve()), "run"]
 
 
 def test_run_cases_restart_adds_restart_args(monkeypatch, runs_dir: Path, case_factory) -> None:
@@ -331,7 +333,7 @@ def test_run_cases_singularity_runtime_can_submit_via_slurm_with_cleanenv(
     assert "--cpus-per-task" in submit_calls[0]
     assert submit_calls[0][submit_calls[0].index("--cpus-per-task") + 1] == "1"
     script_path = Path(submit_calls[0][-1])
-    assert script_path == case_dir / ".csauto.slurm.singularity.sh"
+    assert script_path == case_dir / ".csauto.slurm.sh"
     script_text = script_path.read_text(encoding="utf-8")
     assert "=== Step 1/3: Case preparation ===" in script_text
     assert "=== Step 2/3: Solver execution ===" in script_text
@@ -444,7 +446,7 @@ def test_run_cases_serializes_concurrent_launchers(
 
     monkeypatch.setattr("csauto.solvers.code_saturne.CodeSaturneAdapter.build_restart_args", restart_stub)
     monkeypatch.setattr("subprocess.Popen", popen_stub)
-    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid: True)
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: True)
     monkeypatch.setattr("csauto.runner.time.sleep", sleep_stub)
 
     first = threading.Thread(target=run_target, args=("case0001",))
@@ -501,7 +503,7 @@ def test_refresh_status_reads_last_iter(monkeypatch, runs_dir: Path, case_factor
     registry["case0001"]["start_time"] = "2020-01-01T00:00:00"
     save_registry(runs_dir, registry)
 
-    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid: True)
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: True)
 
     rows = refresh_status(runs_dir)
     assert rows[0]["last_iter"] == 12
@@ -529,7 +531,7 @@ def test_run_cases_respects_max_parallel(monkeypatch, runs_dir: Path, case_facto
         raise StopSleep()
 
     monkeypatch.setattr("csauto.runner.read_container_id", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid: True)
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: True)
     monkeypatch.setattr("csauto.runner.time.sleep", sleep_stub)
     monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
     monkeypatch.setattr("subprocess.Popen", popen_stub)
@@ -566,7 +568,7 @@ def test_refresh_status_marks_done_when_pid_dead(monkeypatch, runs_dir: Path, ca
     registry["case0001"]["start_time"] = (datetime.now() - timedelta(seconds=5)).isoformat(timespec="seconds")
     save_registry(runs_dir, registry)
 
-    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid: False)
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: False)
 
     rows = refresh_status(runs_dir)
     assert rows[0]["status"] == STATUS_DONE
@@ -596,7 +598,7 @@ def test_refresh_status_skips_stale_merge_when_case_relaunched(
             save_registry(runs_dir_arg, current)
         return changed
 
-    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid: False)
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: False)
     monkeypatch.setattr("csauto.solvers.code_saturne.scan_outcome", lambda *_args, **_kwargs: STATUS_DONE)
     monkeypatch.setattr("csauto.runner.mutate_registry", mutate_with_relaunch)
 
@@ -664,7 +666,7 @@ def test_run_cases_releases_slot_when_running_case_has_dead_pid(
 
     monkeypatch.setattr("subprocess.Popen", lambda *_a, **_k: DummyProc())
     monkeypatch.setattr("csauto.runner.read_container_id", lambda *_a, **_k: None)
-    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid: False)
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: False)
     monkeypatch.setattr("csauto.runner._is_slurm_job_active", lambda _jid: False)
     monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
 
@@ -699,7 +701,7 @@ def test_terminate_pid_sends_sigterm_then_returns_if_dead(monkeypatch) -> None:
         signals_sent.append((pid, sig))
 
     monkeypatch.setattr("os.killpg", fake_killpg)
-    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid: False)
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: False)
 
     import signal
 
@@ -718,7 +720,7 @@ def test_terminate_pid_escalates_to_sigkill_after_grace(monkeypatch) -> None:
         signals_sent.append((pid, sig))
 
     monkeypatch.setattr("os.killpg", fake_killpg)
-    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid: True)
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: True)
     monkeypatch.setattr("csauto.runner.time.sleep", lambda _s: None)
 
     terminate_pid(42, grace=0.0)
@@ -753,7 +755,7 @@ def test_terminate_pid_falls_back_to_kill_on_permission_error(monkeypatch) -> No
 
     monkeypatch.setattr("os.killpg", fake_killpg)
     monkeypatch.setattr("os.kill", fake_kill)
-    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid: False)
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: False)
 
     terminate_pid(42, grace=0.5)
 
@@ -1002,7 +1004,7 @@ def test_refresh_status_include_doe_returns_columns(
     )
     registry_factory(runs_dir, "case0001", case_dir, status="PREPARED")
 
-    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid: False)
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: False)
 
     rows, doe_columns = refresh_status(runs_dir, include_doe=True)
     assert len(rows) == 1
