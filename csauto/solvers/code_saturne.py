@@ -30,9 +30,10 @@ from ..logs import (
     locate_run_status_file,
     parse_performance_log,
 )
-from ..probes import list_probe_files, list_profile_files, locate_probe_files
+from ..probes import list_run_csv_files, locate_run_csv_files
 from ..registry import STATUS_FAILED
-from ..residuals import find_residuals_files, parse_residuals_from_log
+from ..residuals import find_run_files
+from ..svg_utils import as_float
 from .base import CompareKind, PerfColumn, SolverAdapterBase
 
 if TYPE_CHECKING:
@@ -54,6 +55,10 @@ NT_MAX_SETUP_RE = re.compile(r"nt_max:\s*(-?\d+)")
 # ...and re-echoes it into the main log every time a control_file directive changes it:
 #   "  max_time_step                        600 (current:            9)\n" (src/base/cs_control.cpp)
 NT_MAX_CONTROL_RE = re.compile(r"max_time_step\s+(\d+)\s*\(current:")
+# Results layout inside each RESU/<run>/ directory.
+PROBES_DIRNAME = "monitoring"
+PROFILES_DIRNAME = "profiles"
+RESIDUALS_FILENAME = "residuals.csv"
 
 
 def _find_input_file(template_dir: Path, name: str) -> Path | None:
@@ -67,6 +72,65 @@ def _find_input_file(template_dir: Path, name: str) -> Path | None:
         suffix = " ..." if len(matches) > 5 else ""
         raise ValueError(f"Multiple {name} found in {template_dir}: {found}{suffix}")
     return matches[0] if matches else None
+
+
+def parse_residuals_from_log(log_path: Path) -> tuple[list[str], list[dict[str, str]]]:
+    """Parse the residual blocks code_saturne prints into run_solver.log, for runs without residuals.csv."""
+    if not log_path or not log_path.is_file():
+        return [], []
+    block_idx = 0
+    current: dict[str, str] | None = None
+    block_has_data = False
+    rows: list[dict[str, str]] = []
+    fields: list[str] = ["iteration"]
+    header_re = re.compile(r"Variable\s+Rhs norm", re.IGNORECASE)
+    sep_re = re.compile(r"^-{3,}")
+    try:
+        with log_path.open("r", encoding="utf-8", errors="ignore") as handle:
+            for line in handle:
+                if header_re.search(line):
+                    if current:
+                        rows.append(current)
+                        current = None
+                    block_has_data = False
+                    block_idx += 1
+                    current = {"iteration": str(block_idx)}
+                    continue
+                if current is not None:
+                    if sep_re.match(line) and not block_has_data:
+                        continue
+                    if not line.strip() or sep_re.match(line):
+                        if current:
+                            rows.append(current)
+                        current = None
+                        block_has_data = False
+                        continue
+                    parts = line.split()
+                    if len(parts) < 3:
+                        continue
+                    name_tokens: list[str] = []
+                    value_token: str | None = None
+                    for tok in parts[1:]:
+                        if as_float(tok) is not None:
+                            value_token = parts[-1]
+                            break
+                        name_tokens.append(tok)
+                    if not name_tokens or value_token is None:
+                        continue
+                    name = "_".join(t.lower() for t in name_tokens)
+                    try:
+                        float(value_token)
+                    except (ValueError, TypeError):
+                        continue
+                    current[name] = value_token
+                    if name not in fields:
+                        fields.append(name)
+                    block_has_data = True
+            if current:
+                rows.append(current)
+    except OSError:
+        return [], []
+    return fields, rows
 
 
 def _require_positive_restart_value(
@@ -437,7 +501,7 @@ class CodeSaturneAdapter(SolverAdapterBase):
         return [DoctorItem(level="ok", message="setup.xml present in every case")]
 
     def find_residuals_files(self, case_dir: Path, include_history: bool = False) -> list[Path]:
-        return find_residuals_files(case_dir, include_history=include_history)
+        return find_run_files(self.list_run_dirs(case_dir), RESIDUALS_FILENAME, include_history=include_history)
 
     def parse_live_residuals(self, case_dir: Path) -> tuple[list[str], list[dict[str, str]]]:
         log_path = locate_case_file(case_dir, "run_solver.log")
@@ -446,13 +510,19 @@ class CodeSaturneAdapter(SolverAdapterBase):
         return parse_residuals_from_log(log_path)
 
     def list_probe_files(self, case_dir: Path, limit: int = 200) -> list[str]:
-        return list_probe_files(case_dir, limit=limit)
+        return list_run_csv_files(self.latest_run_dir(case_dir), PROBES_DIRNAME, limit=limit)
 
     def list_profile_files(self, case_dir: Path, limit: int = 200) -> list[str]:
-        return list_profile_files(case_dir, limit=limit)
+        return list_run_csv_files(self.latest_run_dir(case_dir), PROFILES_DIRNAME, limit=limit, with_prefix=True)
 
     def locate_probe_files(self, case_dir: Path, probe_ref: str, include_history: bool = False) -> list[Path]:
-        return locate_probe_files(case_dir, probe_ref, include_history=include_history)
+        return locate_run_csv_files(
+            case_dir,
+            self.list_run_dirs(case_dir),
+            (PROBES_DIRNAME, PROFILES_DIRNAME),
+            probe_ref,
+            include_history=include_history,
+        )
 
     def find_performance_log(self, case_dir: Path) -> Path | None:
         return find_latest_performance_log(case_dir)

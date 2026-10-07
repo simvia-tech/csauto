@@ -147,7 +147,7 @@ def test_render_residuals_svg_warns_for_launched_case_missing_residuals(tmp_path
 
     read_residual_rows(runs_dir, ["case0001"], allow_empty=True)
 
-    assert "residuals.csv not found for case0001" in capsys.readouterr().err
+    assert "residuals not found for case0001" in capsys.readouterr().err
 
 
 def test_read_probe_rows_no_warning_for_prepared_case(tmp_path: Path, capsys) -> None:
@@ -178,3 +178,28 @@ def test_read_probe_rows_warns_for_launched_case_missing_probe(tmp_path: Path, c
     read_probe_rows(runs_dir, ["case0001"], "probe_density.csv", allow_empty=True)
 
     assert "probe not found for case0001" in capsys.readouterr().err
+
+
+def test_probe_rendering_follows_an_adapter_declared_layout(tmp_path: Path) -> None:
+    """A solver with its own probe directory reuses CSV reading and SVG rendering as is."""
+    from csauto.probes import list_run_csv_files, locate_run_csv_files
+    from csauto.solvers.stub import StubAdapter
+
+    class ProbingStub(StubAdapter):
+        def list_probe_files(self, case_dir, limit=200):
+            return list_run_csv_files(self.latest_run_dir(case_dir), "points", limit=limit)
+
+        def locate_probe_files(self, case_dir, probe_ref, include_history=False):
+            return locate_run_csv_files(case_dir, self.list_run_dirs(case_dir), ("points",), probe_ref, include_history)
+
+    runs_dir = tmp_path / "RUNS"
+    probe_dir = runs_dir / "case0001" / "OUT" / "run_0001" / "points"
+    probe_dir.mkdir(parents=True)
+    (probe_dir / "probe_density.csv").write_text("time,value\n0.0,1.0\n1.0,2.0\n", encoding="utf-8")
+    adapter = ProbingStub()
+
+    assert adapter.list_probe_files(runs_dir / "case0001") == ["probe_density.csv"]
+    _header, rows = read_probe_rows(runs_dir, ["case0001"], "probe_density.csv", adapter=adapter)
+    assert [row["value"] for row in rows] == ["1.0", "2.0"]
+    svg = render_probe_svg(runs_dir, ["case0001"], "probe_density.csv", ["value"], adapter=adapter)
+    assert "<path" in svg

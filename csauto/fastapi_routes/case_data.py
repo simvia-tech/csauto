@@ -133,7 +133,7 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
         if not query.probe:
             raise ctx.http_exception_cls(status_code=400, detail="Missing case, probe parameters")
         _case_id, case_dir = ctx.validated_case_dir(query.case)
-        position = probe_position(case_dir, query.probe, column_ref=query.column)
+        position = probe_position(case_dir, query.probe, column_ref=query.column, adapter=ctx.adapter)
         return {"found": False} if not position else {"found": True, **position}
 
     @app.get("/api/probe_columns", response_model=StringListResponse)
@@ -151,7 +151,7 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
         seen: set[str] = set()
         for case_id in case_ids:
             try:
-                cols = probe_columns(ctx.runs_dir, case_id, probe_list)
+                cols = probe_columns(ctx.runs_dir, case_id, probe_list, adapter=ctx.adapter)
             except FileNotFoundError:
                 continue
             for c in cols:
@@ -196,5 +196,6 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
             x_from=x_value,
             include_history=query.include_history,
             restart_values=restart_vals if restart_vals else None,
+            adapter=ctx.adapter,
         )
         return Response(content=svg, media_type="image/svg+xml")

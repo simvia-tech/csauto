@@ -23,36 +23,19 @@ from .viz import empty_svg
 from .warn import warn
 
 
-def latest_resu_dir(case_dir: Path) -> Path | None:
-    """Return latest RESU subdirectory by mtime."""
-    resu_root = case_dir / "RESU"
-    if not resu_root.is_dir():
-        return None
-    subdirs = [d for d in resu_root.iterdir() if d.is_dir()]
-    if not subdirs:
-        return None
-    subdirs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-    return subdirs[0]
+def _default_adapter():
+    from .solvers import get_solver_adapter
+
+    return get_solver_adapter(None)
 
 
-def _iter_resu_subdirs(case_dir: Path) -> list[Path]:
-    resu_root = case_dir / "RESU"
-    if not resu_root.is_dir():
+def list_run_csv_files(
+    run_dir: Path | None, subdir_name: str, limit: int = 200, with_prefix: bool = False
+) -> list[str]:
+    """List CSV files in one subdirectory of a run directory, optionally prefixed with that subdirectory."""
+    if run_dir is None:
         return []
-    return [sub for sub in resu_root.iterdir() if sub.is_dir()]
-
-
-def _iter_resu_subdirs_sorted(case_dir: Path, reverse: bool = False) -> list[Path]:
-    subdirs = _iter_resu_subdirs(case_dir)
-    subdirs.sort(key=lambda p: p.stat().st_mtime, reverse=reverse)
-    return subdirs
-
-
-def _list_case_csv_files(case_dir: Path, subdir_name: str, limit: int = 200, with_prefix: bool = False) -> list[str]:
-    latest = latest_resu_dir(case_dir)
-    if not latest:
-        return []
-    target_dir = latest / subdir_name
+    target_dir = run_dir / subdir_name
     if not target_dir.is_dir():
         return []
     files: list[str] = []
@@ -63,16 +46,6 @@ def _list_case_csv_files(case_dir: Path, subdir_name: str, limit: int = 200, wit
         if len(files) >= limit:
             break
     return files
-
-
-def list_probe_files(case_dir: Path, limit: int = 200) -> list[str]:
-    """List probe CSV files (by name) in latest RESU monitoring directory."""
-    return _list_case_csv_files(case_dir, "monitoring", limit=limit, with_prefix=False)
-
-
-def list_profile_files(case_dir: Path, limit: int = 200) -> list[str]:
-    """List profile CSV files (with profiles/ prefix) in latest RESU profiles directory."""
-    return _list_case_csv_files(case_dir, "profiles", limit=limit, with_prefix=True)
 
 
 def _pick_most_recent(paths: Sequence[Path]) -> Path | None:
@@ -89,97 +62,70 @@ def _pick_most_recent(paths: Sequence[Path]) -> Path | None:
     return best
 
 
-def _locate_in_resu_subdir(case_dir: Path, subdir_name: str, name: str) -> Path | None:
-    latest = latest_resu_dir(case_dir)
-    latest_candidate: Path | None = None
-    if latest:
-        candidate = latest / subdir_name / name
-        if candidate.is_file() and is_within_root(candidate, case_dir.resolve()):
-            latest_candidate = candidate
-
-    all_candidates: list[Path] = []
-    for sub in _iter_resu_subdirs(case_dir):
-        candidate = sub / subdir_name / name
-        if candidate.is_file() and is_within_root(candidate, case_dir.resolve()):
-            all_candidates.append(candidate)
-    newest = _pick_most_recent(all_candidates)
-    if latest_candidate and newest:
-        # If latest RESU contains the file, keep current behavior and prefer it.
-        return latest_candidate
-    return latest_candidate or newest
-
-
-def _locate_in_resu_subdir_all(case_dir: Path, subdir_name: str, name: str) -> list[Path]:
+def _run_subdir_matches(case_dir: Path, run_dirs: Sequence[Path], subdir_name: str, name: str) -> list[Path]:
+    root = case_dir.resolve()
     matches: list[Path] = []
-    for sub in _iter_resu_subdirs_sorted(case_dir, reverse=False):
-        candidate = sub / subdir_name / name
-        if candidate.is_file() and is_within_root(candidate, case_dir.resolve()):
+    for run_dir in run_dirs:
+        candidate = run_dir / subdir_name / name
+        if candidate.is_file() and is_within_root(candidate, root):
             matches.append(candidate)
     return matches
 
 
-def locate_probe_files(case_dir: Path, probe_ref: str, include_history: bool = False) -> list[Path]:
-    """Resolve a probe file reference to one or more file paths.
+def _locate_in_run_subdir(case_dir: Path, run_dirs: Sequence[Path], subdir_name: str, name: str) -> Path | None:
+    matches = _run_subdir_matches(case_dir, run_dirs, subdir_name, name)
+    # The latest run wins when it has the file, otherwise the most recently written copy.
+    if matches and matches[0].parent.parent == run_dirs[0]:
+        return matches[0]
+    return _pick_most_recent(matches)
 
-    If include_history is False, returns at most one file to preserve legacy behavior.
-    If include_history is True, returns matching files across RESU runs, oldest to newest.
+
+def locate_run_csv_files(
+    case_dir: Path,
+    run_dirs: Sequence[Path],
+    subdir_names: Sequence[str],
+    ref: str,
+    include_history: bool = False,
+) -> list[Path]:
+    """Resolve a probe file reference against subdirectories of the given runs.
+
+    `run_dirs` is newest first. A reference is a path relative to the case,
+    `<subdir>/<file>`, or a bare file name searched in `subdir_names` order.
+    Returns at most one file, or with include_history every match across
+    runs, oldest to newest.
     """
-    if not probe_ref:
+    if not ref:
         return []
-    ref_path = Path(probe_ref)
+    ref_path = Path(ref)
     direct = safe_subpath(case_dir, ref_path)
     if direct and direct.is_file():
         return [direct]
     ref_parts = [part for part in ref_path.parts if part not in {".", ""}]
-    if len(ref_parts) >= 2 and ref_parts[0] in {"monitoring", "profiles"}:
-        scope = ref_parts[0]
+    if len(ref_parts) >= 2 and ref_parts[0] in subdir_names:
+        scopes: Sequence[str] = (ref_parts[0],)
         name = Path(ref_parts[-1]).name
-        if include_history:
-            return _locate_in_resu_subdir_all(case_dir, scope, name)
-        scoped = _locate_in_resu_subdir(case_dir, scope, name)
-        return [scoped] if scoped else []
-    name = ref_path.name
+    else:
+        scopes = subdir_names
+        name = ref_path.name
     if not name:
         return []
-    for subdir_name in ("monitoring", "profiles"):
+    for subdir_name in scopes:
         if include_history:
-            matches = _locate_in_resu_subdir_all(case_dir, subdir_name, name)
+            matches = _run_subdir_matches(case_dir, run_dirs[::-1], subdir_name, name)
             if matches:
                 return matches
         else:
-            candidate = _locate_in_resu_subdir(case_dir, subdir_name, name)
+            candidate = _locate_in_run_subdir(case_dir, run_dirs, subdir_name, name)
             if candidate:
                 return [candidate]
     return []
 
 
-def locate_probe_file(case_dir: Path, probe_ref: str) -> Path | None:
+def locate_probe_file(case_dir: Path, probe_ref: str, adapter=None) -> Path | None:
     """Resolve a probe file reference to a real file path."""
-    matches = locate_probe_files(case_dir, probe_ref, include_history=False)
+    adapter = adapter or _default_adapter()
+    matches = adapter.locate_probe_files(case_dir, probe_ref, include_history=False)
     return matches[0] if matches else None
-
-
-def read_probe_records(case_dir: Path, probe_relpath: str, limit: int = 200) -> tuple[list[str], list[dict[str, str]]]:
-    """Read probe CSV (limited rows)."""
-    probe_path = locate_probe_file(case_dir, probe_relpath)
-    if not probe_path or not probe_path.is_file():
-        raise FileNotFoundError(f"Probe file not found: {probe_relpath}")
-    header: list[str] | None = None
-    records: list[dict[str, str]] = []
-    with probe_path.open(newline="", encoding="utf-8", errors="ignore") as handle:
-        reader = csv.DictReader(handle)
-        if reader.fieldnames:
-            header = [f.strip() for f in reader.fieldnames if f is not None]
-        for idx, row in enumerate(reader, start=1):
-            rec: dict[str, str] = {}
-            for k, v in row.items():
-                if k is None:
-                    continue
-                rec[k.strip()] = v.strip() if isinstance(v, str) else v
-            records.append(rec)
-            if limit and idx >= limit:
-                break
-    return header or [], records
 
 
 def _normalize_probe_files(probe_files: str | Sequence[str]) -> list[str]:
@@ -268,12 +214,14 @@ def _select_coord_row(
     return rows[0]
 
 
-def probe_position(case_dir: Path, probe_ref: str, column_ref: str | None = None) -> dict[str, float | str]:
+def probe_position(
+    case_dir: Path, probe_ref: str, column_ref: str | None = None, adapter=None
+) -> dict[str, float | str]:
     """Return probe coordinates inferred from an associated coords CSV."""
     if not probe_ref:
         return {}
     for candidate in _coords_probe_candidates(probe_ref):
-        probe_path = locate_probe_file(case_dir, candidate)
+        probe_path = locate_probe_file(case_dir, candidate, adapter=adapter)
         if not probe_path or not probe_path.is_file():
             continue
         try:
@@ -315,8 +263,10 @@ def read_probe_rows(
     axis: str = "time",
     allow_empty: bool = False,
     include_history: bool = False,
+    adapter=None,
 ) -> tuple[list[str], list[dict[str, str]]]:
     """Read probe rows for given cases and probe files."""
+    adapter = adapter or _default_adapter()
     if not cases:
         raise ValueError("At least one case must be specified via --case.")
     probe_list = _normalize_probe_files(probe_files)
@@ -336,7 +286,7 @@ def read_probe_rows(
         case_status = registry.get(case_id, {}).get("status")
         case_launched = case_status not in (None, STATUS_PREPARED)
         for probe_file in probe_list:
-            probe_paths = locate_probe_files(case_dir, probe_file, include_history=include_history)
+            probe_paths = adapter.locate_probe_files(case_dir, probe_file, include_history=include_history)
             if not probe_paths:
                 if case_launched:
                     warn(f"probe not found for {case_id}: {probe_file}")
@@ -375,7 +325,7 @@ def read_probe_rows(
     return header, records
 
 
-def probe_columns(runs_dir: Path, case: str, probe_files: str | Sequence[str]) -> list[str]:
+def probe_columns(runs_dir: Path, case: str, probe_files: str | Sequence[str], adapter=None) -> list[str]:
     """Return probe column names (excluding case_id)."""
     case_dir = runs_dir / case
     if not case_dir.is_dir():
@@ -386,7 +336,7 @@ def probe_columns(runs_dir: Path, case: str, probe_files: str | Sequence[str]) -
     columns: list[str] = []
     seen: set[str] = set()
     for probe_file in probe_list:
-        probe_path = locate_probe_file(case_dir, probe_file)
+        probe_path = locate_probe_file(case_dir, probe_file, adapter=adapter)
         if not probe_path or not probe_path.is_file():
             raise FileNotFoundError(f"Probe file not found: {probe_file}")
         with probe_path.open(newline="", encoding="utf-8", errors="ignore") as handle:
@@ -414,6 +364,7 @@ def render_probe_svg(
     x_from: float = 0.0,
     include_history: bool = False,
     restart_values: Sequence[float] | None = None,
+    adapter=None,
 ) -> str:
     """Generate an SVG plot for probe data (time or iteration on x-axis)."""
     probe_list = _normalize_probe_files(probe_file)
@@ -425,6 +376,7 @@ def render_probe_svg(
         axis=axis,
         allow_empty=True,
         include_history=include_history,
+        adapter=adapter,
     )
     available_cols = [c for c in header if c not in {"case_id", axis, "probe"}]
     cols = list(columns) if columns else available_cols[:2]
@@ -549,14 +501,12 @@ def render_probe_svg(
 
 
 __all__ = [
-    "list_probe_files",
-    "list_profile_files",
+    "list_run_csv_files",
     "locate_probe_file",
-    "locate_probe_files",
+    "locate_run_csv_files",
     "probe_columns",
     "probe_label_suffix",
     "probe_position",
-    "read_probe_records",
     "read_probe_rows",
     "render_probe_svg",
 ]

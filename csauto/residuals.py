@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import csv
 import math
-import re
 import sys
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
@@ -41,49 +40,14 @@ class ResidualCaseContext:
     is_launched: bool  # False for PREPARED cases that have never run
 
 
-def find_latest_residuals(case_dir: Path) -> Path | None:
-    """Locate the most recent residuals.csv in RESU subdirectories."""
-    resu_root = case_dir / "RESU"
-    if not resu_root.is_dir():
-        return None
-    candidates: list[Path] = []
-    for resu_dir in resu_root.iterdir():
-        if not resu_dir.is_dir():
-            continue
-        candidate = resu_dir / "residuals.csv"
-        if candidate.is_file():
-            candidates.append(candidate)
-    if not candidates:
-        return None
-    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-    return candidates[0]
-
-
-def find_residuals_files(case_dir: Path, include_history: bool = False) -> list[Path]:
-    """Locate residuals.csv files for a case.
-
-    If include_history is False, returns at most one file (latest RESU behavior).
-    If include_history is True, returns all residuals.csv files from RESU, ordered by run age.
-    """
-    latest = find_latest_residuals(case_dir)
+def find_run_files(run_dirs: Sequence[Path], name: str, include_history: bool = False) -> list[Path]:
+    """Locate `name` in each run directory: the most recent copy, or with include_history every copy oldest first."""
+    candidates = [run_dir / name for run_dir in run_dirs if (run_dir / name).is_file()]
     if not include_history:
+        latest = max(candidates, key=lambda p: p.stat().st_mtime, default=None)
         return [latest] if latest else []
-    resu_root = case_dir / "RESU"
-    if not resu_root.is_dir():
-        return []
-    candidates: list[Path] = []
-    for resu_dir in resu_root.iterdir():
-        if not resu_dir.is_dir():
-            continue
-        candidate = resu_dir / "residuals.csv"
-        if candidate.is_file():
-            candidates.append(candidate)
     candidates.sort(key=lambda p: (p.parent.stat().st_mtime, p.stat().st_mtime))
     return candidates
-
-
-def _looks_like_number(token: str) -> bool:
-    return as_float(token) is not None
 
 
 def _normalize_residual_row(row: dict[str | None, str | None]) -> dict[str, str]:
@@ -171,7 +135,7 @@ def _collect_residual_header_from_contexts(
         for residual_path in context.residual_paths:
             fields, _rows, _max_iter = _read_residual_csv(residual_path)
             if fields is None:
-                warn(f"residuals.csv has no header for {context.case_id}")
+                warn(f"residuals file has no header for {context.case_id}")
                 continue
             header = _merge_header_fields(header, fields)
             added_for_case += 1
@@ -180,7 +144,7 @@ def _collect_residual_header_from_contexts(
             if fields and rows_local:
                 header = _merge_header_fields(header, fields)
             elif added_for_case == 0 and context.is_launched:
-                warn(f"residuals.csv not found for {context.case_id}")
+                warn(f"residuals not found for {context.case_id}")
     return header
 
 
@@ -230,65 +194,6 @@ def _prepare_residual_contexts(
     contexts = _iter_residual_case_contexts(runs_dir, cases, include_history, adapter)
     header = _collect_residual_header_from_contexts(contexts, adapter)
     return contexts, header
-
-
-def parse_residuals_from_log(log_path: Path) -> tuple[list[str], list[dict[str, str]]]:
-    """Parse residual blocks from run_solver.log."""
-    if not log_path or not log_path.is_file():
-        return [], []
-    block_idx = 0
-    current: dict[str, str] | None = None
-    block_has_data = False
-    rows: list[dict[str, str]] = []
-    fields: list[str] = ["iteration"]
-    header_re = re.compile(r"Variable\s+Rhs norm", re.IGNORECASE)
-    sep_re = re.compile(r"^-{3,}")
-    try:
-        with log_path.open("r", encoding="utf-8", errors="ignore") as handle:
-            for line in handle:
-                if header_re.search(line):
-                    if current:
-                        rows.append(current)
-                        current = None
-                    block_has_data = False
-                    block_idx += 1
-                    current = {"iteration": str(block_idx)}
-                    continue
-                if current is not None:
-                    if sep_re.match(line) and not block_has_data:
-                        continue
-                    if not line.strip() or sep_re.match(line):
-                        if current:
-                            rows.append(current)
-                        current = None
-                        block_has_data = False
-                        continue
-                    parts = line.split()
-                    if len(parts) < 3:
-                        continue
-                    name_tokens: list[str] = []
-                    value_token: str | None = None
-                    for tok in parts[1:]:
-                        if _looks_like_number(tok):
-                            value_token = parts[-1]
-                            break
-                        name_tokens.append(tok)
-                    if not name_tokens or value_token is None:
-                        continue
-                    name = "_".join(t.lower() for t in name_tokens)
-                    try:
-                        float(value_token)
-                    except (ValueError, TypeError):
-                        continue
-                    current[name] = value_token
-                    if name not in fields:
-                        fields.append(name)
-                    block_has_data = True
-            if current:
-                rows.append(current)
-    except OSError:
-        return [], []
-    return fields, rows
 
 
 def read_residual_rows(
@@ -382,7 +287,7 @@ def render_residuals_svg(
     cols = list(columns) if columns else ["velocity"]
     missing = [c for c in cols if c not in available_cols]
     if missing:
-        warn(f"columns missing from residuals.csv: {', '.join(missing)}")
+        warn(f"columns missing from residuals: {', '.join(missing)}")
     cols = [c for c in cols if c in available_cols]
     if not cols:
         cols = available_cols[:2] if available_cols else []
