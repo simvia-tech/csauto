@@ -85,7 +85,7 @@ digits, `.`, `_`, `-`) and `case_id` is reserved.
 
 For `lhs`/`sobol`/`ccd`, continuous parameters are sampled using the chosen
 method, and discrete parameters are crossed with every sample (outer
-product) — e.g. 10 LHS samples over one continuous parameter crossed with a
+product): e.g. 10 LHS samples over one continuous parameter crossed with a
 2-level discrete parameter yields 20 rows.
 
 Continuous values are rounded to `--round` digits (default 6). Use `--seed`
@@ -98,7 +98,7 @@ CSV). Pass `--force` to overwrite an existing output file.
 placeholders and `<!-- IF ... -->` condition variables (from `./TEMPLATE` by
 default, or the directory given with `--template DIR`):
 
-- a spec parameter matching nothing in the template is an **error** — a typo
+- a spec parameter matching nothing in the template is an **error**: a typo
   like `u_inlett` vs `{u_inlet}` would otherwise generate a study that runs
   successfully with the template's hardcoded value, never varying the intended
   parameter;
@@ -118,9 +118,12 @@ error.
 - If absent, IDs are auto-generated in sequence: `case0001`, `case0002`, ...
 - If provided:
   - Must be non-empty
-  - Allowed characters: letters, digits, `.`, `_`, `-`
+  - Allowed characters: letters, digits, `.`, `_`, `-`; the first one must be a
+    letter or a digit
   - `/` and `\` are forbidden
 - Example valid IDs: `case0001`, `run-A`, `mesh.fine`
+- Every command works with any valid ID: csauto finds cases from its registry
+  and their `doe_row.csv`, not from their names
 
 ---
 
@@ -133,10 +136,19 @@ Write `{column_name}` anywhere in your template files:
 ```
 
 Rules:
-- Every placeholder must have a matching column in the DOE header
+- Every placeholder must have a matching column in the DOE header (the error
+  names the file that uses it)
 - Active placeholders cannot have an empty value
 - Shell-style `${VAR}` patterns are ignored (not processed)
-- Placeholders work in `setup.xml`, `run.cfg`, and `SRC/*.cpp` user files
+- Write `\{name}` to keep a literal `{name}`, when braces belong to the input
+  language (Python f-strings or sets in a code_aster `.comm` file, C/C++ code).
+  csauto removes the backslash when it generates the cases
+- Placeholders work in every text file of the template: the solver's setup file
+  (`setup.xml`, or the code_aster `.export`), `run.cfg`, user sources such as
+  `SRC/*.cpp`, code_aster `.comm` files. Binary files, hidden files and editor
+  backup files are copied without rendering
+- Rendered files keep their bytes: text in another encoding than UTF-8 (a
+  comment in Latin-1, say) comes out unchanged
 
 ---
 
@@ -154,8 +166,8 @@ Supported forms:
 
 | Syntax | Included when |
 |---|---|
-| `<!-- IF key -->` | value is non-empty and not `false`/`0` |
-| `<!-- IF key=value -->` | value matches exactly |
+| `<!-- IF key -->` | value is not empty, `0`, `false`, `no`, `off` or `none` (any case) |
+| `<!-- IF key=value -->` or `<!-- IF key == "value" -->` | value matches exactly |
 | `<!-- IF key!=value -->` | value does not match |
 
 The condition variable (`key`) must also have a matching column in the DOE header.
@@ -164,11 +176,11 @@ The condition variable (`key`) must also have a matching column in the DOE heade
 
 ## Empty values and unused columns
 
-- **Empty value for an active placeholder**: error — csauto stops with
+- **Empty value for an active placeholder**: error, csauto stops with
   `Missing placeholder values for caseXXXX`
 - **Unused column** (no matching placeholder or IF condition): allowed, reported as
   a warning
-- **Empty value inside an inactive IF block**: allowed — the block is skipped
+- **Empty value inside an inactive IF block**: allowed, the block is skipped
 
 ---
 
@@ -183,7 +195,7 @@ case0004,15.0,1.2,1.8e-5,k-omega,true,DOM
 ```
 
 Notes:
-- `radiation_model` is empty for `case0001` and `case0002` — this is fine because
+- `radiation_model` is empty for `case0001` and `case0002`: this is fine because
   the template wraps `{radiation_model}` inside `<!-- IF use_radiation=true -->`
 - The IF block is skipped entirely for those cases, so the empty value is never
   activated

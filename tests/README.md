@@ -24,6 +24,27 @@ pytest tests/web -q
 - `tests/runner/` - launch/status/kill orchestration behavior
 - `tests/web/` - HTTP API behavior
 
+## Solver adapters
+
+- `tests/unit/test_adapter_conformance.py` runs the same contract checks on
+  every registered solver adapter, against a sample finished case written by a
+  `sample_<solver>` function. A new adapter adds its own sample there (see
+  [Adding a new solver](../docs/adding-a-solver.md)).
+- `tests/unit/test_solver_boundary.py` scans every module outside
+  `csauto/solvers/` for code_saturne file names and log markers.
+- `tests/integration/test_docker_solvers.py` runs the shipped code_saturne and
+  code_aster examples for real in their docker images. It is opt-in:
+
+```bash
+docker pull simvia/code_saturne
+docker pull simvia/code_aster:17.4.0
+CSAUTO_DOCKER_TESTS=1 pytest tests/integration/test_docker_solvers.py -q
+```
+
+These runs write their cases under `CSAUTO_DOCKER_TEST_DIR` (default
+`~/.cache/csauto-docker-tests`) instead of `tmp_path`, because Docker Desktop on
+WSL2 cannot mount `/tmp`.
+
 ## Testing guidelines
 
 - test public APIs and public behavior
@@ -36,7 +57,8 @@ pytest tests/web -q
 Common fixtures are defined in `tests/conftest.py`:
 
 - `runs_dir`
-- `case_factory`
+- `case_factory`: writes a case with `DATA/setup.xml` and the `doe_row.csv`
+  by which csauto recognizes a case folder
 - `registry_factory`
 
 ## When adding tests

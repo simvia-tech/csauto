@@ -3,8 +3,12 @@
 This guide walks you from zero to a running campaign with monitoring UI.
 It covers both **local** (workstation/server) and **Slurm** (HPC cluster) setups.
 
-If you haven't read [Core concepts](./concepts.md) yet, do it first — it takes 5
+If you haven't read [Core concepts](./concepts.md) yet, do it first: it takes 5
 minutes and will make this page much clearer.
+
+This guide uses code_saturne. For code_aster, the steps are the same with
+`solver = "code_aster"` in `csauto.toml`; [examples/codeaster-cube](../examples/codeaster-cube/README.md)
+is a complete code_aster campaign.
 
 ---
 
@@ -15,7 +19,7 @@ minutes and will make this page much clearer.
 - A working code_saturne runtime (one of):
   - `native`: `code_saturne` binary installed and in `PATH`, or path set via `saturne_bin`
   - `singularity`: Apptainer or Singularity + a `.sif` image file
-  - `docker`: Docker engine running + a code_saturne image
+  - `docker`: Docker engine running (the image defaults to `simvia/code_saturne`)
 
 For Slurm: `sbatch`, `squeue`, `scancel` in `PATH`.
 
@@ -77,7 +81,7 @@ port = 8000
 
 ```toml
 runtime = "docker"
-docker_image = "simvia/code_saturne"
+docker_image = "simvia/code_saturne"   # optional: the default image for code_saturne
 use_slurm = false
 max_parallel = 2
 
@@ -85,7 +89,9 @@ host = "127.0.0.1"
 port = 8000
 ```
 
-See [config.md](./config.md) for all available keys and their defaults.
+`max_parallel` is the default of `csauto run --max-parallel`; in the web UI, the
+Run dialog has its own **Max Parallel** field. See [config.md](./config.md) for
+all available keys and their defaults.
 
 ---
 
@@ -102,7 +108,7 @@ case0003,1.2,kwSST,0.8
 case0004,1.0,kwSST,0.8
 ```
 
-- `case_id` is optional — omit it and csauto will generate `case0001`, `case0002`, ...
+- `case_id` is optional: omit it and csauto will generate `case0001`, `case0002`, ...
 - Column names must exactly match the placeholders you use in the template.
 
 See [doe-format.md](./doe-format.md) for the full format specification.
@@ -125,7 +131,7 @@ TEMPLATE/
 
 Below are two real examples drawn from a `setup.xml`.
 
-**Simple value substitution** — density is read from the DOE column `density_value`:
+**Simple value substitution**: density is read from the DOE column `density_value`:
 
 ```xml
 <property name="density" choice="constant" label="Density">
@@ -133,7 +139,7 @@ Below are two real examples drawn from a `setup.xml`.
 </property>
 ```
 
-**Conditional blocks** — the turbulence model section is included only when the
+**Conditional blocks**: the turbulence model section is included only when the
 DOE column `turbulence_model` matches the condition. Only one block is active
 per case:
 
@@ -154,7 +160,7 @@ per case:
 <!-- ENDIF -->
 ```
 
-Note that `{ref_v}` is inside the `kwSST` block — it is only active (and
+Note that `{ref_v}` is inside the `kwSST` block: it is only active (and
 therefore required in the DOE) when `turbulence_model == "kwSST"`. For rows
 where `turbulence_model` is `Spalart-Allmaras`, the entire block is dropped
 and the value of `ref_v` is ignored.
@@ -162,6 +168,7 @@ and the value of `ref_v` is ignored.
 You can also place placeholders in:
 - `TEMPLATE/run.cfg`
 - `TEMPLATE/SRC/*.cpp` (user subroutines)
+- any other text file of the template
 
 See [doe-format.md](./doe-format.md) for the full placeholder and IF block syntax.
 
@@ -169,7 +176,7 @@ See [doe-format.md](./doe-format.md) for the full placeholder and IF block synta
 
 ## 5. Generate cases
 
-> `prepare` is a terminal-only step — there is no UI equivalent. Run it from
+> `prepare` is a terminal-only step: there is no UI equivalent. Run it from
 > the directory that contains `doe.csv` and `TEMPLATE/`.
 
 ```bash
@@ -185,8 +192,9 @@ Expected output:
 ```
 RUNS/
 ├── registry.json
+├── campaign.json          ← the solver of this campaign (code_saturne)
 ├── case0001/
-│   ├── DATA/setup.xml     ← {u_inlet} replaced with 12.0, etc.
+│   ├── DATA/setup.xml     ← {density_value} replaced with 1.2, etc.
 │   └── doe_row.csv        ← the DOE values used for this case
 ├── case0002/
 ├── case0003/
@@ -194,21 +202,22 @@ RUNS/
 ```
 
 If anything is wrong (missing placeholder column, empty value, missing `setup.xml`),
-csauto reports the error before creating any files.
+csauto stops with an error naming the problem.
 
 ---
 
 ## 6. Validate before launching
 
-> `doctor` and `status` are terminal-only steps. Once they pass, everything
-> else happens in the web UI.
+> `doctor` is terminal-only (`csauto status` is the terminal view of the Status
+> panel). Once it passes, everything else happens in the web UI.
 
 ```bash
 csauto doctor RUNS
 ```
 
 This checks that:
-- the runtime binary/image is accessible
+- the runtime is available (for Docker, the `docker` command; the image itself
+  is not checked)
 - case directories have the expected structure
 - write access to `RUNS/` is available
 
@@ -258,16 +267,19 @@ See [web-ui.md](./web-ui.md) for the full guide.
 In the **Status** panel, all your `PREPARED` cases appear in the table.
 
 1. Select all cases: `Ctrl/Cmd + A`
-2. Click **Run Selected**
+2. Click **Run**
 3. Fill in the popup:
-   - **n** — MPI ranks per case (e.g. `4`)
-   - **nt** — OpenMP threads per rank (e.g. `2`)
-   - **max parallel** — how many cases run simultaneously (e.g. `2`)
-4. Click **Submit**
+   - **n**: MPI ranks per case (e.g. `4`)
+   - **nt**: OpenMP threads per rank (e.g. `2`)
+   - **Max Parallel**: how many cases run at the same time (e.g. `2`; left empty,
+     every selected case starts at once)
+4. Click **Run** in the popup
 
-Cases move to `RUNNING` status. The table refreshes automatically.
+Cases move to `RUNNING`. The case next in line shows `PENDING` while it waits for
+a free slot, and the others keep their status until their turn. The table
+refreshes automatically.
 
-**On a Slurm cluster**, the same UI flow applies — each case is submitted via
+**On a Slurm cluster**, the same UI flow applies: each case is submitted via
 `sbatch` under the hood. You can verify with `squeue -u "$USER"` in the terminal.
 
 ### Alternative: launch from the command line
@@ -294,12 +306,12 @@ csauto run RUNS --n 4 --nt 2 --resume
 
 Once cases are running, everything can be done from the browser:
 
-- **Status panel** — monitor iteration count, duration, disk usage per case
-- **Residuals Plot** — inspect solver convergence curves
-- **Log Tail** — stream the `listing` file live (select case → Log Tail tab)
-- **Recent Errors** — scan for errors and warnings after a case fails
-- **Restart Selected** — restart from checkpoint without touching any files
-- **Kill Selected** — stop a running case immediately
+- **Status panel**: monitor iteration count, duration, disk usage per case
+- **Residuals Plot**: inspect solver convergence curves
+- **Log Tail**: stream the solver's log live (`run_solver.log`; select case → Log Tail tab)
+- **Recent Errors**: scan for errors and warnings after a case fails
+- **Restart**: restart from checkpoint without touching any files
+- **Kill**: stop a running case immediately
 
 For terminal-based monitoring:
 
@@ -307,8 +319,8 @@ For terminal-based monitoring:
 # Check status table
 csauto status RUNS
 
-# Watch a log in real time
-csauto tail RUNS --case case0001 --file listing -n 100
+# Watch the solver's log in real time
+csauto tail RUNS --case case0001
 
 # Export residuals as CSV + SVG
 csauto residuals RUNS --case case0001 --out residuals.csv --plot residuals.svg
@@ -319,8 +331,9 @@ csauto residuals RUNS --case case0001 --out residuals.csv --plot residuals.svg
 ## 10. Cleanup
 
 In the **Status** panel, select the cases you want to clean and click
-**Clean Selected**. A popup lets you choose which RESU runs to keep or delete,
-and whether to truncate heavy logs.
+**Clean**. A popup lets you choose which RESU runs to keep or delete. Clean also
+cuts the solver's logs over 50 MB down to their last 50 MB and removes
+`.csauto.cid`. Running and pending cases are left alone.
 
 ### Alternative: command line
 

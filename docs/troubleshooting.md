@@ -3,7 +3,7 @@
 This page maps error messages to their causes and fixes, and covers common
 diagnostic situations.
 
-**First reflex**: run `csauto doctor RUNS` — it checks your runtime,
+**First reflex**: run `csauto doctor RUNS`: it checks your runtime,
 directory structure, and environment in one command.
 
 ---
@@ -13,11 +13,15 @@ directory structure, and environment in one command.
 ### `Variables without matching DOE columns: ...`
 
 **Cause**: a placeholder or IF condition variable in the template has no
-corresponding column in `doe.csv`.
+corresponding column in `doe.csv`. The message names the file that uses it.
 
 **Fix**:
 1. Add the missing column(s) to the `doe.csv` header
 2. Re-run `csauto prepare`
+
+If the braces belong to the file's own language (a Python f-string or set in a
+code_aster `.comm` file, C/C++ code), write `\{name}` to keep a literal `{name}`
+instead (see [doe-format.md](./doe-format.md#placeholder-syntax)).
 
 ---
 
@@ -40,14 +44,42 @@ for that case.
 
 ---
 
+### `.export file not found in ...` / `Several .export files in ...: keep only one.`
+
+**Cause**: a code_aster template needs exactly one `.export` file at its root.
+
+**Fix**: keep a single `*.export` file directly in `TEMPLATE/`.
+
+---
+
+### `RUNS holds a code_saturne campaign; csauto.toml selects code_aster.`
+
+**Cause**: `csauto prepare` was asked to add cases for one solver to a folder
+prepared for another (recorded in `RUNS/campaign.json`).
+
+**Fix**: prepare into a new folder, or set `solver` in `csauto.toml` to the
+campaign's solver.
+
+---
+
+### `Warning: RUNS was prepared for code_saturne; ignoring solver = 'code_aster' from ...`
+
+**Cause**: the `csauto.toml` found for this command selects another solver than
+the one the campaign was prepared for. csauto uses the campaign's solver.
+
+**Fix**: nothing is needed. To silence it, run the command from the campaign's
+own directory or fix `solver` in that `csauto.toml`.
+
+---
+
 ### `No checkpoint found for caseXXXX`
 
 **Cause**: a restart was requested but no RESU run contains a `checkpoint/`
-directory.
+directory. The case keeps its status; the other selected cases still launch.
 
 **Fix**:
 1. Check that `RESU/<run_id>/checkpoint/` exists and is non-empty
-2. If no checkpoint exists, run a fresh simulation first — code_saturne must write
+2. If no checkpoint exists, run a fresh simulation first: code_saturne must write
    at least one checkpoint before a restart is possible
 
 ---
@@ -62,15 +94,17 @@ checkpoint iteration.
 
 ---
 
-### `Invalid restart_mode (must be iterations or physical_time)`
+### `Unknown restart_mode '...' (expected: iterations, physical_time)`
 
-**Cause**: invalid `restart_mode` value.
+**Cause**: the restart mode is not one the solver offers. The old names
+`iteration`, `iter`, `time` and `tmax` are no longer accepted.
 
-**Fix**: set `restart_mode` to exactly `iterations` or `physical_time`.
+**Fix**: use one of the names the message lists (`/api/app_config` lists them
+as `restart_modes`).
 
 ---
 
-### `restart_value must be an integer > 0 for restart_mode=iterations`
+### `iterations needs a whole number (Iterations)` / `iterations needs a positive value (Iterations)`
 
 **Cause**: the restart increment is not a valid positive integer.
 
@@ -78,7 +112,7 @@ checkpoint iteration.
 
 ---
 
-### `restart_value must be > 0 for restart_mode=physical_time`
+### `physical_time needs a positive value (Time (s))`
 
 **Cause**: the physical time increment is not a valid positive number.
 
@@ -86,9 +120,29 @@ checkpoint iteration.
 
 ---
 
+### `csauto control: error: the following arguments are required: action` / `csauto: error: unrecognized arguments: --extend`
+
+**Cause**: the action is a word after the case, not a flag: the `--stop`,
+`--extend N`, `--checkpoint` and `--flush` flags are gone.
+
+**Fix**: `csauto control RUNS case0007 stop`, or `csauto control RUNS case0007 extend 500`.
+
+---
+
+### `Invalid control action: '...' (expected one of: stop, extend, checkpoint, flush)`
+
+**Cause**: `csauto control` was given an action the solver does not offer.
+
+**Fix**: use one of the listed actions; `csauto doctor RUNS` lists them with
+the value each one takes.
+
+---
+
 ### `n, nt, and max_parallel must be integers > 0`
 
-**Cause**: one of the run parameters is zero, negative, or not an integer.
+**Cause**: `n`, `nt` or `max_parallel` sent to the API (`POST /api/run_case`)
+is zero or negative (non-integers are refused with `422`). `csauto run` prints
+`nprocs and nt must be > 0` or `max_parallel must be > 0` instead.
 
 **Fix**: provide strictly positive integers for all three values.
 
@@ -103,10 +157,10 @@ is configured.
 
 ---
 
-### `DISPLAY not set (GUI unavailable)`
+### `DISPLAY not set (GUI unavailable)` / `DISPLAY not set on server`
 
-**Cause**: a GUI launch (`Open GUI` from the UI) was requested on a headless server
-without an X11 display.
+**Cause**: `csauto doctor` warns that no X11 display is set; **Open GUI**
+(code_saturne) then fails with `DISPLAY not set on server`.
 
 **Fix**: configure X11 forwarding or avoid GUI launch on headless nodes.
 
@@ -117,7 +171,7 @@ without an X11 display.
 **Cause**: the API token is missing or invalid.
 
 **Fix**:
-- In the UI: click `Token` and enter the correct token
+- In the UI: open Settings (gear icon) and enter the token under **API token**
 - In API calls: send `X-CSAUTO-TOKEN: <token>` or `Authorization: Bearer <token>`
 
 ---
@@ -128,7 +182,7 @@ without an X11 display.
 
 1. Check `RUNS/caseXXXX/csauto.stdout` for launch errors
 2. Check `RUNS/caseXXXX/csauto.stderr` for process errors
-3. On Slurm: `squeue -u "$USER"` — verify the job is still queued or running
+3. On Slurm: `squeue -u "$USER"`, to verify the job is still queued or running
 4. Re-run `csauto status RUNS` to force a registry refresh
 5. If the process or job is no longer alive, the status should update to `DONE` or
    `FAILED` on the next refresh
@@ -137,38 +191,44 @@ without an X11 display.
 
 ### Case finished but status shows `RUNNING`
 
-csauto detects completion from process/job status combined with log signatures.
+A case stays `RUNNING` while its process or Slurm job is alive, even after its
+log prints the end of the calculation: the solver may still be writing results.
 Force a refresh:
 
 ```bash
 csauto status RUNS
 ```
 
-If it still doesn't update, check `listing` or `run_solver.log` for a normal
-completion message.
+If it still doesn't update, check whether the run is still alive (`ps`,
+`docker ps`, or `squeue`). Once it is gone, the status follows the solver's
+verdict in its logs (`run_solver.log` for code_saturne, `csauto.stdout` for
+code_aster), or the exit status in `.csauto.exitcode`.
 
 ---
 
-### Runtime not found (docker / code_saturne / apptainer)
+### Runtime not found (docker / code_saturne / run_aster / apptainer)
 
-1. Run `csauto doctor RUNS` — it will identify the exact failing check
+1. Run `csauto doctor RUNS`: it will identify the exact failing check
 2. Verify the binary is in `PATH` or set the explicit path in `csauto.toml`:
-   - `saturne_bin = "/path/to/code_saturne"`
+   - `saturne_bin = "/path/to/code_saturne"` (or to `run_aster` for code_aster)
    - `singularity_bin = "/path/to/apptainer"`
    - `singularity_image = "/path/to/image.sif"`
-   - `docker_image = "image:tag"` (and confirm Docker daemon is running)
+   - `docker_image = "image:tag"` (optional, the solver's own image by default;
+     confirm the Docker daemon is running)
 
 ---
 
 ### Missing residuals, probes, or profiles in the UI
 
-- **Residuals**: check `RESU/<run_id>/residuals.csv` — if missing, csauto falls
+These panels exist for code_saturne only.
+
+- **Residuals**: check `RESU/<run_id>/residuals.csv`; if missing, csauto falls
   back to parsing `run_solver.log`
 - **Probes**: check `RESU/<run_id>/monitoring/*.csv`
 - **Profiles**: check `RESU/<run_id>/profiles/*.csv`
 
-If you restarted a case and data from the first run seems missing, use
-`Start from = 0` in the Residuals Plot to include all RESU directories.
+The Residuals Plot always includes every run of the case: after a restart, set
+**Start from** to **Zero** to see the history from iteration 0.
 
 ---
 
@@ -192,7 +252,10 @@ Always test with `--dry-run` first:
 csauto cleanup RUNS --prune-resu --keep-last 1 --max-log-mb 100 --dry-run
 ```
 
-This prints what would be deleted without actually deleting anything.
+This prints how many run folders and logs would be affected, without deleting
+anything. `--prune-resu` only deletes the run folders the solver reports (each
+`RESU/<run>` for code_saturne, `RESU` itself for code_aster), and cleanup skips
+`RUNNING` and `PENDING` cases.
 
 ---
 
@@ -206,4 +269,5 @@ Fix every `[FAIL]` line before launching. Common causes:
 - Runtime binary not found
 - Image file not accessible
 - `RUNS/` directory not writable
-- No `case*` directories found in `RUNS/`
+- No case found in `RUNS/` (run `csauto prepare` first)
+- The solver's setup file missing from some cases

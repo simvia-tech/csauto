@@ -6,14 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
-Make the dashboard follow what each solver can actually do: panels and action buttons are now derived from the solver adapter instead of being shown for every solver.
+Make csauto ready for solvers other than code_saturne: one adapter class describes a solver, the CLI and the dashboard read everything from it, and code_aster now runs on the same launch path as code_saturne. Panels and action buttons follow what each solver can actually do.
+
+### Added
+- An adapter conformance suite (`tests/unit/test_adapter_conformance.py`): every registered solver is checked against a sample finished case, so a new adapter learns what the dashboard would miss before a user does. Real runs of the shipped code_saturne and code_aster examples in their docker images are available with `CSAUTO_DOCKER_TESTS=1` (`tests/integration/test_docker_solvers.py`)
+- Campaigns record their solver: `csauto prepare` writes `RUNS/campaign.json`, every later command on that folder uses it from any directory, and `prepare` refuses to mix two solvers in one folder
+- Runs record their exit status (`.csauto.exitcode`): when the solver's logs give no verdict, exit status 0 means DONE, anything else FAILED. An adapter no longer has to implement `detect_outcome`
+- Adapter declarations for what used to be code_saturne assumptions: `supported_runtimes`, `container_setup` (shell commands run in the container before the solver), `prepare_launch` (files written before each launch), `restart_modes`, typed `ControlAction` entries, `default_residual_columns`, `logo_file` and `icon_file`, and `read_probe_file` for probe formats other than CSV
+- `\{name}` in a template keeps a literal `{name}`, for Python f-strings and sets in code_aster `.comm` files
+- API: `/api/tail_files` (the Log Tail file list), `/api/tail_lines` (each line with the severity the solver's anomaly patterns give it), `/api/solver_logo` and `/api/solver_icon`; `/api/app_config` gains `restart_modes`, `default_residual_columns`, `logo` and `icon`
 
 ### Changed
+- `SolverAdapterBase` and the `SolverAdapter` protocol are merged into one base class, `SolverAdapter`. `run_argv` receives the case folder, and the solver starts inside it in every runtime; `gui_argv` receives the setup file's path relative to the case
+- Docker runs use `--entrypoint` and `--rm`, so solver images no longer need the solver as their entrypoint and stopped containers no longer pile up. Containers mount the campaign folder at `/mnt` instead of the image user's home, where the solvers wrote `.cache`, `.config` and `.tmp_run_aster` into the campaign folder
+- `csauto control RUNS CASE ACTION [VALUE]` replaces `--stop`, `--extend N`, `--checkpoint` and `--flush`; the actions come from the solver and `csauto doctor` lists them. `/api/app_config` returns `control_actions` as `{name, label, value_label, value_kind}` objects and `/api/control_case` checks the value against them
+- Restart modes come from the solver: `/api/run_case` refuses other names (the `iteration`, `iter`, `time` and `tmax` aliases are gone) and accepts a `restart_path` naming the run to restart from
+- `docker_image` defaults to the solver's own image; it used to default to `simvia/code_saturne` whatever the solver
+- A run stays RUNNING until its process or Slurm job ends, even after its log prints a verdict, so its launch slot is not reused and Kill still reaches it
+- Clean only deletes the folders the adapter reports as runs (`list_run_dirs`) and never touches RUNNING or PENDING cases; a finished case returns to PREPARED only when Clean deleted all its runs, not after a logs-only clean
+- Cases are found from the registry and their `doe_row.csv` instead of folder names starting with `case`, so custom case ids work with `doctor`, `run`, `serve` and `cleanup`
+- `/api/perf` returns the solver's own timing columns
+- code_aster: runs `run_aster` through the shared launch path, so the native runtime and Slurm work and the docker command is properly quoted; `n` and `nt` are applied through `.csauto.export`, a copy of the case's export written at each launch (the case's export is never modified, so `csauto prepare` can extend a launched campaign); the verdict is read from `csauto.stdout`; `RESU` holds each case's single run; `MESH` is the only shared folder and is referenced as `../MESH` (the example was updated); the Compare panel offers the export file; code_aster message boxes are flagged in Recent Errors
+- The stub solver reads its step count from `stub.toml` instead of misusing `nt`
+- The dashboard reads everything solver-specific from the server: the Control menu lists the solver's actions, the Restart dialog its modes and the run to restart from, the Log Tail its log files with severities computed from the solver's patterns, and the header its logo and favicon (now shipped with the adapter in `csauto/solvers/logos/` instead of `frontend/static`). Labels no longer assume code_saturne ("Run folders", "Results (MB)"), and the residual plot preselects the solver's default curves
 - Dashboard panels and action buttons are derived from what the solver adapter implements, rather than declared: a panel appears when the adapter provides what feeds it (`find_residuals_files`, `list_probe_files`, or a non-empty `compare_kinds` / `performance_columns` / `control_actions`), and the Restart, Stop, control and Open GUI controls follow the same rule. Solvers other than code_saturne lose the panels and buttons they could never feed: code_aster and the stub solver now show Status, Compare, Log Tail and Recent Errors only. code_saturne is unchanged
 - `csauto doctor` reports the panels and capabilities derived for the configured solver
 - `/api/probes` takes `scope=probes` instead of `scope=monitoring` (a code_saturne directory name); `profiles` is unchanged. `/api/tail` defaults to the solver's own main log instead of `listing`, and the Log Tail file priority comes from the new adapter attribute `tail_file_names`, exposed as `tail_files` in `/api/app_config`
 - code_saturne conventions (log names, outcome, progress and restart patterns, the `RESU` results layout, the `performance.log` parser, setup.xml and run.cfg discovery) moved from `logs.py`, `probes.py`, `residuals.py` and `template.py` into the code_saturne adapter, which now drives the generic log engine with its own vocabulary. CFD anomaly warnings (`divergence`, `cfl`, `clipping`, ...) and the "No error detected" exception now apply to code_saturne only, so Recent Errors no longer flags them for other solvers
-- The solver boundary test now scans every module outside `csauto/solvers/` for a wider set of code_saturne conventions (`listing`, `monitoring`, `run_solver.log`, `performance.log`, ...), with the deliberate residue listed in one named allowlist. The leaks it found are gone: the read-only `MESH` mount is the new adapter attribute `readonly_shared_dir_names`, `csauto tail` defaults to the solver's main log instead of `listing`, and `create_fastapi_app` defaults to the solver's docker image
+- The solver boundary test now scans every module outside `csauto/solvers/` for a wider set of code_saturne conventions (`listing`, `monitoring`, `run_solver.log`, `performance.log`, ...), with the deliberate residue listed in one named allowlist. The leaks it found are gone: the read-only `MESH` mount is the new adapter attribute `readonly_shared_dir_names`, and `csauto tail` defaults to the solver's main log instead of `listing`
 - Dashboard tabs are now declared by each solver adapter in `dashboard_panels`, and by nothing else: an adapter may leave out a tab it could feed, and Status, Log Tail and Recent Errors are ordinary entries rather than imposed. A test fails when an adapter declares a tab it cannot feed or an unknown tab name. `capabilities` stays derived. No visible change for any shipped solver
 
 ### Fixed
@@ -22,7 +42,20 @@ Make the dashboard follow what each solver can actually do: panels and action bu
 - Opening the solver GUI on a case whose shared dirs are symlinks (the default since `mesh_mode = "symlink"` became the default in 0.4.1) left those symlinks dangling inside the container: `build_gui_command` (docker) and the singularity branch of `build_runtime_gui_command` mounted only the runs dir, unlike their `run` counterparts which also bind the symlink targets. Both now bind them the same way, `MESH` read-only and `POST` writable
 - Requesting a restart on a solver without restart support returned HTTP 500 "Launch error", a client error reported as a server fault; it now returns HTTP 400 naming the solver
 - Live control on a solver declaring no control action reported "Invalid action (expected one of [])"; both the API and the CLI now name the solver
-- code_aster's Compare panel offered an empty file selector; it now offers `doe_row.csv`
+- code_aster's Compare panel offered an empty file selector; it now offers the export file and `doe_row.csv`
+- Every run of the shipped code_aster example ended FAILED: its export declares its own message file, so csauto never found the log it read the verdict from
+- Kill could stop another campaign's container: for runs without a recorded container (native, apptainer, Slurm, or never started) it searched docker for any container labelled with the case's name, which every campaign shares. It now only searches for docker runs, and only containers of the same campaign
+- `sbatch --wrap` submissions requested no resources, so an MPI run got a single task; they now request `--ntasks` and `--cpus-per-task`
+- A launch the solver refused (a restart without a checkpoint, an unsupported runtime) left the case PENDING with no way back and skipped the rest of the batch. The case keeps its previous status, the other cases still launch, and the error lists the refused cases
+- `csauto run` with a relative runs folder broke docker launches (the container id file path was relative to the wrong folder)
+- A PID reused by another process (after a reboot, for example) kept a finished case RUNNING; the process start time is now checked against the launch time
+- Template rendering silently dropped non-UTF-8 bytes (Latin-1 accents in French comments) and read large binaries in full; files now keep their bytes, and binaries are detected from their first bytes
+- An adapter anomaly pattern with a label other than `error`, `warn` or `info` made Recent Errors fail with HTTP 500; such labels are now refused when the adapter is defined
+- Probe plots ignored a `Time` or `TIME` axis column, and the probe position fell back to the first coordinate row for a probe it could not match
+- Residual rows without an `iteration` column were all drawn at x = 0; they are now plotted in row order, with a warning
+- The Log Tail never offered `csauto.stdout` and `csauto.stderr`, so it stayed empty for solvers that log to their console and for runs that failed before writing a results folder
+- When `/api/app_config` failed once (for example before the API token was entered), the dashboard showed the full code_saturne interface until a reload. It now shows only Status, Log Tail and Recent Errors until the solver's description loads, and fetches it again with a growing delay or as soon as a token is saved
+- The Log Tail's case selector disappeared when the selected case had no log yet, leaving the panel stuck on that case
 
 ## [0.5.0] - 2026-08-03
 
