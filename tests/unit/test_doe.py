@@ -130,3 +130,28 @@ def test_missing_column_error_names_the_file_and_the_escape(tmp_path: Path) -> N
         generate_cases(["x"], [{"x": "1"}], template_dir, tmp_path / "RUNS", adapter=get_solver_adapter("code_aster"))
     assert "i in study.comm" in str(excinfo.value)
     assert "\\{i}" in str(excinfo.value)
+
+
+def test_escaped_braces_are_unescaped_even_without_placeholders(tmp_path: Path) -> None:
+    from csauto.solvers import get_solver_adapter
+
+    template_dir = tmp_path / "TEMPLATE"
+    template_dir.mkdir()
+    (template_dir / "study.export").write_text("F comm study.comm D 1\nP x {x}\n", encoding="utf-8")
+    (template_dir / "study.comm").write_text("print(f'step \\{i}')\n", encoding="utf-8")
+    generate_cases(["x"], [{"x": "1"}], template_dir, tmp_path / "RUNS", adapter=get_solver_adapter("code_aster"))
+    assert (tmp_path / "RUNS" / "case0001" / "study.comm").read_text(encoding="utf-8") == "print(f'step {i}')\n"
+
+
+def test_a_bad_doe_value_leaves_no_half_made_case(tmp_path: Path) -> None:
+    from csauto.solvers import get_solver_adapter
+
+    template_dir = tmp_path / "TEMPLATE"
+    template_dir.mkdir()
+    (template_dir / "stub.toml").write_text("steps = {steps}\n", encoding="utf-8")
+    runs = tmp_path / "RUNS"
+    with pytest.raises(ValueError, match="Missing placeholder values"):
+        generate_cases(["steps"], [{"steps": ""}], template_dir, runs, adapter=get_solver_adapter("stub"))
+    assert not (runs / "case0001").exists()
+    generate_cases(["steps"], [{"steps": "3"}], template_dir, runs, adapter=get_solver_adapter("stub"))
+    assert (runs / "case0001" / "stub.toml").read_text(encoding="utf-8") == "steps = 3\n"

@@ -438,21 +438,14 @@ def tail_log(
         raise FileNotFoundError(f"File {file_name} not found for {case}")
 
     print(f"Tailing {path}")
+    if lines > 0:
+        sys.stdout.writelines(read_tail_lines(path, lines))
+        sys.stdout.flush()
+    if not follow:
+        return
     with path.open("r", encoding="utf-8", errors="ignore") as handle:
+        handle.seek(0, os.SEEK_END)
         try:
-            handle.seek(0, os.SEEK_END)
-            file_size = handle.tell()
-            handle.seek(max(0, file_size - 4096))
-            buffer = handle.readlines()
-            if lines > 0:
-                buffer = buffer[-lines:]
-            for line in buffer:
-                sys.stdout.write(line)
-            sys.stdout.flush()
-
-            if not follow:
-                return
-
             while True:
                 where = handle.tell()
                 line = handle.readline()

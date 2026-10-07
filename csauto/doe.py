@@ -10,6 +10,7 @@ from typing import Any
 
 from .registry import DOE_ROW_FILENAME, STATUS_PREPARED, registry_transaction, update_case
 from .template import (
+    ESCAPED_PLACEHOLDER_PATTERN,
     extract_condition_variables,
     extract_placeholders,
     render_template,
@@ -188,7 +189,8 @@ def _collect_render_targets(template_dir: Path, adapter) -> list[tuple[Path, str
             continue
         placeholders = extract_placeholders(text)
         cond_vars = extract_condition_variables(text)
-        if not placeholders and not cond_vars:
+        # A file whose only braces are escaped still needs rendering, to drop the backslashes.
+        if not placeholders and not cond_vars and not ESCAPED_PLACEHOLDER_PATTERN.search(text):
             continue
         targets.append((relative, text, placeholders, cond_vars))
     return targets
@@ -388,17 +390,15 @@ def generate_cases(
                 _ensure_registry_case(registry, case_id, case_dir)
                 continue
 
-            shutil.copytree(template_dir, case_dir)
-            rendered = render_template(setup_text, row, case_id)
-
-            _write_text(case_dir / setup_relative, rendered)
+            # Render everything first: a bad DOE value must not leave a half-made case behind.
+            rendered_files = {setup_relative: render_template(setup_text, row, case_id)}
             if run_cfg_template_text and run_cfg_relative:
-                _write_text(case_dir / run_cfg_relative, render_template(run_cfg_template_text, row, case_id))
+                rendered_files[run_cfg_relative] = render_template(run_cfg_template_text, row, case_id)
             for rel_path, extra_text, _placeholders_set, _ in extra_targets:
-                target_path = case_dir / rel_path
-                if not target_path.exists():
-                    continue
-                _write_text(target_path, render_template(extra_text, row, case_id))
+                rendered_files[rel_path] = render_template(extra_text, row, case_id)
+            shutil.copytree(template_dir, case_dir)
+            for rel_path, text in rendered_files.items():
+                _write_text(case_dir / rel_path, text)
             _write_doe_row(case_dir, headers, row, case_id)
             _ensure_registry_case(registry, case_id, case_dir)
 

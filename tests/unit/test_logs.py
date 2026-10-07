@@ -89,3 +89,18 @@ def test_collect_recent_errors_deduplicates_aliased_files(tmp_path) -> None:
     items = collect_recent_errors(runs_dir, ["case0001"], adapter=adapter)
 
     assert len(items) == 1
+
+
+def test_tail_prints_the_requested_number_of_lines(tmp_path: Path, capsys) -> None:
+    from csauto.logs import tail_log
+    from csauto.solvers import get_solver_adapter
+
+    case_dir = tmp_path / "RUNS" / "case0001"
+    case_dir.mkdir(parents=True)
+    (case_dir / "csauto.stdout").write_text("".join(f"line {i:04d} {'x' * 70}\n" for i in range(500)), encoding="utf-8")
+    tail_log(
+        tmp_path / "RUNS", "case0001", "csauto.stdout", lines=200, follow=False, adapter=get_solver_adapter("stub")
+    )
+    printed = capsys.readouterr().out.splitlines()[1:]
+    assert len(printed) == 200
+    assert printed[0].startswith("line 0300") and printed[-1].startswith("line 0499")
