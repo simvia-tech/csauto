@@ -42,9 +42,10 @@ The web UI is the primary interface for daily operations. After `prepare` and op
 ## Solver adapter boundary
 
 All solver-specific knowledge lives behind the `SolverAdapter` protocol
-(`csauto/solvers/base.py`). The generic core (runner, doe, cli, control, web
-routes) never references solver conventions directly; a source-scan test
-(`tests/unit/test_solver_boundary.py`) enforces this. The adapter is selected
+(`csauto/solvers/base.py`). No module outside `csauto/solvers/` references
+solver conventions directly; a source-scan test
+(`tests/unit/test_solver_boundary.py`) enforces this on every module of the
+package, so a new module is covered without registering it. The adapter is selected
 by the `solver` key in `csauto.toml` (default `code_saturne`) and threaded
 through entry points: the CLI builds it once in `main`, the web app stores it
 on the shared `FastAPIContext` as `ctx.adapter`. Generic functions accept an
@@ -105,10 +106,12 @@ concerns and stay outside the adapter. The one deliberate exception is the
 finalize`), which encodes code_saturne workflow knowledge and is owned
 entirely by `CodeSaturneAdapter.build_slurm_script`.
 
-Accepted residue, by design: the HTTP API keeps its historical names and
-shapes (`/api/resu_dirs`, `resu_removed`, the performance record fields), TOML
-keys and CLI flags (`saturne_bin`, `--saturne-bin`, ...) are unchanged, and
-`config.py` keeps the code_saturne defaults.
+Accepted residue, by design, listed in `ACCEPTED_RESIDUE` in
+`tests/unit/test_solver_boundary.py`: the HTTP API keeps its historical names
+and shapes (`/api/resu_dirs`, `resu_removed`, the performance record fields,
+the `profiles` scope of `/api/probes`), the TOML key and CLI flag
+`saturne_bin` / `--saturne-bin` keep their names, and `config.py` keeps the
+code_saturne docker image as its `docker_image` default.
 
 `StubAdapter` (`solver = "stub"`) is a shipped fake solver: it runs a short
 Python script writing `OUT/run_0001/stub.log` and lets integration tests cover

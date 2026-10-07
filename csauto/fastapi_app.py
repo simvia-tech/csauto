@@ -59,7 +59,7 @@ def create_fastapi_app(
     api_token: str | None = None,
     solver: str | None = None,
     runtime: str = "auto",
-    docker_image: str = "simvia/code_saturne",
+    docker_image: str | None = None,
     saturne_bin: str | None = None,
     singularity_image: str | None = None,
     singularity_bin: str | None = None,
@@ -78,12 +78,13 @@ def create_fastapi_app(
     status_refresh_lock = threading.Lock()
     status_cache: dict[str, Any] = {"payload": None, "expires_at": 0.0}
 
+    adapter = get_solver_adapter(solver)
     ctx = FastAPIContext(
         runs_dir=runs_dir,
         runs_root=runs_root,
         api_token=api_token,
         runtime=runtime,
-        docker_image=docker_image,
+        docker_image=docker_image or adapter.default_docker_image,
         saturne_bin=saturne_bin,
         singularity_image=singularity_image,
         singularity_bin=singularity_bin,
@@ -94,7 +95,7 @@ def create_fastapi_app(
         status_cache=status_cache,
         job_id_patterns=JOB_ID_PATTERNS,
         http_exception_cls=HTTPException,
-        adapter=get_solver_adapter(solver),
+        adapter=adapter,
     )
 
     build_shared_models(components)
@@ -157,7 +158,7 @@ def serve_fastapi(
     api_token: str | None = None,
     solver: str | None = None,
     runtime: str = "auto",
-    docker_image: str = "simvia/code_saturne",
+    docker_image: str | None = None,
     saturne_bin: str | None = None,
     singularity_image: str | None = None,
     singularity_bin: str | None = None,

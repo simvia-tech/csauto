@@ -63,6 +63,7 @@ class SolverAdapter(Protocol):
     default_docker_image: str
     results_dirname: str
     shared_dir_names: tuple[str, ...]
+    readonly_shared_dir_names: frozenset[str]
     template_input_names: frozenset[str]
     anomaly_file_names: tuple[str, ...]
     anomaly_patterns: tuple[tuple[str, re.Pattern[str]], ...]
@@ -185,6 +186,8 @@ class SolverAdapterBase(ABC):
     default_docker_image: ClassVar[str]
     results_dirname: ClassVar[str]
     shared_dir_names: ClassVar[tuple[str, ...]] = ()
+    # Shared dirs mounted read-only into containers when they are symlinks.
+    readonly_shared_dir_names: ClassVar[frozenset[str]] = frozenset()
     template_input_names: ClassVar[frozenset[str]] = frozenset()
     anomaly_file_names: ClassVar[tuple[str, ...]] = ("csauto.stderr", "csauto.stdout")
     # (severity, pattern) pairs added to logs.GENERIC_ANOMALY_PATTERNS, and lines never reported.

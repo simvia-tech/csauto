@@ -58,7 +58,7 @@ def build_shared_models(components: dict[str, Any]) -> dict[str, type]:
     # --- Shared response models ---
 
     class SuccessResponse(BaseModel):
-        """Standard response for successful POST actions."""
+        """Standard response for successful actions."""
 
         status: str = "ok"
 

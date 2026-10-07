@@ -329,6 +329,7 @@ class CodeSaturneAdapter(SolverAdapterBase):
     default_docker_image: ClassVar[str] = "simvia/code_saturne"
     results_dirname: ClassVar[str] = "RESU"
     shared_dir_names: ClassVar[tuple[str, ...]] = ("MESH", "POST")
+    readonly_shared_dir_names: ClassVar[frozenset[str]] = frozenset({"MESH"})
     template_input_names: ClassVar[frozenset[str]] = frozenset({"setup.xml", "run.cfg"})
     anomaly_file_names: ClassVar[tuple[str, ...]] = ("csauto.stderr", "run_solver.log", "listing", "csauto.stdout")
     anomaly_patterns: ClassVar[tuple[tuple[str, re.Pattern[str]], ...]] = (("warn", CFD_WARNING_PATTERN),)
@@ -411,7 +412,9 @@ class CodeSaturneAdapter(SolverAdapterBase):
         container_setup = f"{container_case}/{setup_rel.as_posix()}"
         extra_binds = [
             f"{target}:{target}:ro" if readonly else f"{target}:{target}"
-            for target, readonly in shared_dir_symlink_mounts(runs_root, self.shared_dir_names)
+            for target, readonly in shared_dir_symlink_mounts(
+                runs_root, self.shared_dir_names, self.readonly_shared_dir_names
+            )
         ]
         env_flags: list[str] = []
         for key, value in sorted((env_vars or {}).items()):

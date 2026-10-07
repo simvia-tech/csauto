@@ -8,7 +8,7 @@ from .config import Config
 
 
 def add_serve_subcommands(subparsers: Any, config: Config) -> None:
-    serve_parser = subparsers.add_parser("serve", help="Primary FastAPI web monitoring server.")
+    serve_parser = subparsers.add_parser("serve", help="Primary FastAPI web dashboard server.")
     serve_parser.add_argument("runs_dir", type=Path, help="Directory containing generated cases")
     serve_parser.add_argument("--host", default=config.host, help="Listening interface (default 127.0.0.1)")
     serve_parser.add_argument("--port", type=int, default=config.port, help="Listening port (default 8000)")

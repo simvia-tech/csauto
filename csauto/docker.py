@@ -37,7 +37,9 @@ def build_run_command(
     from .execution import shared_dir_symlink_mounts
 
     cmd: list[str] = ["nohup", "docker", "run", "-v", f"{runs_root}:{container_root}"]
-    for target, readonly in shared_dir_symlink_mounts(runs_root, adapter.shared_dir_names):
+    for target, readonly in shared_dir_symlink_mounts(
+        runs_root, adapter.shared_dir_names, adapter.readonly_shared_dir_names
+    ):
         cmd.extend(["-v", f"{target}:{target}:ro" if readonly else f"{target}:{target}"])
     if display:
         cmd.extend(
@@ -79,7 +81,9 @@ def build_gui_command(
     from .execution import shared_dir_symlink_mounts
 
     cmd: list[str] = ["docker", "run", "-v", f"{runs_root}:{container_root}"]
-    for target, readonly in shared_dir_symlink_mounts(runs_root, adapter.shared_dir_names):
+    for target, readonly in shared_dir_symlink_mounts(
+        runs_root, adapter.shared_dir_names, adapter.readonly_shared_dir_names
+    ):
         cmd.extend(["-v", f"{target}:{target}:ro" if readonly else f"{target}:{target}"])
     if display:
         cmd.extend(

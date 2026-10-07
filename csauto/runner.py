@@ -54,8 +54,8 @@ SLURM_TRUE_VALUES = {"1", "true", "yes", "on"}
 SLURM_FALSE_VALUES = {"0", "false", "no", "off"}
 LAUNCH_LOCKFILE = ".csauto.launch.lock"
 LAUNCH_THREAD_LOCK = threading.RLock()
-RESU_SIZE_CACHE_LOCK = threading.RLock()
-RESU_SIZE_CACHE: dict[str, dict[str, float | None]] = {}
+RESULTS_SIZE_CACHE_LOCK = threading.RLock()
+RESULTS_SIZE_CACHE: dict[str, dict[str, float | None]] = {}
 
 try:
     import fcntl
@@ -1000,16 +1000,16 @@ def _cached_resu_size_mb(case_dir: Path, adapter: SolverAdapter) -> tuple[float 
         except OSError:
             resu_mtime = None
     if resu_mtime is None:
-        with RESU_SIZE_CACHE_LOCK:
-            RESU_SIZE_CACHE.pop(cache_key, None)
+        with RESULTS_SIZE_CACHE_LOCK:
+            RESULTS_SIZE_CACHE.pop(cache_key, None)
         return None, None
-    with RESU_SIZE_CACHE_LOCK:
-        cached = RESU_SIZE_CACHE.get(cache_key)
+    with RESULTS_SIZE_CACHE_LOCK:
+        cached = RESULTS_SIZE_CACHE.get(cache_key)
         if cached and cached.get("mtime") == resu_mtime:
             return resu_mtime, cached.get("size")
     size = _resu_size_mb(case_dir, adapter)
-    with RESU_SIZE_CACHE_LOCK:
-        RESU_SIZE_CACHE[cache_key] = {"mtime": resu_mtime, "size": size}
+    with RESULTS_SIZE_CACHE_LOCK:
+        RESULTS_SIZE_CACHE[cache_key] = {"mtime": resu_mtime, "size": size}
     return resu_mtime, size
 
 

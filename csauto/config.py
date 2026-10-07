@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .solvers import DEFAULT_SOLVER
+
 try:
     import tomllib
 except ImportError:  # pragma: no cover - Python < 3.11
@@ -13,7 +15,7 @@ except ImportError:  # pragma: no cover - Python < 3.11
 
 @dataclass
 class Config:
-    solver: str = "code_saturne"
+    solver: str = DEFAULT_SOLVER
     runtime: str = "auto"
     docker_image: str = "simvia/code_saturne"
     saturne_bin: str | None = None
@@ -85,7 +87,7 @@ def _parse_optional_bool(value: Any, *, field: str, config_path: Path) -> bool |
 def _parse_solver(value: Any, *, config_path: Path) -> str:
     from .solvers import available_solvers
 
-    solver = _coerce_str(value, "code_saturne").strip().lower()
+    solver = _coerce_str(value, DEFAULT_SOLVER).strip().lower()
     choices = available_solvers()
     if solver not in choices:
         raise ValueError(f"Invalid solver in {config_path}: {solver!r} (expected {', '.join(choices)})")

@@ -200,15 +200,15 @@ def test_check_shared_dir_symlinks_native_is_always_ok(tmp_path: Path) -> None:
     outside.mkdir(parents=True)
     (runs_dir / "MESH").symlink_to(outside, target_is_directory=True)
 
-    check_shared_dir_symlinks(runs_dir, RUNTIME_NATIVE)
+    check_shared_dir_symlinks(runs_dir, RUNTIME_NATIVE, ("MESH", "POST"))
 
 
 def test_check_shared_dir_symlinks_no_symlink_is_ok_for_containers(tmp_path: Path) -> None:
     runs_dir = tmp_path / "RUNS"
     (runs_dir / "MESH").mkdir(parents=True)
 
-    check_shared_dir_symlinks(runs_dir, RUNTIME_DOCKER)
-    check_shared_dir_symlinks(runs_dir, RUNTIME_SINGULARITY)
+    check_shared_dir_symlinks(runs_dir, RUNTIME_DOCKER, ("MESH", "POST"))
+    check_shared_dir_symlinks(runs_dir, RUNTIME_SINGULARITY, ("MESH", "POST"))
 
 
 def test_check_shared_dir_symlinks_inside_runs_dir_is_ok_for_containers(tmp_path: Path) -> None:
@@ -217,7 +217,7 @@ def test_check_shared_dir_symlinks_inside_runs_dir_is_ok_for_containers(tmp_path
     real_mesh.mkdir(parents=True)
     (runs_dir / "MESH").symlink_to(real_mesh, target_is_directory=True)
 
-    check_shared_dir_symlinks(runs_dir, RUNTIME_DOCKER)
+    check_shared_dir_symlinks(runs_dir, RUNTIME_DOCKER, ("MESH", "POST"))
 
 
 @pytest.mark.parametrize("runtime", [RUNTIME_DOCKER, RUNTIME_SINGULARITY])
@@ -228,7 +228,7 @@ def test_check_shared_dir_symlinks_outside_runs_dir_is_ok_for_containers(tmp_pat
     outside.mkdir(parents=True)
     (runs_dir / "MESH").symlink_to(outside, target_is_directory=True)
 
-    check_shared_dir_symlinks(runs_dir, runtime)
+    check_shared_dir_symlinks(runs_dir, runtime, ("MESH", "POST"))
 
 
 @pytest.mark.parametrize("runtime", [RUNTIME_DOCKER, RUNTIME_SINGULARITY])
@@ -238,7 +238,7 @@ def test_check_shared_dir_symlinks_raises_for_broken_symlink(tmp_path: Path, run
     (runs_dir / "MESH").symlink_to(tmp_path / "gone", target_is_directory=True)
 
     with pytest.raises(RuntimeError, match="does not exist"):
-        check_shared_dir_symlinks(runs_dir, runtime)
+        check_shared_dir_symlinks(runs_dir, runtime, ("MESH", "POST"))
 
 
 def test_shared_dir_symlink_mounts_lists_outside_targets(tmp_path: Path) -> None:
@@ -253,7 +253,7 @@ def test_shared_dir_symlink_mounts_lists_outside_targets(tmp_path: Path) -> None
     (runs_dir / "MESH").symlink_to(mesh, target_is_directory=True)
     (runs_dir / "POST").symlink_to(post, target_is_directory=True)
 
-    mounts = shared_dir_symlink_mounts(runs_dir)
+    mounts = shared_dir_symlink_mounts(runs_dir, ("MESH", "POST"), {"MESH"})
 
     assert (mesh.resolve(), True) in mounts
     assert (post.resolve(), False) in mounts
@@ -268,7 +268,7 @@ def test_shared_dir_symlink_mounts_ignores_real_dirs_and_internal_links(tmp_path
     (runs_dir / "MESH").symlink_to(real_mesh, target_is_directory=True)
     (runs_dir / "POST").mkdir()
 
-    assert shared_dir_symlink_mounts(runs_dir) == []
+    assert shared_dir_symlink_mounts(runs_dir, ("MESH", "POST"), {"MESH"}) == []
 
 
 def test_build_runtime_run_command_singularity_binds_symlinked_shared_dirs(tmp_path: Path) -> None:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import shutil
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -55,7 +55,7 @@ def _resolve_executable(name_or_path: str) -> str | None:
     return shutil.which(name_or_path)
 
 
-def resolve_saturne_bin(saturne_bin: str | None, bin_name: str = "code_saturne") -> str | None:
+def resolve_saturne_bin(saturne_bin: str | None, bin_name: str) -> str | None:
     """Resolve the native solver binary, falling back to a PATH lookup of `bin_name`."""
     if saturne_bin:
         resolved = _resolve_executable(saturne_bin)
@@ -165,8 +165,8 @@ def resolve_runtime(
 
 def shared_dir_symlink_mounts(
     runs_dir: Path,
-    shared_dirs: Sequence[str] = ("MESH", "POST"),
-    readonly_dirs: Sequence[str] = ("MESH",),
+    shared_dirs: Sequence[str],
+    readonly_dirs: Collection[str] = (),
 ) -> list[tuple[Path, bool]]:
     """(target, readonly) pairs for shared dirs that are symlinks out of `runs_dir`.
 
@@ -187,7 +187,7 @@ def shared_dir_symlink_mounts(
     return mounts
 
 
-def check_shared_dir_symlinks(runs_dir: Path, runtime: str, shared_dirs: Sequence[str] = ("MESH", "POST")) -> None:
+def check_shared_dir_symlinks(runs_dir: Path, runtime: str, shared_dirs: Sequence[str]) -> None:
     """Raise if a symlinked shared dir cannot be made visible inside a container.
 
     Symlink targets outside `runs_dir` are bind-mounted into containers at the
@@ -271,7 +271,9 @@ def build_runtime_run_command(
             "--pwd",
             container_case,
         ]
-        for target, readonly in shared_dir_symlink_mounts(runs_root, adapter.shared_dir_names):
+        for target, readonly in shared_dir_symlink_mounts(
+            runs_root, adapter.shared_dir_names, adapter.readonly_shared_dir_names
+        ):
             cmd.extend(["--bind", f"{target}:{target}:ro" if readonly else f"{target}:{target}"])
         if cleanenv:
             cmd.append("--cleanenv")
@@ -315,7 +317,9 @@ def build_runtime_gui_command(
             "--pwd",
             container_case,
         ]
-        for target, readonly in shared_dir_symlink_mounts(runs_root, adapter.shared_dir_names):
+        for target, readonly in shared_dir_symlink_mounts(
+            runs_root, adapter.shared_dir_names, adapter.readonly_shared_dir_names
+        ):
             cmd.extend(["--bind", f"{target}:{target}:ro" if readonly else f"{target}:{target}"])
         if os.environ.get("DISPLAY") and Path("/tmp/.X11-unix").exists():
             cmd.extend(["--bind", "/tmp/.X11-unix:/tmp/.X11-unix"])

@@ -171,8 +171,9 @@ configuration changes.
 - Copy the pattern of `tests/integration/test_stub_adapter.py`: generate cases
   from a template, launch with `runtime="native"` pointing at a harmless
   binary, and poll `refresh_status` until the adapter reports `DONE`.
-- `tests/unit/test_solver_boundary.py` will fail if your work leaks solver
-  literals into the generic modules — route everything through the adapter.
+- `tests/unit/test_solver_boundary.py` scans every module outside
+  `csauto/solvers/` and fails if your work leaks solver literals into them:
+  declare the string on your adapter and let the generic code read it.
 
 ## 5. Optional: dashboard branding
 

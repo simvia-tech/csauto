@@ -271,7 +271,7 @@ def parse_arguments(
         help="Residual columns to plot (e.g. density velocity).",
     )
 
-    perf_parser = subparsers.add_parser("perf", help="Export performance info from performance.log for selected cases.")
+    perf_parser = subparsers.add_parser("perf", help="Export the solver's performance metrics for selected cases.")
     _add_export_args(perf_parser)
 
     tail_parser = subparsers.add_parser("tail", help="Follow a case log file (like tail -f).")
@@ -280,8 +280,8 @@ def parse_arguments(
     tail_parser.add_argument(
         "--file",
         dest="file_name",
-        default="listing",
-        help="File to follow (listing, run_solver.log, run_status.running, csauto.stdout, ...).",
+        default=None,
+        help="File to follow (default: the solver's main log, e.g. csauto.stdout or a path relative to the case).",
     )
     tail_parser.add_argument(
         "-n",

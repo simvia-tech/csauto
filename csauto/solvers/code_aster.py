@@ -49,6 +49,7 @@ class CodeAsterAdapter(SolverAdapterBase):
         "MESH",
         "RESU",
     )
+    readonly_shared_dir_names: ClassVar[frozenset[str]] = frozenset({"MESH"})
     dashboard_panels: ClassVar[tuple[str, ...]] = ("status", "compare", "tail", "errors")
     tail_file_names: ClassVar[tuple[str, ...]] = ("run_solver.log", "csauto.stdout", "csauto.stderr")
     # doe_row.csv is written into every generated case by the generic DOE code,
@@ -83,7 +84,7 @@ class CodeAsterAdapter(SolverAdapterBase):
 
         links = [f"{runs_root}:{container_root}"]
         for name in self.shared_dir_names:
-            for target, readonly in shared_dir_symlink_mounts(runs_root, (name,)):
+            for target, readonly in shared_dir_symlink_mounts(runs_root, (name,), self.readonly_shared_dir_names):
                 linked = f"{target}:{container_case}/{name}"
                 links.append(f"{linked}:ro" if readonly else linked)
 
