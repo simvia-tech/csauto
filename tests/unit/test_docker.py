@@ -124,3 +124,40 @@ def test_build_gui_command_adds_no_mount_without_symlinks(monkeypatch, tmp_path:
     cmd = build_runtime_gui_command(case_dir, _docker())
 
     assert cmd.count("-v") == 1
+
+
+def test_image_entrypoint_keeps_the_images_own_entrypoint(monkeypatch, tmp_path: Path) -> None:
+    import subprocess
+
+    import csauto.docker as docker_module
+    from csauto.solvers import get_solver_adapter
+
+    entrypoints = {
+        "stock": '["code_saturne"]',
+        "wrapper": '["/entrypoint.sh"]',
+        "tini": '["tini","--"]',
+        "bare": "null",
+    }
+    probes: list[str] = []
+
+    def fake_docker(*args, timeout):
+        if args[:2] == ("image", "inspect"):
+            return subprocess.CompletedProcess(args, 0, f"sha-{args[-1]} {entrypoints[args[-1]]}\n", "")
+        probes.append(args[-2])
+        return subprocess.CompletedProcess(args, 0 if args[-2] == "sha-tini" else 1, "", "")
+
+    monkeypatch.setattr(docker_module, "_docker", fake_docker)
+    monkeypatch.setattr(docker_module.shutil, "which", lambda name: "/usr/bin/docker")
+    docker_module._probe_entrypoint.cache_clear()
+    adapter = get_solver_adapter("code_saturne")
+
+    def image_part(image: str) -> list[str]:
+        cmd = docker_module.build_run_command(tmp_path / "RUNS" / "case0001", image, ["run"], adapter=adapter)
+        return cmd[cmd.index("-w") + 2 :]
+
+    assert image_part("stock") == ["stock", "run"]  # starts the solver: no probe needed
+    assert image_part("wrapper") == ["wrapper", "run"]  # its script starts the solver
+    assert image_part("tini") == ["tini", "code_saturne", "run"]  # runs the command it is given
+    assert image_part("bare") == ["--entrypoint", "code_saturne", "bare", "run"]
+    image_part("wrapper")
+    assert probes == ["sha-wrapper", "sha-tini"]  # once per image

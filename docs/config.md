@@ -88,8 +88,18 @@ port = 8000
 ```
 
 Containers mount the campaign folder at `/csauto` and start the solver inside the
-case folder (`docker run --rm --entrypoint ...`), so the image does not need
-the solver as its entrypoint.
+case folder (`docker run --rm ...`). Any image works:
+
+- an image whose ENTRYPOINT is the solver, or a script that sets up the
+  environment and starts it (modules, spack, conda, a switch to another user),
+  gets only the solver's arguments, as before;
+- an image whose ENTRYPOINT runs the command it is given (`tini --`,
+  `exec "$@"` scripts) gets the full solver command;
+- an image without ENTRYPOINT gets the solver as `--entrypoint`, so it must be
+  on the image's `PATH`.
+
+csauto tells the first two apart by starting the image once with `true` (one
+short container per image, the first time a csauto process launches it).
 
 ### code_aster
 
@@ -129,7 +139,7 @@ token = "your-secret-token"
 | `solver` | `code_saturne` | The campaign's solver: `code_saturne`, `code_aster`, or `stub` (a fake solver for tests). `csauto prepare` records it in `RUNS/campaign.json` (see [architecture.md](./architecture.md#solver-adapter-boundary)) |
 | `runtime` | `auto` | Execution backend: `auto`, `native`, `docker`, or `singularity` |
 | `saturne_bin` | (auto-detected) | Path to the native solver executable (`code_saturne`, or `run_aster` for code_aster) for `native` runtime |
-| `docker_image` | (the solver's own image) | Docker image name for `docker` runtime; defaults to `simvia/code_saturne` for code_saturne, `simvia/code_aster:17.4.0` for code_aster. csauto starts the solver with `--entrypoint`, so in a custom image the solver must be on `PATH` and its environment set through `ENV` |
+| `docker_image` | (the solver's own image) | Docker image name for `docker` runtime; defaults to `simvia/code_saturne` for code_saturne, `simvia/code_aster:17.4.0` for code_aster. csauto keeps the image's own ENTRYPOINT (see [Docker container](#docker-container)) |
 | `singularity_image` | (none) | Path or URI to `.sif` image for `singularity` runtime |
 | `singularity_bin` | (auto-detected) | Path to `apptainer` or `singularity` binary |
 | `use_slurm` | (auto-detected) | `true` to force Slurm submission, `false` to force local |

@@ -163,8 +163,10 @@ no verdict, csauto falls back to the exit status.
 ### The image needs its environment activated
 
 Set `container_setup` to the shell commands to run in the container before
-the solver (code_aster: `"source /opt/activate.sh"`). csauto starts the solver
-with `--entrypoint`, so the image does not need the solver as its entrypoint.
+the solver (code_aster: `"source /opt/activate.sh"`). When the image has no
+ENTRYPOINT, csauto starts the solver with `--entrypoint`; an image whose own
+ENTRYPOINT starts the solver gets only `run_argv`, so that script sets up the
+environment instead of `container_setup`.
 For native runs, the solver must already be on PATH, or `saturne_bin` in
 `csauto.toml` must point to it.
 

@@ -13,6 +13,13 @@ import pytest
 os.environ["CSAUTO_TELEMETRY_DISABLED"] = "1"
 
 
+@pytest.fixture(autouse=True)
+def _no_docker_image_probe(request, monkeypatch) -> None:
+    """Unit tests fake docker, so the image entrypoint lookup must not call the real one."""
+    if "test_docker_solvers" not in request.node.nodeid and "test_image_entrypoint" not in request.node.name:
+        monkeypatch.setattr("csauto.docker.image_entrypoint", lambda image, solver_bin: None)
+
+
 @pytest.fixture()
 def runs_dir(tmp_path: Path) -> Path:
     runs_dir = tmp_path / "RUNS"

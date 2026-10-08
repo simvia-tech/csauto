@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import functools
 import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -41,15 +43,66 @@ def _docker_prefix(case_dir: Path, adapter: SolverAdapter) -> tuple[list[str], s
     return cmd, container_case
 
 
+ENTRYPOINT_STARTS_SOLVER = "solver"  # the image's ENTRYPOINT is the solver, or a script that starts it
+ENTRYPOINT_RUNS_COMMAND = "command"  # the image's ENTRYPOINT runs the command it is given (tini, exec "$@")
+
+
+def _docker(*args: str, timeout: float) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["docker", *args], capture_output=True, text=True, timeout=timeout, check=False, stdin=subprocess.DEVNULL
+    )
+
+
+@functools.cache
+def _probe_entrypoint(image_id: str) -> str:
+    # An entrypoint that runs the command it is given runs `true`; one that starts the solver
+    # passes `true` to it, which no solver accepts as its arguments.
+    probe = _docker("run", "--rm", "--network", "none", image_id, "true", timeout=120)
+    return ENTRYPOINT_RUNS_COMMAND if probe.returncode == 0 else ENTRYPOINT_STARTS_SOLVER
+
+
+def image_entrypoint(docker_image: str, solver_bin: str) -> str | None:
+    """How the image's own ENTRYPOINT behaves, or None when it has none (or docker cannot tell).
+
+    Site images often set up the solver's environment (modules, spack, conda,
+    a privilege drop) in their ENTRYPOINT script, so csauto keeps it whenever
+    the image has one. The probe costs one container per image, once per process.
+    """
+    if not shutil.which("docker"):
+        return None
+    try:
+        inspect = ("image", "inspect", "--format", "{{.Id}} {{json .Config.Entrypoint}}", docker_image)
+        result = _docker(*inspect, timeout=30)
+        if result.returncode != 0:
+            _docker("pull", "-q", docker_image, timeout=1800)  # docker run would pull it anyway
+            result = _docker(*inspect, timeout=30)
+        if result.returncode != 0:
+            return None
+        image_id, _, entrypoint_json = result.stdout.strip().partition(" ")
+        entrypoint = json.loads(entrypoint_json or "null")
+        if not entrypoint:
+            return None
+        if Path(entrypoint[0]).name == solver_bin:
+            return ENTRYPOINT_STARTS_SOLVER
+        return _probe_entrypoint(image_id)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+
+
 def _docker_solver(docker_image: str, args: Sequence[str], adapter: SolverAdapter) -> list[str]:
-    """Image and solver command. `--entrypoint` makes it independent of the image's own ENTRYPOINT."""
+    """Image and solver command, started through the image's own ENTRYPOINT when it has one."""
     from .execution import solver_command
 
     if not docker_image:
         raise ValueError(f"No docker image configured for solver {adapter.name!r} (set docker_image in csauto.toml).")
     if not adapter.container_bin_name:
         return [docker_image, *args]
+    entrypoint = image_entrypoint(docker_image, adapter.container_bin_name)
+    if entrypoint == ENTRYPOINT_STARTS_SOLVER:
+        return [docker_image, *args]
     command = solver_command(adapter, adapter.container_bin_name, args, in_container=True)
+    if entrypoint == ENTRYPOINT_RUNS_COMMAND:
+        return [docker_image, *command]
     return ["--entrypoint", command[0], docker_image, *command[1:]]
 
 
