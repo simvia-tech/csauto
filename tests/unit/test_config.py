@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from csauto.cli import main
 from csauto.config import load_config
 
 
@@ -38,6 +39,16 @@ def test_load_config_invalid_toml_raises(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="Invalid TOML"):
         load_config(cfg)
+
+
+def test_cli_reports_invalid_toml_without_a_traceback(tmp_path: Path, monkeypatch, capsys) -> None:
+    (tmp_path / "csauto.toml").write_text('runtime = "native"\n[api\n', encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["status", "RUNS"]) == 1
+    err = capsys.readouterr().err
+    assert "Invalid TOML" in err
+    assert "Traceback" not in err
 
 
 def test_load_config_invalid_runtime_raises(tmp_path: Path) -> None:

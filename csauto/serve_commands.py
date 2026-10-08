@@ -8,7 +8,7 @@ from .config import Config
 
 
 def add_serve_subcommands(subparsers: Any, config: Config) -> None:
-    serve_parser = subparsers.add_parser("serve", help="Primary FastAPI web monitoring server.")
+    serve_parser = subparsers.add_parser("serve", help="Primary FastAPI web dashboard server.")
     serve_parser.add_argument("runs_dir", type=Path, help="Directory containing generated cases")
     serve_parser.add_argument("--host", default=config.host, help="Listening interface (default 127.0.0.1)")
     serve_parser.add_argument("--port", type=int, default=config.port, help="Listening port (default 8000)")
@@ -78,10 +78,13 @@ def dispatch_serve_command(
     )
 
     try:
-        from .telemetry import EVENT_SERVE, send_event
+        from .solvers import get_solver_adapter
+        from .telemetry import EVENT_SERVE, is_enabled, send_event
 
-        print(f"[telemetry] Sending serve ping (type={EVENT_SERVE}, runtime={config.runtime})")
-        send_event(EVENT_SERVE, valid_result=True, id_docker=config.runtime)
+        if is_enabled():
+            context = f"{get_solver_adapter(config.solver).name}:{config.runtime}"
+            print(f"[telemetry] Sending serve ping (type={EVENT_SERVE}, context={context})")
+            send_event(EVENT_SERVE, valid_result=True, id_docker=context)
     except Exception:
         pass
 

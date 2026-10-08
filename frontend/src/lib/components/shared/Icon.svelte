@@ -1,5 +1,5 @@
 <!--
-  Icon — thin wrapper around lucide-svelte icons.
+  Icon — thin wrapper around @lucide/svelte icons.
   Accepts a Lucide icon component and renders it inline at 14px.
 -->
 <script lang="ts">
@@ -10,10 +10,10 @@
     size?: number;
   }
 
-  let { icon, size = 14 }: Props = $props();
+  let { icon: IconComponent, size = 14 }: Props = $props();
 </script>
 
-<svelte:component this={icon} {size} class="icon" />
+<IconComponent {size} class="icon" />
 
 <style>
   :global(.icon) {

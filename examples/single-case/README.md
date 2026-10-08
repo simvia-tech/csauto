@@ -9,16 +9,17 @@ that your csauto installation and code_saturne runtime are working end to end.
 Simulates an internal flow over a stepped channel geometry with an immersed
 cylinder (volume-penalization IBM). The DOE combines:
 
-- **2 fluid densities** — 1.1 and 1.2 kg/m³
-- **2 turbulence models** — Spalart-Allmaras and k-omega SST
-- **2 meshes** — `mesh1.med` and `mesh2.med`
-- **2 penalization coefficients** — K0 = 1000 and 2000
+- **2 fluid densities**: 1.1 and 1.2 kg/m³
+- **2 turbulence models**: Spalart-Allmaras and k-omega SST
+- **2 meshes**: `mesh1.med` and `mesh2.med`
+- **2 penalization coefficients**: K0 = 1000 (with `mesh1.med`) and 2000 (with `mesh2.med`)
 
-This produces **8 cases** (full factorial). The template demonstrates:
-- **value placeholders** — `{density_value}`, `{ref_v}`, `{mesh}`, `{K0}`
-- **conditional blocks** — `<!-- IF turbulence_model == "..." -->` to switch
+This produces **8 cases**: 2 densities × 2 models × 2 meshes, each mesh with its
+own K0. The template demonstrates:
+- **value placeholders**: `{density_value}`, `{ref_v}`, `{mesh}`, `{K0}`
+- **conditional blocks**: `<!-- IF turbulence_model == "..." -->` to switch
   between Spalart-Allmaras and k-omega SST sections
-- **user source compilation** — `TEMPLATE/SRC/cs_user_source_terms.cpp` with a
+- **user source compilation**: `TEMPLATE/SRC/cs_user_source_terms.cpp` with a
   `{K0}` placeholder, compiled by code_saturne at run time
 
 ## Files
@@ -96,10 +97,12 @@ Expected output:
 ```
 RUNS/
 ├── registry.json
+├── campaign.json          ← records the code_saturne solver
+├── MESH/                  ← link to single-case/MESH (mesh_mode = "symlink")
+├── POST/                  ← link to single-case/POST
 ├── case0001/
 │   ├── DATA/setup.xml     ← all placeholders substituted, IF blocks resolved
 │   ├── SRC/               ← cs_user_source_terms.cpp with K0 substituted
-│   ├── MESH/              ← selected mesh copied from single-case/MESH/
 │   └── doe_row.csv
 ├── case0002/
 │   └── ...
@@ -126,9 +129,9 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
 In the **Status** panel:
 1. Select one or more cases (`Ctrl+A` to select all)
-2. Click **Run Selected**
+2. Click **Run**
 3. Set **n** = 1 (MPI rank), **nt** = 1 (thread)
-4. Click **Submit**
+4. Click **Run** in the popup
 
 Cases move to `RUNNING`. Once complete they show `DONE`.
 
@@ -141,6 +144,6 @@ csauto run RUNS --n 1 --nt 1
 ## Explore the results
 
 From the web UI:
-- **Residuals Plot** — convergence curves
-- **Log Tail** — live solver output (`listing` file)
-- **Probes** — time series at the two probe points defined in the mesh
+- **Residuals Plot**: convergence curves
+- **Log Tail**: live solver output (`run_solver.log`)
+- **Probes**: time series at the two probe points defined in `setup.xml`

@@ -15,6 +15,7 @@ import type {
   RestartOriginResponse,
   ProbePositionResponse,
   CleanupResponse,
+  TailLinesResponse,
 } from "./types";
 
 /* Helpers */
@@ -37,6 +38,18 @@ export function fetchPerf(cases: string[]): Promise<PerfPayload> {
 
 export function fetchAppConfig(): Promise<AppConfig> {
   return apiGet<AppConfig>("/api/app_config");
+}
+
+/* Branding images, public (no token); served when AppConfig.logo / .icon is
+   true. The server ignores ?solver=, it only gives each solver its own cache
+   entry, so a campaign never shows the cached logo of another solver served
+   earlier on the same host and port. */
+export function solverLogoUrl(solver: string): string {
+  return `/api/solver_logo?solver=${encodeURIComponent(solver)}`;
+}
+
+export function solverIconUrl(solver: string): string {
+  return `/api/solver_icon?solver=${encodeURIComponent(solver)}`;
 }
 
 export function fetchResidualColumns(cases: string[]): Promise<string[]> {
@@ -93,19 +106,21 @@ export function fetchRecentErrors(params: {
 
 /* Case data */
 
-export function fetchTail(
+/** Log files the Log Tail card can show for a case, best first. */
+export function fetchTailFiles(caseId: string): Promise<string[]> {
+  return apiGet<StringListResponse>(
+    `/api/tail_files?case=${encodeURIComponent(caseId)}`,
+  ).then((r) => r.files ?? []);
+}
+
+/** Last n lines of a case file, each with its severity. */
+export function fetchTailLines(
   caseId: string,
   file: string,
   n: number,
-): Promise<string> {
+): Promise<TailLinesResponse> {
   const qs = new URLSearchParams({ case: caseId, file, n: String(n) });
-  return apiGetText(`/api/tail?${qs}`);
-}
-
-export function fetchResuFiles(caseId: string): Promise<string[]> {
-  return apiGet<StringListResponse>(
-    `/api/resu_files?case=${encodeURIComponent(caseId)}`,
-  ).then((r) => r.files ?? []);
+  return apiGet<TailLinesResponse>(`/api/tail_lines?${qs}`);
 }
 
 export function fetchResuDirs(cases: string[]): Promise<string[]> {
@@ -116,7 +131,7 @@ export function fetchResuDirs(cases: string[]): Promise<string[]> {
 
 export function fetchProbeFiles(
   cases: string[],
-  scope: "monitoring" | "profiles",
+  scope: "probes" | "profiles",
 ): Promise<string[]> {
   const qs = new URLSearchParams({ scope });
   cases.forEach((c) => qs.append("case", c));
@@ -196,7 +211,8 @@ export function runCase(params: {
   maxParallel?: number | null;
   restart?: boolean;
   restartMode?: string;
-  restartValue?: number;
+  restartValue?: number | null;
+  restartPath?: string | null;
 }): Promise<void> {
   return apiPost("/api/run_case", {
     cases: params.cases,
@@ -206,6 +222,7 @@ export function runCase(params: {
     restart: params.restart ?? false,
     restart_mode: params.restartMode ?? "",
     restart_value: params.restartValue ?? undefined,
+    restart_path: params.restartPath || undefined,
   }).then(() => undefined);
 }
 
@@ -213,15 +230,16 @@ export function killCase(cases: string[]): Promise<void> {
   return apiPost("/api/kill_case", { cases }).then(() => undefined);
 }
 
+/** Apply one of AppConfig.control_actions; value only when it has a value_label. */
 export function controlCase(params: {
   cases: string[];
-  action: "stop" | "extend" | "checkpoint" | "flush";
-  value?: number;
+  action: string;
+  value?: number | null;
 }): Promise<void> {
   return apiPost("/api/control_case", {
     cases: params.cases,
     action: params.action,
-    value: params.value ?? undefined,
+    value: params.value ?? null,
   }).then(() => undefined);
 }
 

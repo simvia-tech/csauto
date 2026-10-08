@@ -8,10 +8,11 @@ from pathlib import Path
 from typing import Any
 
 from .docker import find_container_id_for_case, read_container_id, terminate_container
-from .logs import read_tail_lines
+from .execution import RUNTIME_DOCKER
+from .logs import find_case_file, read_tail_lines
 from .pathutil import is_within_root
-from .registry import STATUS_FAILED, append_history, load_registry, registry_transaction, timestamp_now, update_case
-from .runner import is_process_alive, terminate_pid
+from .registry import append_history, load_registry, registry_transaction, timestamp_now, update_case
+from .runner import final_outcome, is_process_alive, terminate_pid
 
 
 def _default_adapter() -> Any:
@@ -185,8 +186,8 @@ def discover_job_id(case_dir: Path, job_id_patterns: Sequence[re.Pattern[str]], 
 
     seen: set[str] = set()
     candidates: list[Path] = []
-    for name in ("csauto.stdout", "csauto.stderr", "run_solver.log", "listing"):
-        file_path = adapter.locate_case_file(case_dir, name)
+    for name in adapter.anomaly_file_names:
+        file_path = find_case_file(case_dir, name, adapter)
         if not file_path or not file_path.is_file():
             continue
         key = str(file_path.resolve())
@@ -239,7 +240,7 @@ def count_running_cases(runs_dir: Path, status_running: str) -> int:
         pid_alive = False
         if pid is not None:
             try:
-                pid_alive = is_process_alive(int(pid))
+                pid_alive = is_process_alive(int(pid), identity=record.get("pid_identity"))
             except (TypeError, ValueError):
                 pid_alive = False
         if pid_alive:
@@ -300,8 +301,8 @@ def kill_case(
             container_id = read_container_id(cidfile, wait=1.0)
             if container_id:
                 record["container_id"] = container_id
-        if not container_id:
-            container_id = find_container_id_for_case(case_id)
+        if not container_id and record.get("runtime") == RUNTIME_DOCKER:
+            container_id = find_container_id_for_case(case_id, runs_dir)
             if container_id:
                 record["container_id"] = container_id
 
@@ -314,6 +315,7 @@ def kill_case(
         start_time = record.get("start_time")
         previous_end_time = record.get("end_time")
         pid_raw = record.get("pid")
+        pid_identity = record.get("pid_identity")
 
     if pid_raw is None and not container_id and not job_id:
         raise ValueError(f"No PID, container_id or job_id for {case_id}")
@@ -338,7 +340,7 @@ def kill_case(
             pid_int = int(pid_raw)
         except (TypeError, ValueError) as exc:
             raise ValueError(f"Invalid PID for {case_id}") from exc
-        if is_process_alive(pid_int):
+        if is_process_alive(pid_int, identity=pid_identity):
             terminate_pid(pid_int)
             pid_alive = True
             details["pid_killed"] = True
@@ -357,7 +359,7 @@ def kill_case(
     if job_error and pid_raw is None and not container_id:
         raise job_error
 
-    outcome = adapter.detect_outcome(case_dir, start_time) or STATUS_FAILED
+    outcome = final_outcome(adapter, case_dir, start_time)
     with registry_transaction(runs_dir) as registry:
         update_case(
             registry,

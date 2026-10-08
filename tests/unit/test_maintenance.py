@@ -16,6 +16,7 @@ def _make_runs_dir(tmp_path: Path) -> Path:
 def _add_case(runs_dir: Path, case_id: str, with_setup: bool = True) -> Path:
     case_dir = runs_dir / case_id
     case_dir.mkdir(parents=True, exist_ok=True)
+    (case_dir / "doe_row.csv").write_text(f"case_id\n{case_id}\n", encoding="utf-8")
     if with_setup:
         (case_dir / "DATA").mkdir(parents=True, exist_ok=True)
         (case_dir / "DATA" / "setup.xml").write_text("<root/>", encoding="utf-8")
@@ -48,7 +49,7 @@ def test_run_doctor_fails_when_no_case_directory_found(tmp_path: Path) -> None:
     runs_dir = _make_runs_dir(tmp_path)
     items = run_doctor(runs_dir, check_display=False)
     assert _has_item(items, "ok", "write OK")
-    assert _has_item(items, "fail", "no case* directory found")
+    assert _has_item(items, "fail", "no case found")
 
 
 def test_run_doctor_detects_case_directories(tmp_path: Path) -> None:
@@ -324,7 +325,7 @@ def test_run_doctor_runtime_auto_warns_when_none_detected(
     _patch_which(monkeypatch, {})
 
     items = run_doctor(runs_dir, runtime="auto", check_display=False)
-    assert _has_item(items, "warn", "no runtime found (code_saturne, docker, apptainer/singularity)")
+    assert _has_item(items, "warn", "no runtime found for code_saturne (code_saturne, docker, apptainer/singularity)")
 
 
 def test_run_doctor_runtime_auto_detects_native_from_saturne_bin_file(
@@ -492,15 +493,16 @@ def test_doctor_reports_derived_panels_and_capabilities(tmp_path: Path) -> None:
 
 
 def test_doctor_says_none_when_the_solver_has_no_capability(tmp_path: Path) -> None:
-    from csauto.solvers.base import SolverAdapterBase
+    from csauto.solvers.base import SolverAdapter
 
-    class BareAdapter(SolverAdapterBase):
+    class BareAdapter(SolverAdapter):
         name = "bare"
         native_bin_name = "bare"
         container_bin_name = "bare"
         container_root = "/bare"
         default_docker_image = ""
         results_dirname = "OUT"
+        dashboard_panels = ("status", "tail", "errors")
 
         def run_argv(self, case_path, nprocs, nt, run_args=None):
             return []
@@ -516,3 +518,80 @@ def test_doctor_says_none_when_the_solver_has_no_capability(tmp_path: Path) -> N
 
     items = run_doctor(runs_dir, check_setup=False, check_display=False, adapter=BareAdapter())
     assert _has_item(items, "ok", "solver bare: capabilities none")
+
+
+def test_cleanup_only_deletes_the_folders_the_adapter_counts_as_runs(tmp_path: Path) -> None:
+    from csauto.solvers.code_saturne import CodeSaturneAdapter
+
+    class RunsOnly(CodeSaturneAdapter):
+        def list_run_dirs(self, case_dir, *, newest_first=True):
+            return sorted((p for p in self.results_root(case_dir).glob("run_*")), reverse=newest_first)
+
+    runs_dir = _make_runs_dir(tmp_path)
+    case_dir = _add_case(runs_dir, "case0001")
+    for name in ("run_1", "run_2", "restart_db"):
+        (case_dir / "RESU" / name).mkdir(parents=True)
+
+    report = cleanup_runs(runs_dir, prune_resu=True, keep_last=0, adapter=RunsOnly())
+
+    assert report.resu_removed == 2
+    assert [p.name for p in (case_dir / "RESU").iterdir()] == ["restart_db"]
+
+
+def test_cleanup_skips_running_cases(tmp_path: Path) -> None:
+    from csauto.registry import save_registry
+
+    runs_dir = _make_runs_dir(tmp_path)
+    case_dir = _add_case(runs_dir, "case0001")
+    (case_dir / "RESU" / "run_1").mkdir(parents=True)
+    log = case_dir / "csauto.stdout"
+    log.write_text("x" * 4096, encoding="utf-8")
+    save_registry(runs_dir, {"case0001": {"case_id": "case0001", "path": str(case_dir), "status": "RUNNING"}})
+
+    report = cleanup_runs(runs_dir, prune_resu=True, keep_last=0, max_log_mb=0.001)
+
+    assert report.resu_removed == 0 and report.logs_truncated == 0
+    assert (case_dir / "RESU" / "run_1").is_dir()
+    assert log.stat().st_size == 4096
+
+
+def test_code_aster_clean_keeps_its_single_run_until_delete_all(tmp_path: Path) -> None:
+    from csauto.solvers import get_solver_adapter
+
+    runs_dir = _make_runs_dir(tmp_path)
+    case_dir = _add_case(runs_dir, "case0001", with_setup=False)
+    (case_dir / "RESU" / "base").mkdir(parents=True)
+    (case_dir / "RESU" / "results.rmed").write_bytes(b"\x00")
+    adapter = get_solver_adapter("code_aster")
+
+    assert cleanup_runs(runs_dir, prune_resu=True, keep_last=1, adapter=adapter).resu_removed == 0
+    assert (case_dir / "RESU" / "base").is_dir()
+    assert cleanup_runs(runs_dir, prune_resu=True, keep_last=0, adapter=adapter).resu_removed == 1
+    assert not (case_dir / "RESU").exists()
+    assert (case_dir / "doe_row.csv").is_file()
+
+
+def test_keeping_folders_a_case_does_not_have_leaves_that_case_alone(tmp_path: Path) -> None:
+    runs_dir = _make_runs_dir(tmp_path)
+    case_a = _add_case(runs_dir, "caseA")
+    case_b = _add_case(runs_dir, "caseB")
+    for case_dir, runs in ((case_a, ("a1", "a2")), (case_b, ("b1", "b2"))):
+        for run in runs:
+            (case_dir / "RESU" / run).mkdir(parents=True)
+
+    report = cleanup_runs(runs_dir, prune_resu=True, keep_resu=["b2"])
+
+    assert report.resu_removed == 1
+    assert sorted(p.name for p in (case_a / "RESU").iterdir()) == ["a1", "a2"]
+    assert [p.name for p in (case_b / "RESU").iterdir()] == ["b2"]
+
+
+def test_cleanup_reports_the_cases_it_skipped(tmp_path: Path) -> None:
+    from csauto.registry import save_registry
+
+    runs_dir = _make_runs_dir(tmp_path)
+    _add_case(runs_dir, "case0001")
+    _add_case(runs_dir, "case0002")
+    save_registry(runs_dir, {"case0001": {"case_id": "case0001", "status": "PENDING"}})
+
+    assert cleanup_runs(runs_dir, prune_resu=True).skipped_active == ["case0001"]

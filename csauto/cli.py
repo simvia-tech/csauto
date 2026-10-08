@@ -20,14 +20,15 @@ from .logs import (
     tail_log,
 )
 from .maintenance import cleanup_runs, run_doctor
+from .registry import read_campaign_solver
 from .residuals import (
     collect_residuals,
     plot_residuals,
 )
 from .runner import refresh_status, run_cases
 from .serve_commands import add_serve_subcommands, dispatch_serve_command
-from .solvers import get_solver_adapter
-from .warn import error, flush_warnings
+from .solvers import available_solvers, get_solver_adapter
+from .warn import error, flush_warnings, warn
 
 
 def serve_fastapi(*args: Any, **kwargs: Any) -> Any:
@@ -114,9 +115,8 @@ def parse_arguments(
         dest="mesh_mode",
         choices=["copy", "symlink"],
         default=config.mesh_mode,
-        help="How to place the solver's shared dirs (meshes, postprocessing) into output_root: 'copy' (default) "
-        "or 'symlink'. 'symlink' avoids duplicating large meshes but is not supported with the docker/singularity "
-        "runtimes unless the mesh lives inside output_root already.",
+        help="How to place the solver's shared dirs (meshes, postprocessing) into output_root: 'symlink' "
+        "(default, no duplication; containers get the symlink targets mounted) or 'copy'.",
     )
     prepare_parser.add_argument(
         "--strict",
@@ -201,7 +201,7 @@ def parse_arguments(
         "--docker-image",
         dest="docker_image",
         default=config.docker_image,
-        help="Docker image to use (default from csauto.toml).",
+        help="Docker image to use (default: docker_image in csauto.toml, else the solver's own image).",
     )
     run_parser.add_argument(
         "--saturne-bin",
@@ -271,7 +271,7 @@ def parse_arguments(
         help="Residual columns to plot (e.g. density velocity).",
     )
 
-    perf_parser = subparsers.add_parser("perf", help="Export performance info from performance.log for selected cases.")
+    perf_parser = subparsers.add_parser("perf", help="Export the solver's performance metrics for selected cases.")
     _add_export_args(perf_parser)
 
     tail_parser = subparsers.add_parser("tail", help="Follow a case log file (like tail -f).")
@@ -280,8 +280,8 @@ def parse_arguments(
     tail_parser.add_argument(
         "--file",
         dest="file_name",
-        default="listing",
-        help="File to follow (listing, run_solver.log, run_status.running, csauto.stdout, ...).",
+        default=None,
+        help="File to follow (default: the solver's main log, e.g. csauto.stdout or a path relative to the case).",
     )
     tail_parser.add_argument(
         "-n",
@@ -298,32 +298,14 @@ def parse_arguments(
     )
 
     control_parser = subparsers.add_parser(
-        "control", help="Send a live control directive to a running case (stop/extend/checkpoint/flush)."
+        "control",
+        help="Send a live control action to a running case (the actions depend on the solver; "
+        "csauto doctor lists them).",
     )
     control_parser.add_argument("runs_dir", type=Path, help="Directory containing generated cases")
     control_parser.add_argument("case", help="Case name (caseXXXX)")
-    control_action_group = control_parser.add_mutually_exclusive_group(required=True)
-    control_action_group.add_argument(
-        "--stop",
-        action="store_true",
-        help="Graceful stop: finish the current time step, checkpoint, and exit (no restart needed).",
-    )
-    control_action_group.add_argument(
-        "--extend",
-        type=int,
-        metavar="N",
-        help="Extend the run by N additional time steps beyond its current progress.",
-    )
-    control_action_group.add_argument(
-        "--checkpoint",
-        action="store_true",
-        help="Request a checkpoint at the next time step.",
-    )
-    control_action_group.add_argument(
-        "--flush",
-        action="store_true",
-        help="Flush logs and time plots at the next time step.",
-    )
+    control_parser.add_argument("action", help="Action name (csauto doctor lists the solver's actions)")
+    control_parser.add_argument("value", nargs="?", type=float, help="Value, for actions that take one")
 
     add_serve_subcommands(subparsers, config)
 
@@ -421,14 +403,38 @@ def _print_doctor(items: Sequence[object]) -> bool:
     return failed
 
 
+def _use_campaign_solver(runs_dir: Path | None, config: Config) -> bool:
+    """Switch `config` to the solver the campaign in `runs_dir` was prepared for.
+
+    Returns True when that replaced the configured solver: the configuration's
+    solver-specific settings (docker image, solver executable, apptainer image)
+    then belong to another solver and are dropped.
+    """
+    recorded = read_campaign_solver(runs_dir) if runs_dir is not None else None
+    if not recorded or recorded == config.solver:
+        return False
+    if recorded not in available_solvers():
+        raise ValueError(f"{runs_dir}/campaign.json names an unknown solver: {recorded!r}")
+    if config.path is not None:
+        warn(
+            f"{runs_dir} was prepared for {recorded}: ignoring solver, docker_image, saturne_bin "
+            f"and singularity_image from {config.path}"
+        )
+    config.solver = recorded
+    config.docker_image = config.saturne_bin = config.singularity_image = None
+    return True
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     argv_list = list(argv or sys.argv[1:])
-    config_path = _preparse_config(argv_list)
-    config = load_config(config_path)
-    parser, args = parse_arguments(argv_list, config)
-    adapter = get_solver_adapter(config.solver)
-
     try:
+        config = load_config(_preparse_config(argv_list))
+        parser, args = parse_arguments(argv_list, config)
+        # Commands on an existing campaign use the solver it was prepared for, so
+        # they work from any directory; serve reads it from config.solver.
+        if _use_campaign_solver(getattr(args, "runs_dir", None), config):
+            parser, args = parse_arguments(argv_list, config)  # drop the other solver's defaults
+        adapter = get_solver_adapter(config.solver)
         if args.command is None:
             parser.print_help()
             return 0
@@ -527,18 +533,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 adapter=adapter,
             )
         elif args.command == "control":
-            if args.stop:
-                control_action, control_value = "stop", None
-            elif args.extend is not None:
-                control_action, control_value = "extend", args.extend
-            elif args.checkpoint:
-                control_action, control_value = "checkpoint", None
-            else:
-                control_action, control_value = "flush", None
             details = control_case(
-                args.runs_dir, args.case, control_action, value=control_value, source="cli", adapter=adapter
+                args.runs_dir, args.case, args.action, value=args.value, source="cli", adapter=adapter
             )
-            print(f"control: {control_action} -> {details}")
+            print(f"control: {args.action} -> {details}")
         elif dispatch_serve_command(
             args,
             config,
@@ -565,6 +563,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             if not (args.prune_resu or args.max_log_mb > 0 or args.clear_cid or args.clear_pyc):
                 print("No action specified. Use --prune-resu/--max-log-mb/--clear-cid/--clear-pyc.")
                 return 0
+            refresh_status(args.runs_dir, adapter=adapter)  # finalize runs that ended, so they are not skipped
             report = cleanup_runs(
                 args.runs_dir,
                 prune_resu=args.prune_resu,
@@ -584,6 +583,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"{prefix}.csauto.cid removed: {report.cid_removed}")
             if args.clear_pyc:
                 print(f"{prefix}__pycache__ removed: {report.pycache_removed}")
+            if report.skipped_active:
+                print(f"Skipped running or queued cases: {', '.join(report.skipped_active)}")
         elif args.command == "completion":
             from .completion import generate_bash, generate_zsh
 

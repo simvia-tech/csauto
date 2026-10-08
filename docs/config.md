@@ -24,7 +24,7 @@ If no file is found, all default values are used.
 runtime = "native"
 saturne_bin = "/opt/code_saturne/bin/code_saturne"
 
-# No Slurm, run up to 2 cases at the same time
+# No Slurm; csauto run launches at most 2 cases at a time
 use_slurm = false
 max_parallel = 2
 
@@ -46,7 +46,7 @@ use_slurm = true
 # MPI options injected via CS_MPIEXEC_OPTIONS for each sbatch job
 mpi_exec_options = "--mca btl vader,self,tcp --bind-to core"
 
-# Allow up to 20 jobs in the queue simultaneously
+# csauto run keeps at most 20 jobs submitted (queued or running) at a time
 max_parallel = 20
 
 # Serve UI on login node, tunnel with: ssh -L 8000:127.0.0.1:8000 login-node
@@ -68,16 +68,17 @@ host = "127.0.0.1"
 port = 8000
 ```
 
-With `use_slurm = true`, `csauto` submits a dedicated batch script for the
-Singularity runtime. The job follows the same pattern as a manual HPC launch:
+For code_saturne with `use_slurm = true`, `csauto` submits a dedicated batch
+script for the Singularity runtime (`.csauto.slurm.sh` in the case folder). The
+job follows the same pattern as a manual HPC launch:
 `code_saturne run --stage --initialize`, then `srun ./cs_solver --mpi`, then
-`code_saturne run --finalize`.
+`code_saturne run --finalize`. Other runs are submitted with `sbatch --wrap`.
 
 ### Docker container
 
 ```toml
 runtime = "docker"
-docker_image = "simvia/code_saturne"
+docker_image = "simvia/code_saturne"   # optional: the solver's own image by default
 
 use_slurm = false
 max_parallel = 2
@@ -85,6 +86,38 @@ max_parallel = 2
 host = "127.0.0.1"
 port = 8000
 ```
+
+Containers mount the campaign folder at `/csauto` and start the solver inside the
+case folder (`docker run --rm ...`). Any image works:
+
+- an image whose ENTRYPOINT is the solver, or a script that sets up the
+  environment and starts it (modules, spack, conda, a switch to another user),
+  gets only the solver's arguments, as before;
+- an image whose ENTRYPOINT runs the command it is given (`tini --`,
+  `exec "$@"` scripts) gets the full solver command;
+- an image without ENTRYPOINT gets the solver as `--entrypoint`, so it must be
+  on the image's `PATH`.
+
+csauto tells the first two apart by starting the image once with `true` (one
+short container per image, the first time a csauto process launches it).
+
+### code_aster
+
+```toml
+solver = "code_aster"
+runtime = "docker"   # docker_image defaults to simvia/code_aster:17.4.0
+
+max_parallel = 2
+```
+
+For the `native` runtime, `run_aster` must be in `PATH`, or `saturne_bin` must
+point to it.
+
+In containers, csauto starts `run_aster` with `bash`, after sourcing
+`/opt/activate.sh` when the image has it (the `simvia/code_aster` images do). A
+custom image needs `bash`, and `run_aster` on its `PATH` once that file is
+sourced (or from the start, when the image has no such file). An image whose
+ENTRYPOINT starts `run_aster` itself only gets its arguments.
 
 ### Remote access with authentication
 
@@ -109,16 +142,16 @@ token = "your-secret-token"
 
 | Key | Default | Description |
 |---|---|---|
-| `solver` | `code_saturne` | Solver adapter used for command building, output parsing, and file conventions (`code_saturne`, or `stub` for testing; see [architecture.md](./architecture.md#solver-adapter-boundary)) |
+| `solver` | `code_saturne` | The campaign's solver: `code_saturne`, `code_aster`, or `stub` (a fake solver for tests). `csauto prepare` records it in `RUNS/campaign.json` (see [architecture.md](./architecture.md#solver-adapter-boundary)) |
 | `runtime` | `auto` | Execution backend: `auto`, `native`, `docker`, or `singularity` |
-| `saturne_bin` | (auto-detected) | Path to the `code_saturne` binary for `native` runtime |
-| `docker_image` | `simvia/code_saturne` | Docker image name for `docker` runtime |
+| `saturne_bin` | (auto-detected) | Path to the native solver executable (`code_saturne`, or `run_aster` for code_aster) for `native` runtime |
+| `docker_image` | (the solver's own image) | Docker image name for `docker` runtime; defaults to `simvia/code_saturne` for code_saturne, `simvia/code_aster:17.4.0` for code_aster. csauto keeps the image's own ENTRYPOINT (see [Docker container](#docker-container)) |
 | `singularity_image` | (none) | Path or URI to `.sif` image for `singularity` runtime |
 | `singularity_bin` | (auto-detected) | Path to `apptainer` or `singularity` binary |
 | `use_slurm` | (auto-detected) | `true` to force Slurm submission, `false` to force local |
-| `mpi_exec_options` | (none) | Options injected as `CS_MPIEXEC_OPTIONS` in Slurm jobs |
-| `max_parallel` | `1` | Maximum simultaneous case launches |
-| `mesh_mode` | `symlink` | How `prepare` places the shared `MESH`/`POST` dirs into `RUNS/`: `symlink` or `copy` (see [concepts.md](./concepts.md#shared-meshpost-directories)) |
+| `mpi_exec_options` | (none) | MPI options for Slurm jobs, passed to code_saturne as `CS_MPIEXEC_OPTIONS` (code_aster ignores it) |
+| `max_parallel` | `1` | Default of `csauto run --max-parallel`. The web UI does not read it: set Max Parallel in the Run or Restart dialog (left empty, every selected case starts at once) |
+| `mesh_mode` | `symlink` | How `prepare` places the solver's shared dirs (`MESH`, plus `POST` for code_saturne) into `RUNS/`: `symlink` or `copy` (see [concepts.md](./concepts.md#shared-meshpost-directories)) |
 | `host` | `127.0.0.1` | Bind address for `serve` |
 | `port` | `8000` | Bind port for `serve` |
 | `[api].token` | (none) | API authentication token |
@@ -139,8 +172,13 @@ token = "your-secret-token"
 
 **Runtime**: CLI flags (`--runtime`, `--saturne-bin`, etc.) override the TOML values.
 
+**Solver**: commands on an existing campaign use the solver recorded in
+`RUNS/campaign.json` by `prepare`, whatever directory they run from; a different
+`solver` in `csauto.toml` is ignored with a warning. `prepare` refuses to add
+cases to a folder prepared for another solver.
+
 **Slurm detection order**:
-1. `use_slurm` in `csauto.toml` — if set, this is authoritative
+1. `use_slurm` in `csauto.toml`: if set, this is authoritative
 2. `CSAUTO_USE_SLURM` environment variable
 3. Auto-detection: checks if `sbatch` is in `PATH` and Slurm environment variables are set
 
@@ -150,23 +188,28 @@ token = "your-secret-token"
 
 ## Auto runtime resolution
 
-When `runtime = "auto"`, csauto tries backends in this order:
+When `runtime = "auto"`, csauto tries backends in this order, among the
+runtimes the solver supports (code_saturne and code_aster support all three):
 
 1. Explicit `saturne_bin` set → use `native`
 2. Explicit `singularity_image` set → use `singularity`
 3. `docker` command available → use `docker`
-4. `code_saturne` in `PATH` → use `native`
+4. The solver's executable (`code_saturne`, `run_aster`) in `PATH` → use `native`
 5. None found → error
+
+Asking explicitly for a runtime the solver does not support is refused before
+anything starts.
 
 ---
 
 ## `mpi_exec_options` and Slurm
 
-When Slurm submission is active and `mpi_exec_options` is set, the value is
-injected as:
+When Slurm submission is active and `mpi_exec_options` is set, code_saturne
+receives the value as:
 
 ```bash
 CS_MPIEXEC_OPTIONS="<mpi_exec_options>" <code_saturne run command>
 ```
 
-If not set, no `CS_MPIEXEC_OPTIONS` is injected.
+With a container runtime, the variable is set inside the container instead. If
+not set, no `CS_MPIEXEC_OPTIONS` is injected. code_aster ignores this option.

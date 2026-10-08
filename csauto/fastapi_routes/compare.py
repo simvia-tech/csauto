@@ -3,6 +3,7 @@ import warnings
 from typing import Any
 
 from ..diff import compare_runs_diff
+from ..logs import find_case_file
 from ..web_support import log_case_action
 
 
@@ -23,7 +24,7 @@ def register_compare_routes(app: Any, ctx: Any, components: dict[str, Any]) -> N
         if not kind:
             raise ctx.http_exception_cls(status_code=400, detail="Missing case, kind parameters")
         case_id, case_dir = ctx.validated_case_dir(case)
-        target = ctx.adapter.locate_case_file(case_dir, kind)
+        target = find_case_file(case_dir, kind, ctx.adapter)
         if not target:
             raise ctx.http_exception_cls(status_code=404, detail=f"File {kind} not found for {case_id}")
         return PlainTextResponse(target.read_text(encoding="utf-8", errors="ignore"))

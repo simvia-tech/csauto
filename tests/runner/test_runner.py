@@ -11,6 +11,7 @@ from csauto.registry import (
     STATUS_DONE,
     STATUS_FAILED,
     STATUS_PENDING,
+    STATUS_PREPARED,
     STATUS_RUNNING,
     load_registry,
     registry_transaction,
@@ -113,7 +114,15 @@ def test_run_cases_native_runtime_updates_registry(monkeypatch, runs_dir: Path, 
     assert record["pid"] == 23456
     assert record["runtime"] == "native"
     assert popen_calls
-    assert popen_calls[0][:3] == ["nohup", str(saturne_bin.resolve()), "run"]
+    # The command runs behind a shell that records its exit status.
+    assert popen_calls[0][:5] == [
+        "nohup",
+        "sh",
+        "-c",
+        '"$@"; rc=$?; echo $rc > .csauto.exitcode; exit $rc',
+        "csauto-run",
+    ]
+    assert popen_calls[0][5:7] == [str(saturne_bin.resolve()), "run"]
 
 
 def test_run_cases_restart_adds_restart_args(monkeypatch, runs_dir: Path, case_factory) -> None:
@@ -216,6 +225,8 @@ def test_run_cases_slurm_scheduler_submits_job(monkeypatch, runs_dir: Path, case
     wrap_value = submit_calls[0][submit_calls[0].index("--wrap") + 1]
     assert "CS_MPIEXEC_OPTIONS=" in wrap_value
     assert "--bind-to core" in wrap_value
+    # The job ends with the solver's status, so Slurm sees failures too.
+    assert wrap_value.endswith("; rc=$?; echo $rc > .csauto.exitcode; exit $rc")
 
 
 def test_run_cases_docker_runtime_can_submit_via_slurm(monkeypatch, runs_dir: Path, case_factory) -> None:
@@ -331,7 +342,7 @@ def test_run_cases_singularity_runtime_can_submit_via_slurm_with_cleanenv(
     assert "--cpus-per-task" in submit_calls[0]
     assert submit_calls[0][submit_calls[0].index("--cpus-per-task") + 1] == "1"
     script_path = Path(submit_calls[0][-1])
-    assert script_path == case_dir / ".csauto.slurm.singularity.sh"
+    assert script_path == case_dir / ".csauto.slurm.sh"
     script_text = script_path.read_text(encoding="utf-8")
     assert "=== Step 1/3: Case preparation ===" in script_text
     assert "=== Step 2/3: Solver execution ===" in script_text
@@ -444,7 +455,7 @@ def test_run_cases_serializes_concurrent_launchers(
 
     monkeypatch.setattr("csauto.solvers.code_saturne.CodeSaturneAdapter.build_restart_args", restart_stub)
     monkeypatch.setattr("subprocess.Popen", popen_stub)
-    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid: True)
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: True)
     monkeypatch.setattr("csauto.runner.time.sleep", sleep_stub)
 
     first = threading.Thread(target=run_target, args=("case0001",))
@@ -501,7 +512,7 @@ def test_refresh_status_reads_last_iter(monkeypatch, runs_dir: Path, case_factor
     registry["case0001"]["start_time"] = "2020-01-01T00:00:00"
     save_registry(runs_dir, registry)
 
-    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid: True)
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: True)
 
     rows = refresh_status(runs_dir)
     assert rows[0]["last_iter"] == 12
@@ -529,7 +540,7 @@ def test_run_cases_respects_max_parallel(monkeypatch, runs_dir: Path, case_facto
         raise StopSleep()
 
     monkeypatch.setattr("csauto.runner.read_container_id", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid: True)
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: True)
     monkeypatch.setattr("csauto.runner.time.sleep", sleep_stub)
     monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
     monkeypatch.setattr("subprocess.Popen", popen_stub)
@@ -566,13 +577,25 @@ def test_refresh_status_marks_done_when_pid_dead(monkeypatch, runs_dir: Path, ca
     registry["case0001"]["start_time"] = (datetime.now() - timedelta(seconds=5)).isoformat(timespec="seconds")
     save_registry(runs_dir, registry)
 
-    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid: False)
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: False)
 
     rows = refresh_status(runs_dir)
     assert rows[0]["status"] == STATUS_DONE
     registry = load_registry(runs_dir)
     assert registry["case0001"]["status"] == STATUS_DONE
     assert registry["case0001"]["end_time"]
+
+
+def test_refresh_status_leaves_a_queued_case_queued(runs_dir: Path, case_factory, registry_factory) -> None:
+    case_dir = case_factory(runs_dir, "case0001")
+    (case_dir / "run_solver.log").write_text("END OF CALCULATION\n", encoding="utf-8")  # the previous run's
+    registry_factory(runs_dir, "case0001", case_dir, status=STATUS_PENDING)
+    registry = load_registry(runs_dir)
+    registry["case0001"]["start_time"] = (datetime.now() - timedelta(hours=1)).isoformat(timespec="seconds")
+    save_registry(runs_dir, registry)
+
+    assert refresh_status(runs_dir)[0]["status"] == STATUS_PENDING
+    assert load_registry(runs_dir)["case0001"]["status"] == STATUS_PENDING
 
 
 def test_refresh_status_skips_stale_merge_when_case_relaunched(
@@ -596,8 +619,8 @@ def test_refresh_status_skips_stale_merge_when_case_relaunched(
             save_registry(runs_dir_arg, current)
         return changed
 
-    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid: False)
-    monkeypatch.setattr("csauto.solvers.code_saturne.detect_run_outcome", lambda *_args, **_kwargs: STATUS_DONE)
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: False)
+    monkeypatch.setattr("csauto.solvers.code_saturne.scan_outcome", lambda *_args, **_kwargs: STATUS_DONE)
     monkeypatch.setattr("csauto.runner.mutate_registry", mutate_with_relaunch)
 
     rows = refresh_status(runs_dir)
@@ -664,7 +687,7 @@ def test_run_cases_releases_slot_when_running_case_has_dead_pid(
 
     monkeypatch.setattr("subprocess.Popen", lambda *_a, **_k: DummyProc())
     monkeypatch.setattr("csauto.runner.read_container_id", lambda *_a, **_k: None)
-    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid: False)
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: False)
     monkeypatch.setattr("csauto.runner._is_slurm_job_active", lambda _jid: False)
     monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
 
@@ -699,7 +722,7 @@ def test_terminate_pid_sends_sigterm_then_returns_if_dead(monkeypatch) -> None:
         signals_sent.append((pid, sig))
 
     monkeypatch.setattr("os.killpg", fake_killpg)
-    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid: False)
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: False)
 
     import signal
 
@@ -718,7 +741,7 @@ def test_terminate_pid_escalates_to_sigkill_after_grace(monkeypatch) -> None:
         signals_sent.append((pid, sig))
 
     monkeypatch.setattr("os.killpg", fake_killpg)
-    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid: True)
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: True)
     monkeypatch.setattr("csauto.runner.time.sleep", lambda _s: None)
 
     terminate_pid(42, grace=0.0)
@@ -753,7 +776,7 @@ def test_terminate_pid_falls_back_to_kill_on_permission_error(monkeypatch) -> No
 
     monkeypatch.setattr("os.killpg", fake_killpg)
     monkeypatch.setattr("os.kill", fake_kill)
-    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid: False)
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: False)
 
     terminate_pid(42, grace=0.5)
 
@@ -827,10 +850,14 @@ def test_build_restart_args_physical_time_missing_value(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _make_checkpoint(run_dir: Path) -> None:
+    (run_dir / "checkpoint").mkdir(parents=True)
+    (run_dir / "checkpoint" / "main.csc").touch()
+
+
 def test_build_restart_args_explicit_path(tmp_path: Path) -> None:
     case_dir = tmp_path / "case0001"
-    resu_dir = case_dir / "RESU" / "my_run"
-    resu_dir.mkdir(parents=True)
+    _make_checkpoint(case_dir / "RESU" / "my_run")
 
     args, details = CS_ADAPTER.build_restart_args(
         case_dir,
@@ -846,8 +873,7 @@ def test_build_restart_args_explicit_path(tmp_path: Path) -> None:
 
 def test_build_restart_args_explicit_resu_checkpoint_path(tmp_path: Path) -> None:
     case_dir = tmp_path / "case0001"
-    resu_dir = case_dir / "RESU" / "002"
-    resu_dir.mkdir(parents=True)
+    _make_checkpoint(case_dir / "RESU" / "002")
 
     args, details = CS_ADAPTER.build_restart_args(
         case_dir,
@@ -858,6 +884,17 @@ def test_build_restart_args_explicit_resu_checkpoint_path(tmp_path: Path) -> Non
 
     assert details["restart_run_id"] == "002"
     assert any("--restart=002" in arg for arg in args)
+
+
+def test_build_restart_args_run_without_checkpoint_raises(tmp_path: Path) -> None:
+    case_dir = tmp_path / "case0001"
+    (case_dir / "RESU" / "failed_run").mkdir(parents=True)
+    _make_checkpoint(case_dir / "RESU" / "good_run")
+
+    with pytest.raises(ValueError, match="failed_run of case0001 has no checkpoint"):
+        CS_ADAPTER.build_restart_args(case_dir, restart_mode=None, restart_value=None, restart_path="failed_run")
+    _, details = CS_ADAPTER.build_restart_args(case_dir, restart_mode=None, restart_value=None, restart_path=None)
+    assert details["restart_run_id"] == "good_run"
 
 
 def test_build_restart_args_invalid_path_raises(tmp_path: Path) -> None:
@@ -1002,7 +1039,7 @@ def test_refresh_status_include_doe_returns_columns(
     )
     registry_factory(runs_dir, "case0001", case_dir, status="PREPARED")
 
-    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid: False)
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: False)
 
     rows, doe_columns = refresh_status(runs_dir, include_doe=True)
     assert len(rows) == 1
@@ -1086,3 +1123,115 @@ def test_failed_launch_leaves_the_case_failed_not_pending(monkeypatch, runs_dir:
         )
 
     assert load_registry(runs_dir)["case0001"]["status"] == STATUS_FAILED
+
+
+def test_exit_status_decides_when_the_logs_give_no_verdict(runs_dir: Path, case_factory) -> None:
+    from csauto.runner import EXIT_CODE_FILE, final_outcome
+    from csauto.solvers import get_solver_adapter
+
+    case_dir = case_factory(runs_dir, "case0001")
+    adapter = get_solver_adapter("code_saturne")
+    assert final_outcome(adapter, case_dir, None) == STATUS_FAILED  # no verdict, no exit status
+    (case_dir / EXIT_CODE_FILE).write_text("0\n", encoding="utf-8")
+    assert final_outcome(adapter, case_dir, None) == STATUS_DONE
+    (case_dir / EXIT_CODE_FILE).write_text("3\n", encoding="utf-8")
+    assert final_outcome(adapter, case_dir, None) == STATUS_FAILED
+    # An exit status left by an earlier run does not count.
+    later = (datetime.now() + timedelta(minutes=5)).isoformat(timespec="seconds")
+    (case_dir / EXIT_CODE_FILE).write_text("0\n", encoding="utf-8")
+    assert final_outcome(adapter, case_dir, later) == STATUS_FAILED
+
+
+def test_a_live_process_stays_running_even_after_its_log_verdict(
+    monkeypatch, runs_dir: Path, case_factory, registry_factory
+) -> None:
+    case_dir = case_factory(runs_dir, "case0001")
+    (case_dir / "run_solver.log").write_text("END OF CALCULATION\n", encoding="utf-8")
+    start = (datetime.now() - timedelta(seconds=5)).isoformat(timespec="seconds")
+    with registry_transaction(runs_dir) as registry:
+        update_case(registry, "case0001", path=str(case_dir), status=STATUS_RUNNING, pid=4242, start_time=start)
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: True)
+    assert refresh_status(runs_dir)[0]["status"] == STATUS_RUNNING
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: False)
+    assert refresh_status(runs_dir)[0]["status"] == STATUS_DONE
+
+
+def test_a_reused_pid_counts_as_dead(monkeypatch) -> None:
+    import os
+
+    from csauto import runner
+
+    monkeypatch.setattr(runner, "_is_zombie", lambda _pid: False)
+    identity = runner.process_identity(os.getpid())
+    assert identity and identity.count(":") >= 1
+    assert runner.is_process_alive(os.getpid(), identity=identity)
+    assert not runner.is_process_alive(os.getpid(), identity="another-boot:123")
+    # No identity recorded (older records): only the PID counts.
+    assert runner.is_process_alive(os.getpid())
+
+
+def test_a_pid_owned_by_another_user_is_still_checked_by_identity(monkeypatch) -> None:
+    from csauto import runner
+
+    def denied(_pid, _signal):
+        raise PermissionError
+
+    monkeypatch.setattr(runner.os, "kill", denied)
+    monkeypatch.setattr(runner, "_is_zombie", lambda _pid: False)
+    monkeypatch.setattr(runner, "process_identity", lambda _pid: "boot:999")
+    assert runner.is_process_alive(4242, identity="boot:999")
+    assert not runner.is_process_alive(4242, identity="boot:1")
+    # procfs unreadable: the PID is all there is to go on.
+    monkeypatch.setattr(runner, "process_identity", lambda _pid: None)
+    assert runner.is_process_alive(4242, identity="boot:1")
+
+
+def test_a_refused_launch_restores_the_case_and_continues_the_batch(monkeypatch, runs_dir: Path, case_factory) -> None:
+    for case_id in ("case0001", "case0002"):
+        case_factory(runs_dir, case_id)
+    with registry_transaction(runs_dir) as registry:
+        update_case(registry, "case0001", status=STATUS_DONE)
+        update_case(registry, "case0002", status=STATUS_PREPARED)
+    started: list[str] = []
+
+    def restart_stub(self, case_dir, *_args):
+        if case_dir.name == "case0001":
+            raise ValueError("No checkpoint found for case0001")
+        started.append(case_dir.name)
+        return [], {}
+
+    monkeypatch.setattr("csauto.solvers.code_saturne.CodeSaturneAdapter.build_restart_args", restart_stub)
+    monkeypatch.setattr("csauto.runner._launch_local", lambda case_dir, case_id, *_a: started.append("launched"))
+    saturne_bin = runs_dir / "code_saturne"
+    saturne_bin.write_text("#!/bin/sh\n", encoding="utf-8")
+    saturne_bin.chmod(0o755)
+
+    with pytest.raises(RuntimeError, match="1 case\\(s\\) not launched: case0001: No checkpoint"):
+        run_cases(runs_dir, 1, 1, 1, runtime="native", saturne_bin=str(saturne_bin), restart=True, source="test")
+
+    registry = load_registry(runs_dir)
+    assert registry["case0001"]["status"] == STATUS_DONE  # not stranded in PENDING
+    assert started == ["case0002", "launched"]
+
+
+def test_cases_with_custom_ids_are_found(runs_dir: Path) -> None:
+    from csauto.registry import campaign_case_dirs
+
+    for case_id in ("mesh.fine", "run-A"):
+        (runs_dir / case_id).mkdir()
+        (runs_dir / case_id / "doe_row.csv").write_text(f"case_id\n{case_id}\n", encoding="utf-8")
+    (runs_dir / "MESH").mkdir()
+    assert [p.name for p in campaign_case_dirs(runs_dir)] == ["mesh.fine", "run-A"]
+
+
+def test_a_finished_child_is_dead_without_procfs(monkeypatch) -> None:
+    import subprocess
+    import sys
+    import time
+
+    from csauto import runner
+
+    proc = subprocess.Popen([sys.executable, "-c", "pass"])
+    time.sleep(0.5)  # exited, never reaped: a zombie
+    monkeypatch.setattr(runner, "_is_zombie", lambda pid: False)  # what macOS reports
+    assert runner.is_process_alive(proc.pid) is False

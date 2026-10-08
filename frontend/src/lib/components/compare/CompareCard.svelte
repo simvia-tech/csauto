@@ -15,7 +15,7 @@
   import { getRows, getDoeColumns } from "$lib/stores/status.svelte";
   import Icon from "$lib/components/shared/Icon.svelte";
   import Button from "$lib/components/shared/Button.svelte";
-  import { ArrowLeftRight } from "lucide-svelte";
+  import { ArrowLeftRight } from "@lucide/svelte";
 
   interface Props {
     allCases: string[];
@@ -36,12 +36,7 @@
 
   /* Comparable files come from the solver adapter via /api/app_config; this
      list is only the fallback for older backends. */
-  const FALLBACK_KINDS = [
-    { value: "setup.xml", label: "setup.xml" },
-    { value: "doe_row.csv", label: "doe_row.csv" },
-    { value: "run_solver.log", label: "run_solver.log" },
-    { value: "performance.log", label: "performance.log" },
-  ];
+  const FALLBACK_KINDS = [{ value: "doe_row.csv", label: "doe_row.csv" }];
   let kindOptions = $derived(getAppConfig()?.compare_kinds ?? FALLBACK_KINDS);
   $effect(() => {
     if (!kindOptions.some((option) => option.value === kind)) {

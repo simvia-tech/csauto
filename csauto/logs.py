@@ -14,9 +14,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from .pathutil import is_within_root, safe_subpath
+from .pathutil import is_within_root
 from .registry import STATUS_DONE, STATUS_FAILED
-from .template import find_setup_file
 from .warn import warn
 
 
@@ -26,8 +25,10 @@ def _default_adapter():
     return get_solver_adapter(None)
 
 
-ANOMALY_FILES_DEFAULT = ("csauto.stderr", "run_solver.log", "listing", "csauto.stdout")
-ANOMALY_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
+# Anomaly vocabulary any computation can produce. Adapters extend it with
+# their own `anomaly_patterns` and silence false positives with
+# `anomaly_ignore_patterns`.
+GENERIC_ANOMALY_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "error",
         re.compile(
@@ -37,31 +38,13 @@ ANOMALY_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
             re.IGNORECASE,
         ),
     ),
-    (
-        "warn",
-        re.compile(
-            r"(warning|divergence|unstable|not converged|cfl|clipping|limit reached)",
-            re.IGNORECASE,
-        ),
-    ),
-]
-ANOMALY_SEVERITY = {"error": 2, "warn": 1, "info": 0}
+    ("warn", re.compile(r"(warning|limit reached)", re.IGNORECASE)),
+)
+ANOMALY_SEVERITY = {"error": 2, "warn": 1}
 ANOMALY_CONTEXT_DEFAULT = 6
 ANOMALY_CONTEXT_MAX = 50
 ANOMALY_FILE_CACHE_MAX = 256
 ANOMALY_FILE_HITS_MAX = 512
-ANOMALY_IGNORE_PATTERNS = [
-    re.compile(r"\bno error detected\b", re.IGNORECASE),
-    re.compile(r"\bno errors detected\b", re.IGNORECASE),
-]
-RESTART_ITER_PATTERNS = [
-    re.compile(r"\bnt_prev\b\s*[:=]\s*(\d+)", re.IGNORECASE),
-    re.compile(r"NUMBER OF THE PREVIOUS TIME STEP\s+nt_prev\s*=\s*(\d+)", re.IGNORECASE),
-]
-RESTART_TIME_PATTERNS = [
-    re.compile(r"\bt_prev\b\s*[:=]\s*([-+0-9.eE]+)", re.IGNORECASE),
-    re.compile(r"physical time\s+([-+0-9.eE]+)", re.IGNORECASE),
-]
 ANOMALY_CACHE_LOCK = threading.RLock()
 ANOMALY_FILE_CACHE: OrderedDict[str, AnomalyFileCache] = OrderedDict()
 
@@ -91,19 +74,23 @@ class AnomalyFileCache:
     pending_hits: deque[CachedAnomaly]
 
 
-def highlight_anomaly_line(line: str) -> tuple[str, str] | None:
+def highlight_anomaly_line(
+    line: str,
+    patterns: Sequence[tuple[str, re.Pattern[str]]] = GENERIC_ANOMALY_PATTERNS,
+    ignore_patterns: Sequence[re.Pattern[str]] = (),
+) -> tuple[str, str] | None:
     """Highlight anomaly matches in a line and return (html, severity)."""
     if not line.strip():
         return None
-    for pattern in ANOMALY_IGNORE_PATTERNS:
+    for pattern in ignore_patterns:
         if pattern.search(line):
             return None
     matches: list[tuple[int, int]] = []
     severity: str | None = None
-    for label, pattern in ANOMALY_PATTERNS:
+    for label, pattern in patterns:
         for match in pattern.finditer(line):
             matches.append((match.start(), match.end()))
-            if severity is None or ANOMALY_SEVERITY[label] > ANOMALY_SEVERITY.get(severity, -1):
+            if severity is None or ANOMALY_SEVERITY.get(label, 0) > ANOMALY_SEVERITY.get(severity, -1):
                 severity = label
     if not matches:
         return None
@@ -122,7 +109,7 @@ def highlight_anomaly_line(line: str) -> tuple[str, str] | None:
         parts.append(f'<span class="err-hit">{html_lib.escape(line[start:end])}</span>')
         last = end
     parts.append(html_lib.escape(line[last:]))
-    return "".join(parts), severity or "info"
+    return "".join(parts), severity or "warn"
 
 
 def _new_anomaly_file_cache(path: Path, *, device: int | None, inode: int | None) -> AnomalyFileCache:
@@ -179,7 +166,14 @@ def _append_anomaly_hit(cache: AnomalyFileCache, hit: CachedAnomaly) -> None:
             cache.pending_hits.remove(dropped)
 
 
-def _scan_anomaly_file(path: Path) -> AnomalyFileCache | None:
+# ponytail: the cache is keyed by path only, so hits found with one adapter's
+# patterns are reused by another; key it by adapter too if a process ever
+# serves several solvers.
+def _scan_anomaly_file(
+    path: Path,
+    patterns: Sequence[tuple[str, re.Pattern[str]]],
+    ignore_patterns: Sequence[re.Pattern[str]],
+) -> AnomalyFileCache | None:
     try:
         stat = path.stat()
     except OSError:
@@ -220,7 +214,7 @@ def _scan_anomaly_file(path: Path) -> AnomalyFileCache | None:
                         still_pending.append(pending)
                 cache.pending_hits = still_pending
 
-                highlighted = highlight_anomaly_line(raw_line)
+                highlighted = highlight_anomaly_line(raw_line, patterns, ignore_patterns)
                 if highlighted:
                     html_line, severity = highlighted
                     _append_anomaly_hit(
@@ -259,6 +253,7 @@ def collect_recent_errors(
         return []
     adapter = adapter or _default_adapter()
     files_to_scan = [f for f in (files or adapter.anomaly_file_names) if f]
+    patterns = (*GENERIC_ANOMALY_PATTERNS, *adapter.anomaly_patterns)
     max_hits = max(1, min(max_hits, 500))
     context_after = max(0, min(context_after, ANOMALY_CONTEXT_MAX))
     allowed = {s.lower() for s in severity_filter} if severity_filter else None
@@ -270,7 +265,7 @@ def collect_recent_errors(
             continue
         seen_paths: set[str] = set()
         for name in files_to_scan:
-            path = adapter.locate_case_file(case_dir, name)
+            path = find_case_file(case_dir, name, adapter)
             if not path or not path.is_file():
                 continue
             # Aliased names (adapters mapping several conventional names onto
@@ -279,7 +274,7 @@ def collect_recent_errors(
             if resolved_key in seen_paths:
                 continue
             seen_paths.add(resolved_key)
-            cache = _scan_anomaly_file(path)
+            cache = _scan_anomaly_file(path, patterns, adapter.anomaly_ignore_patterns)
             if cache is None:
                 continue
             if not cache.hits:
@@ -326,131 +321,64 @@ def collect_recent_errors(
     return results
 
 
-def locate_case_file(case_dir: Path, name: str) -> Path | None:
-    """Find a file in a case directory by a friendly name."""
-    # Direct path support (relative to case_dir only)
-    direct = safe_subpath(case_dir, name)
-    if direct and direct.is_file():
-        return direct
+def list_tail_files(case_dir: Path, adapter=None) -> list[str]:
+    """Log files of a case for the Log Tail panel, best first, without duplicates.
 
-    # Common known files with RESU search
-    if name in {"listing", "run_solver.log", "residuals.csv", "run_status.running", "performance.log"}:
-        resu_root = case_dir / "RESU"
-        if resu_root.is_dir():
-            resu_dirs = [d for d in resu_root.iterdir() if d.is_dir()]
-            resu_dirs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-            for resu_dir in resu_dirs:
-                candidate = resu_dir / name
-                if candidate.is_file() and is_within_root(candidate, case_dir.resolve()):
-                    return candidate
-    # Known root-level files
-    for candidate in [case_dir / "csauto.stdout", case_dir / "csauto.stderr"]:
-        if candidate.name == name and candidate.is_file():
-            return candidate
-    if name == "setup.xml":
-        try:
-            return find_setup_file(case_dir)
-        except (FileNotFoundError, ValueError):
-            return None
-    if name == "doe_row.csv":
-        candidate = case_dir / "doe_row.csv"
-        if candidate.is_file():
-            return candidate
-    return None
+    Each `tail_file_names` entry the adapter resolves comes first, under its
+    friendly name. Glob entries (such as "*.mess") match files in the case
+    folder and in the latest run folder. Other *.log files of the latest run
+    follow.
+    """
+    adapter = adapter or _default_adapter()
+    files: list[str] = []
+    seen: set[Path] = set()
+
+    def add(name: str, path: Path) -> None:
+        resolved = path.resolve()
+        if path.is_file() and resolved not in seen:
+            seen.add(resolved)
+            files.append(name)
+
+    run_dirs = adapter.list_run_dirs(case_dir)
+    latest = run_dirs[0] if run_dirs else None
+    older_runs = [run_dir.resolve() for run_dir in run_dirs[1:]]
+    folders = [case_dir, *([latest] if latest and latest != case_dir else [])]
+    for name in adapter.tail_file_names:
+        if any(char in name for char in "*?["):
+            for folder in folders:
+                for path in sorted(folder.glob(name)):
+                    add(path.relative_to(case_dir).as_posix(), path)
+            continue
+        path = find_case_file(case_dir, name, adapter)
+        # A previous run's copy would pass for the current run's log while a new run starts.
+        if path and not any(is_within_root(path, run_dir) for run_dir in older_runs):
+            add(name, path)
+    if latest:
+        for path in sorted(latest.glob("*.log")):
+            add(path.relative_to(case_dir).as_posix(), path)
+    return files
+
+
+def find_case_file(case_dir: Path, name: str, adapter=None) -> Path | None:
+    """adapter.locate_case_file, refused when the file it finds lies outside the case folder.
+
+    Names come from API requests too, so core code goes through here instead of
+    trusting every adapter override to stay inside the case.
+    """
+    adapter = adapter or _default_adapter()
+    path = adapter.locate_case_file(case_dir, name)
+    return path if path and is_within_root(path, case_dir.resolve()) else None
 
 
 def read_case_file_text(case_dir: Path, name: str, adapter=None) -> str:
     """Read a case file content as text."""
-    adapter = adapter or _default_adapter()
-    path = adapter.locate_case_file(case_dir, name)
+    path = find_case_file(case_dir, name, adapter)
     if not path:
         raise FileNotFoundError(f"File {name} not found for {case_dir.name}")
     return path.read_text(encoding="utf-8", errors="ignore")
 
 
-def extract_restart_origin(case_dir: Path) -> dict[str, int | float]:
-    """Extract restart origin (iteration/time) from the latest RESU run, if any."""
-    resu_root = case_dir / "RESU"
-    if not resu_root.is_dir():
-        return {}
-    try:
-        resu_dirs = [p for p in resu_root.iterdir() if p.is_dir()]
-        resu_dirs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-    except OSError:
-        return {}
-    latest = resu_dirs[0] if resu_dirs else None
-    if latest is None:
-        return {}
-
-    iter_value: int | None = None
-    time_value: float | None = None
-    for candidate in (latest / "setup.log", latest / "run_solver.log", latest / "listing"):
-        if not candidate.is_file():
-            continue
-        lines = read_tail_lines(candidate, lines=12000)
-        if not lines:
-            continue
-        for raw in reversed(lines):
-            if iter_value is None:
-                for pattern in RESTART_ITER_PATTERNS:
-                    match = pattern.search(raw)
-                    if not match:
-                        continue
-                    try:
-                        iter_value = int(match.group(1))
-                    except (ValueError, TypeError):
-                        iter_value = None
-                    if iter_value is not None:
-                        break
-            if time_value is None:
-                for pattern in RESTART_TIME_PATTERNS:
-                    match = pattern.search(raw)
-                    if not match:
-                        continue
-                    try:
-                        time_value = float(match.group(1))
-                    except (ValueError, TypeError):
-                        time_value = None
-                    if time_value is not None:
-                        break
-            if iter_value is not None and time_value is not None:
-                break
-        if iter_value is not None and time_value is not None:
-            break
-
-    result: dict[str, int | float] = {}
-    if iter_value is not None and iter_value >= 0:
-        result["iteration"] = iter_value
-    if time_value is not None and time_value >= 0:
-        result["time"] = time_value
-    return result
-
-
-def extract_last_iteration(log_path: Path) -> int | None:
-    """Extract the last iteration number from a log file, if possible."""
-    patterns = [
-        re.compile(r"[Ii]teration\s+(\d+)"),
-        re.compile(r"[Tt]ime\s+step\s+(\d+)"),
-        re.compile(r"Iter\s*=\s*(\d+)"),
-    ]
-    try:
-        with log_path.open("r", encoding="utf-8", errors="ignore") as handle:
-            recent_lines = deque(handle, maxlen=400)
-    except OSError:
-        return None
-
-    for line in reversed(recent_lines):
-        for pattern in patterns:
-            match = pattern.search(line)
-            if match:
-                try:
-                    return int(match.group(1))
-                except ValueError:
-                    continue
-    return None
-
-
-def _parse_start_time(start_time: str | None) -> float | None:
+def parse_start_time(start_time: str | None) -> float | None:
     """Parse an ISO start_time into a timestamp (seconds)."""
     if not start_time:
         return None
@@ -460,7 +388,8 @@ def _parse_start_time(start_time: str | None) -> float | None:
         return None
 
 
-def _is_recent(path: Path, start_ts: float | None) -> bool:
+def is_recent(path: Path, start_ts: float | None) -> bool:
+    """True when the file was written at or after the run start (any file counts without a start)."""
     if start_ts is None:
         return True
     try:
@@ -469,154 +398,29 @@ def _is_recent(path: Path, start_ts: float | None) -> bool:
         return False
 
 
-def locate_log_file(case_dir: Path, start_time: str | None = None) -> Path | None:
-    """Find a log file to extract iteration information."""
-    start_ts = _parse_start_time(start_time)
-    candidates: list[Path] = [
-        case_dir / "listing",
-        case_dir / "listing.txt",
-        case_dir / "listing.log",
-        case_dir / "listing.out",
-        case_dir / "csauto.stdout",
-    ]
-    for name in ("run_solver.log", "listing"):
-        path = locate_case_file(case_dir, name)
-        if path:
-            candidates.append(path)
-    seen: set[Path] = set()
-    filtered: list[Path] = []
-    for path in candidates:
-        if path in seen:
+def scan_outcome(
+    paths: Sequence[Path],
+    start_time: str | None,
+    success_patterns: Sequence[re.Pattern[str]],
+    failure_patterns: Sequence[re.Pattern[str]],
+    ignore_patterns: Sequence[re.Pattern[str]] = (),
+    lines: int = 400,
+) -> str | None:
+    """Return STATUS_DONE / STATUS_FAILED from the first log of the current run whose tail gives a verdict."""
+    start_ts = parse_start_time(start_time)
+    for path in paths:
+        if not path.is_file() or not is_recent(path, start_ts):
             continue
-        seen.add(path)
-        if path.is_file() and _is_recent(path, start_ts):
-            filtered.append(path)
-    if not filtered:
-        return None
-    preferred = [
-        p for p in filtered if p.name in {"run_solver.log", "listing", "listing.txt", "listing.log", "listing.out"}
-    ]
-    if preferred:
-        return max(preferred, key=lambda p: p.stat().st_mtime)
-    return max(filtered, key=lambda p: p.stat().st_mtime)
-
-
-def locate_run_status_file(case_dir: Path, start_time: str | None = None) -> Path | None:
-    """Find the most recent run_status.running file in RESU/*."""
-    start_ts = _parse_start_time(start_time)
-    resu_root = case_dir / "RESU"
-    if not resu_root.is_dir():
-        return None
-    candidates: list[Path] = []
-    for sub in resu_root.iterdir():
-        candidate = sub / "run_status.running"
-        if candidate.is_file() and _is_recent(candidate, start_ts):
-            candidates.append(candidate)
-    if not candidates:
-        return None
-    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-    return candidates[0]
-
-
-def extract_run_status_iteration(status_path: Path) -> int | None:
-    """Extract iteration/time step from run_status.running."""
-    try:
-        content = status_path.read_text(encoding="utf-8", errors="ignore")
-    except OSError:
-        return None
-    match = re.search(r"time step:\s*(\d+)", content, re.IGNORECASE)
-    if match:
-        try:
-            return int(match.group(1))
-        except ValueError:
-            return None
-    return None
-
-
-def detect_run_outcome(case_dir: Path, start_time: str | None = None) -> str | None:
-    """Determine if the run finished successfully based on solver/listing logs."""
-    success_patterns = [
-        re.compile(r"END OF CALCULATION", re.IGNORECASE),
-        re.compile(r"FINAL STAGE OF THE CALCULATION", re.IGNORECASE),
-        re.compile(r"CALCULATION COMPLETED", re.IGNORECASE),
-        re.compile(r"Calculation ended normally", re.IGNORECASE),
-    ]
-    failure_patterns = [
-        re.compile(r"FATAL ERROR", re.IGNORECASE),
-        re.compile(r"ERROR DETECTED", re.IGNORECASE),
-    ]
-
-    def has_failure(lines: list[str]) -> bool:
-        for line in lines:
-            if any(pattern.search(line) for pattern in ANOMALY_IGNORE_PATTERNS):
-                continue
-            if any(pattern.search(line) for pattern in failure_patterns):
-                return True
-        return False
-
-    candidates: list[Path] = []
-    start_ts = _parse_start_time(start_time)
-    candidates.extend(
-        [
-            case_dir / "run_solver.log",
-            case_dir / "listing",
-        ]
-    )
-    resu_root = case_dir / "RESU"
-    if resu_root.is_dir():
-        resu_dirs = [d for d in resu_root.iterdir() if d.is_dir()]
-        resu_dirs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-        for resu_dir in resu_dirs:
-            candidates.extend([resu_dir / "run_solver.log", resu_dir / "listing"])
-
-    for path in candidates:
-        if not path.is_file():
-            continue
-        if not _is_recent(path, start_ts):
-            continue
-        lines = read_tail_lines(path, lines=400)
-        joined = "\n".join(lines)
+        tail = read_tail_lines(path, lines=lines)
+        joined = "\n".join(tail)
         if any(p.search(joined) for p in success_patterns):
             return STATUS_DONE
-        if has_failure(lines):
-            return STATUS_FAILED
+        for line in tail:
+            if any(p.search(line) for p in ignore_patterns):
+                continue
+            if any(p.search(line) for p in failure_patterns):
+                return STATUS_FAILED
     return None
-
-
-def list_resu_files(
-    case_dir: Path,
-    limit: int = 2000,
-    latest_subdir_only: bool = False,
-) -> list[str]:
-    """Return result files under RESU/ (no deep subfolders), relative to the case directory."""
-    resu_root = case_dir / "RESU"
-    if not resu_root.is_dir():
-        return []
-    files: list[str] = []
-    if latest_subdir_only:
-        subdirs = [p for p in resu_root.iterdir() if p.is_dir()]
-        if not subdirs:
-            return []
-        latest = max(subdirs, key=lambda p: p.stat().st_mtime)
-        for path in sorted(latest.iterdir()):
-            if path.is_file():
-                files.append(str(path.relative_to(case_dir)))
-                if len(files) >= limit:
-                    return files
-        return files
-
-    for path in sorted(resu_root.iterdir()):
-        if path.is_file():
-            files.append(str(path.relative_to(case_dir)))
-            if len(files) >= limit:
-                return files
-    for sub in sorted(p for p in resu_root.iterdir() if p.is_dir()):
-        for path in sorted(sub.iterdir()):
-            if path.is_file():
-                files.append(str(path.relative_to(case_dir)))
-                if len(files) >= limit:
-                    return files
-    return files
 
 
 def read_tail_lines(path: Path, lines: int = 20) -> list[str]:
@@ -631,7 +435,7 @@ def read_tail_lines(path: Path, lines: int = 20) -> list[str]:
 def tail_log(
     runs_dir: Path,
     case: str,
-    file_name: str,
+    file_name: str | None,
     lines: int = 20,
     follow: bool = True,
     adapter=None,
@@ -642,26 +446,20 @@ def tail_log(
         raise FileNotFoundError(f"Case not found: {case}")
 
     adapter = adapter or _default_adapter()
-    path = adapter.locate_case_file(case_dir, file_name)
+    file_name = file_name or next(iter(list_tail_files(case_dir, adapter)), adapter.tail_file_names[0])
+    path = find_case_file(case_dir, file_name, adapter)
     if not path:
         raise FileNotFoundError(f"File {file_name} not found for {case}")
 
     print(f"Tailing {path}")
+    if lines > 0:
+        sys.stdout.writelines(read_tail_lines(path, lines))
+        sys.stdout.flush()
+    if not follow:
+        return
     with path.open("r", encoding="utf-8", errors="ignore") as handle:
+        handle.seek(0, os.SEEK_END)
         try:
-            handle.seek(0, os.SEEK_END)
-            file_size = handle.tell()
-            handle.seek(max(0, file_size - 4096))
-            buffer = handle.readlines()
-            if lines > 0:
-                buffer = buffer[-lines:]
-            for line in buffer:
-                sys.stdout.write(line)
-            sys.stdout.flush()
-
-            if not follow:
-                return
-
             while True:
                 where = handle.tell()
                 line = handle.readline()
@@ -673,136 +471,6 @@ def tail_log(
                     sys.stdout.flush()
         except KeyboardInterrupt:
             return
-
-
-PERFORMANCE_FIELDS = (
-    "elapsed_time",
-    "mpi_ranks",
-    "threads",
-    "io_time",
-    "linear_solver_time",
-    "gradients_time",
-    "balances_time",
-)
-
-
-def parse_performance_log(path: Path) -> dict[str, str | None]:
-    """Extract timing and parallel metrics from a performance.log file."""
-    try:
-        content = path.read_text(encoding="utf-8", errors="ignore")
-    except OSError:
-        return dict.fromkeys(PERFORMANCE_FIELDS, None)
-
-    value_pattern = r"([0-9.+\-eE]+)"
-    patterns = {
-        "elapsed_time": [
-            re.compile(rf"(?<!total\s)elapsed time\s*[:=]\s*{value_pattern}", re.IGNORECASE),
-            re.compile(rf"total\s+elapsed time\s*[:=]\s*{value_pattern}", re.IGNORECASE),
-        ],
-        "mpi_ranks": [re.compile(r"(?:mpi\s+(?:tasks|ranks)|number of tasks)\s*[:=]\s*(\d+)", re.IGNORECASE)],
-        "threads": [re.compile(r"(?:(?:omp|openmp)\s+)?(?:threads?|thread\(s\)?)\s*[:=]\s*(\d+)", re.IGNORECASE)],
-        "io_time": [
-            re.compile(rf"(?:i/?o|input\s*/\s*output)\s+time(?:\s*\(s\))?\s*[:=]\s*{value_pattern}", re.IGNORECASE),
-            re.compile(
-                rf"total\s+elapsed\s+time\s+for\s+(?:all\s+)?(?:i/?o|input\s*/\s*output)(?:\s+operations?)?\s*[:=]\s*{value_pattern}",
-                re.IGNORECASE,
-            ),
-            re.compile(
-                rf"time\s+(?:for|spent in)\s+(?:i/?o|input\s*/\s*output)(?:\s*\(s\))?\s*[:=]?\s*{value_pattern}",
-                re.IGNORECASE,
-            ),
-        ],
-        "linear_solver_time": [
-            re.compile(
-                rf"(?:linear(?:\s+equation)?\s+solver|linear\s+system\s+solver)\s+time(?:\s*\(s\))?\s*[:=]\s*{value_pattern}",
-                re.IGNORECASE,
-            ),
-            re.compile(
-                rf"total\s+elapsed\s+time\s+for\s+(?:all\s+)?linear(?:\s+equation)?\s+system\s+solvers?\s*[:=]\s*{value_pattern}",
-                re.IGNORECASE,
-            ),
-            re.compile(
-                rf"time\s+(?:for|spent in)\s+(?:the\s+)?(?:linear(?:\s+equation)?\s+solver|linear\s+system\s+solver)"
-                rf"(?:\s*\(s\))?\s*[:=]?\s*{value_pattern}",
-                re.IGNORECASE,
-            ),
-        ],
-        "gradients_time": [
-            re.compile(
-                rf"(?:gradients?|gradient computations?)\s+time(?:\s*\(s\))?\s*[:=]\s*{value_pattern}",
-                re.IGNORECASE,
-            ),
-            re.compile(
-                rf"total\s+elapsed\s+time\s+for\s+(?:all\s+)?gradient(?:\s+computations?)?\s*[:=]\s*{value_pattern}",
-                re.IGNORECASE,
-            ),
-            re.compile(
-                rf"time\s+(?:for|spent in)\s+(?:gradients?|gradient computations?)(?:\s*\(s\))?\s*[:=]?\s*{value_pattern}",
-                re.IGNORECASE,
-            ),
-        ],
-        "balances_time": [
-            re.compile(
-                rf"(?:balances?|balance computations?)\s+time(?:\s*\(s\))?\s*[:=]\s*{value_pattern}",
-                re.IGNORECASE,
-            ),
-            re.compile(
-                rf"total\s+elapsed\s+time\s+for\s+(?:all\s+)?balances?(?:\s+computations?)?\s*[:=]\s*{value_pattern}",
-                re.IGNORECASE,
-            ),
-            re.compile(
-                rf"time\s+(?:for|spent in)\s+(?:balances?|balance computations?)(?:\s*\(s\))?\s*[:=]?\s*{value_pattern}",
-                re.IGNORECASE,
-            ),
-        ],
-    }
-    result: dict[str, str | None] = dict.fromkeys(PERFORMANCE_FIELDS, None)
-    for key in PERFORMANCE_FIELDS:
-        for pattern in patterns.get(key, []):
-            match = pattern.search(content)
-            if match:
-                result[key] = match.group(1)
-                break
-    if result["io_time"] is None:
-        io_total = 0.0
-        io_found = False
-        io_blocks = re.findall(
-            r"code_saturne\s+IO\s+files\s+(?:read|written)\s*:(.*?)(?=^\s*-{10,}\s*$|\Z)",
-            content,
-            flags=re.IGNORECASE | re.DOTALL | re.MULTILINE,
-        )
-        for block in io_blocks:
-            for match in re.finditer(
-                r"^\s*(?:global|local|open)\s*:\s*([0-9.+\-eE]+)\s*s\b",
-                block,
-                flags=re.IGNORECASE | re.MULTILINE,
-            ):
-                try:
-                    io_total += float(match.group(1))
-                    io_found = True
-                except ValueError:
-                    continue
-        if io_found:
-            result["io_time"] = format(io_total, ".6g")
-    return result
-
-
-def find_latest_performance_log(case_dir: Path) -> Path | None:
-    """Locate the most recent performance.log in RESU subdirectories."""
-    resu_root = case_dir / "RESU"
-    if not resu_root.is_dir():
-        return None
-    candidates: list[Path] = []
-    for resu_dir in resu_root.iterdir():
-        if not resu_dir.is_dir():
-            continue
-        candidate = resu_dir / "performance.log"
-        if candidate.is_file():
-            candidates.append(candidate)
-    if not candidates:
-        return None
-    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-    return candidates[0]
 
 
 def read_performance_rows(runs_dir: Path, cases: Sequence[str], adapter=None) -> list[dict[str, str | None]]:
@@ -821,7 +489,7 @@ def read_performance_rows(runs_dir: Path, cases: Sequence[str], adapter=None) ->
         perf_path = adapter.find_performance_log(case_dir)
         if not perf_path:
             if adapter.results_root(case_dir).is_dir():
-                warn(f"performance.log not found for {case_id}")
+                warn(f"performance log not found for {case_id}")
             continue
         metrics = adapter.parse_performance(perf_path)
         rec: dict[str, str | None] = {"case_id": case_id}
@@ -852,24 +520,17 @@ def collect_performance(runs_dir: Path, cases: Sequence[str], output_path: Path 
 
 __all__ = [
     "ANOMALY_CONTEXT_DEFAULT",
-    "ANOMALY_FILES_DEFAULT",
-    "ANOMALY_IGNORE_PATTERNS",
-    "ANOMALY_PATTERNS",
     "ANOMALY_SEVERITY",
+    "GENERIC_ANOMALY_PATTERNS",
     "collect_performance",
     "collect_recent_errors",
-    "detect_run_outcome",
-    "extract_last_iteration",
-    "extract_run_status_iteration",
-    "find_latest_performance_log",
     "highlight_anomaly_line",
-    "list_resu_files",
-    "locate_case_file",
-    "locate_log_file",
-    "locate_run_status_file",
-    "parse_performance_log",
+    "is_recent",
+    "list_tail_files",
+    "parse_start_time",
     "read_case_file_text",
     "read_performance_rows",
     "read_tail_lines",
+    "scan_outcome",
     "tail_log",
 ]

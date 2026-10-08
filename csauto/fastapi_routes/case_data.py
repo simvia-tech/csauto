@@ -1,7 +1,13 @@
 import math
 from typing import Annotated, Any
 
-from ..logs import read_tail_lines
+from ..logs import (
+    GENERIC_ANOMALY_PATTERNS,
+    find_case_file,
+    highlight_anomaly_line,
+    list_tail_files,
+    read_tail_lines,
+)
 from ..probes import probe_columns, probe_position, render_probe_svg
 from ..web_support import log_case_action
 from .common import shared_models
@@ -24,8 +30,16 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
 
     class TailQuery(BaseModel):
         case: str | None = None
-        file: str = "listing"
+        file: str | None = None
         n: int = Field(default=200, ge=1)
+
+    class TailLineModel(BaseModel):
+        text: str
+        severity: str | None = None
+
+    class TailLinesResponse(BaseModel):
+        file: str
+        lines: list[TailLineModel]
 
     class ResuFilesQuery(BaseModel):
         case: str | None = None
@@ -33,7 +47,7 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
 
     class ProbesQuery(BaseModel):
         case: list[str] | None = None
-        scope: str = "monitoring"
+        scope: str = "probes"
         limit: int = Field(default=200, ge=1)
 
     class ProbePositionQuery(BaseModel):
@@ -51,6 +65,11 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
         x_min: float | None = None
         time_min: float = 0.0
 
+    def _default_tail_file(case_dir: Any) -> str:
+        """The best log the case has, else the adapter's preferred name (for the 404 message)."""
+        files = list_tail_files(case_dir, ctx.adapter) if case_dir.is_dir() else []
+        return files[0] if files else ctx.adapter.tail_file_names[0]
+
     @app.get("/api/tail", response_model=None)
     def api_tail(
         request: Request,
@@ -61,17 +80,50 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
         ctx.require_auth(x_csauto_token, authorization)
         case_id = ctx.validate_case(query.case)
         case_dir = ctx.runs_dir / case_id
-        file_path = ctx.adapter.locate_case_file(case_dir, query.file) if case_dir.is_dir() else None
+        file_name = query.file or _default_tail_file(case_dir)
+        file_path = find_case_file(case_dir, file_name, ctx.adapter) if case_dir.is_dir() else None
         if not file_path:
-            raise ctx.http_exception_cls(status_code=404, detail=f"File {query.file} not found for {case_id}")
+            raise ctx.http_exception_cls(status_code=404, detail=f"File {file_name} not found for {case_id}")
         log_case_action(
             ctx.runs_dir,
             case_id,
             "tail",
-            {"file": query.file, "lines": query.n},
+            {"file": file_name, "lines": query.n},
             actor=request.client.host if request.client else None,
         )
         return PlainTextResponse("".join(read_tail_lines(file_path, query.n)))
+
+    @app.get("/api/tail_files", response_model=StringListResponse)
+    def api_tail_files(
+        query: Annotated[CaseQuery, Query()],
+        x_csauto_token: str | None = Header(default=None),
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        """Log files the Log Tail panel can show for a case, best first."""
+        ctx.require_auth(x_csauto_token, authorization)
+        _case_id, case_dir = ctx.validated_case_dir(query.case)
+        return {"files": list_tail_files(case_dir, ctx.adapter)}
+
+    @app.get("/api/tail_lines", response_model=TailLinesResponse)
+    def api_tail_lines(
+        query: Annotated[TailQuery, Query()],
+        x_csauto_token: str | None = Header(default=None),
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        """Last lines of a case file, each with the severity the solver's anomaly patterns give it."""
+        ctx.require_auth(x_csauto_token, authorization)
+        case_id, case_dir = ctx.validated_case_dir(query.case)
+        file_name = query.file or _default_tail_file(case_dir)
+        file_path = find_case_file(case_dir, file_name, ctx.adapter)
+        if not file_path:
+            raise ctx.http_exception_cls(status_code=404, detail=f"File {file_name} not found for {case_id}")
+        patterns = (*GENERIC_ANOMALY_PATTERNS, *ctx.adapter.anomaly_patterns)
+        lines = []
+        for raw in read_tail_lines(file_path, query.n):
+            text = raw.rstrip("\n")
+            hit = highlight_anomaly_line(text, patterns, ctx.adapter.anomaly_ignore_patterns)
+            lines.append({"text": text, "severity": hit[1] if hit else None})
+        return {"file": file_name, "lines": lines}
 
     @app.get("/api/resu_files", response_model=StringListResponse)
     def api_resu_files(
@@ -102,8 +154,8 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
     ) -> dict[str, Any]:
         ctx.require_auth(x_csauto_token, authorization)
         case_ids = ctx.validate_cases(query.case)
-        scope_value = (query.scope or "monitoring").strip().lower()
-        if scope_value not in ("monitoring", "profiles"):
+        scope_value = query.scope.strip().lower()
+        if scope_value not in ("probes", "profiles"):
             raise ctx.http_exception_cls(status_code=400, detail="Invalid scope parameter")
         seen: set[str] = set()
         files: list[str] = []
@@ -132,7 +184,7 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
         if not query.probe:
             raise ctx.http_exception_cls(status_code=400, detail="Missing case, probe parameters")
         _case_id, case_dir = ctx.validated_case_dir(query.case)
-        position = probe_position(case_dir, query.probe, column_ref=query.column)
+        position = probe_position(case_dir, query.probe, column_ref=query.column, adapter=ctx.adapter)
         return {"found": False} if not position else {"found": True, **position}
 
     @app.get("/api/probe_columns", response_model=StringListResponse)
@@ -150,7 +202,7 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
         seen: set[str] = set()
         for case_id in case_ids:
             try:
-                cols = probe_columns(ctx.runs_dir, case_id, probe_list)
+                cols = probe_columns(ctx.runs_dir, case_id, probe_list, adapter=ctx.adapter)
             except FileNotFoundError:
                 continue
             for c in cols:
@@ -195,5 +247,6 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
             x_from=x_value,
             include_history=query.include_history,
             restart_values=restart_vals if restart_vals else None,
+            adapter=ctx.adapter,
         )
         return Response(content=svg, media_type="image/svg+xml")

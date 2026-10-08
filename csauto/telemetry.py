@@ -113,7 +113,6 @@ def _send_sync(payload: dict[str, Any]) -> None:
             TELEMETRY_ENDPOINT,
             data=data,
             headers={"Content-Type": "application/json"},
-            method="POST",
         )
         with urllib.request.urlopen(req, timeout=TELEMETRY_TIMEOUT_S):
             pass

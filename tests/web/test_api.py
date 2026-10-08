@@ -300,10 +300,18 @@ def test_api_probes_and_residuals_svg(web_env) -> None:
     data = json.loads(body)
     assert "probe_density.csv" in data["files"]
 
+    status, body = _http_get(f"{base_url}/api/probes?case=case0001&scope=probes")
+    assert status == 200
+    assert json.loads(body)["files"] == data["files"]
+
     status, body = _http_get(f"{base_url}/api/probes?case=case0001&scope=profiles")
     assert status == 200
     profiles = json.loads(body)["files"]
     assert "profiles/profile_temperature.csv" in profiles
+
+    with pytest.raises(HTTPError) as excinfo:
+        _http_get(f"{base_url}/api/probes?case=case0001&scope=monitoring")
+    assert excinfo.value.code == 400
 
     status, body = _http_get(f"{base_url}/api/probe_columns?case=case0001&probe=probe_density.csv")
     assert status == 200
@@ -647,7 +655,7 @@ def test_api_run_case_without_max_parallel_uses_running_plus_requested(
     }
     save_registry(runs_dir, registry)
 
-    monkeypatch.setattr("csauto.web_support.is_process_alive", lambda pid: int(pid) == 4242)
+    monkeypatch.setattr("csauto.web_support.is_process_alive", lambda pid, **_kw: int(pid) == 4242)
     monkeypatch.setattr(
         "csauto.fastapi_routes.actions.resolve_runtime",
         lambda **_kwargs: RuntimeSelection(runtime="docker", docker_image="dummy/image:latest"),
@@ -1228,6 +1236,7 @@ def test_api_app_config_exposes_solver_and_panels(web_env) -> None:
     ]
     assert data["compare_kinds"][0]["label"] == "setup.xml"
     assert data["error_files"] == ["csauto.stderr", "run_solver.log", "listing", "csauto.stdout"]
+    assert data["tail_files"][0] == "run_solver.log"
     assert data["capabilities"] == [
         "compare",
         "control",
@@ -1237,7 +1246,16 @@ def test_api_app_config_exposes_solver_and_panels(web_env) -> None:
         "residuals",
         "restart",
     ]
-    assert data["control_actions"] == ["checkpoint", "extend", "flush", "stop"]
+    assert [a["name"] for a in data["control_actions"]] == ["stop", "extend", "checkpoint", "flush"]
+    assert data["control_actions"][1] == {
+        "name": "extend",
+        "label": "Extend",
+        "value_label": "Additional time steps",
+        "value_kind": "int",
+    }
+    assert [m["name"] for m in data["restart_modes"]] == ["iterations", "physical_time"]
+    assert data["default_residual_columns"] == ["velocity", "pressure"]
+    assert data["logo"] is True and data["icon"] is True
 
 
 def test_api_app_config_reflects_a_solver_without_analytics(
@@ -1261,6 +1279,26 @@ def test_api_app_config_reflects_a_solver_without_analytics(
         assert "probes" not in data["panels"]
         assert "performance" not in data["panels"]
         assert data["panels"] == ["status", "compare", "tail", "errors"]
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2)
+        _ACTIVE_TEST_CLIENT = None
+
+
+def test_api_tail_defaults_to_the_solver_log(runs_dir: Path, case_factory, registry_factory) -> None:
+    global _ACTIVE_TEST_CLIENT
+
+    case_dir = case_factory(runs_dir, "case0001")
+    run_dir = case_dir / "OUT" / "run_0001"
+    run_dir.mkdir(parents=True)
+    (run_dir / "stub.log").write_text("step 1\nstep 2\n", encoding="utf-8")
+    registry_factory(runs_dir, "case0001", case_dir, status="DONE")
+    base_url, thread, httpd = _start_server(runs_dir, solver="stub")
+    try:
+        status, body = _http_get(f"{base_url}/api/tail?case=case0001")
+        assert status == 200
+        assert "step 2" in body
     finally:
         httpd.shutdown()
         httpd.server_close()

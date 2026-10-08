@@ -18,7 +18,7 @@
   import Dropdown from "$lib/components/shared/Dropdown.svelte";
   import Portal from "$lib/components/shared/Portal.svelte";
   import ViewEditorDialog from "./ViewEditorDialog.svelte";
-  import { Pencil, Plus } from "lucide-svelte";
+  import { Pencil, Plus } from "@lucide/svelte";
 
   let viewNames = $derived(Object.keys(getViews()));
   let activeView = $state(getActiveViewName());

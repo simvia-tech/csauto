@@ -11,7 +11,7 @@ P mpi_nbnoeud 1
 
 # Input files
 F comm study.comm D 1
-F mmed MESH/{mesh_name} D 20
+F mmed ../MESH/{mesh_name} D 20
 
 # Output files
 F rmed RESU/myresults.rmed R 80

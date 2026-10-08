@@ -58,7 +58,7 @@ def build_shared_models(components: dict[str, Any]) -> dict[str, type]:
     # --- Shared response models ---
 
     class SuccessResponse(BaseModel):
-        """Standard response for successful POST actions."""
+        """Standard response for successful actions."""
 
         status: str = "ok"
 
@@ -77,6 +77,7 @@ def build_shared_models(components: dict[str, Any]) -> dict[str, type]:
         bytes_freed: int = 0
         cid_removed: int = 0
         pycache_removed: int = 0
+        skipped_active: list[str] = []
 
     class ProbePositionResponse(BaseModel):
         """Response from probe position lookup."""

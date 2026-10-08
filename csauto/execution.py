@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import shutil
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -55,7 +55,7 @@ def _resolve_executable(name_or_path: str) -> str | None:
     return shutil.which(name_or_path)
 
 
-def resolve_saturne_bin(saturne_bin: str | None, bin_name: str = "code_saturne") -> str | None:
+def resolve_saturne_bin(saturne_bin: str | None, bin_name: str) -> str | None:
     """Resolve the native solver binary, falling back to a PATH lookup of `bin_name`."""
     if saturne_bin:
         resolved = _resolve_executable(saturne_bin)
@@ -96,16 +96,25 @@ def resolve_singularity_image(singularity_image: str | None) -> str | None:
 
 def resolve_runtime(
     runtime: str | None,
-    docker_image: str,
+    docker_image: str | None = None,
     saturne_bin: str | None = None,
     singularity_image: str | None = None,
     singularity_bin: str | None = None,
     adapter: SolverAdapter | None = None,
 ) -> RuntimeSelection:
-    """Select and validate an execution backend (docker/native/singularity/auto)."""
+    """Select and validate an execution backend (docker/native/singularity/auto).
+
+    `docker_image` defaults to the adapter's image. Auto mode only considers
+    the runtimes the adapter supports; asking for another one is an error.
+    """
     adapter = adapter or _default_adapter()
     selected = normalize_runtime(runtime)
     bin_name = adapter.native_bin_name
+    docker_image = docker_image or adapter.default_docker_image
+    supported = adapter.supported_runtimes
+    if selected != RUNTIME_AUTO and selected not in supported:
+        choices = ", ".join(sorted(supported))
+        raise ValueError(f"Solver {adapter.name!r} does not support the {selected} runtime (supported: {choices}).")
 
     def native_selection(bin_hint: str | None) -> RuntimeSelection:
         resolved = resolve_saturne_bin(bin_hint, bin_name=bin_name)
@@ -143,14 +152,14 @@ def resolve_runtime(
     if selected == RUNTIME_SINGULARITY:
         return singularity_selection()
 
-    # AUTO mode:
-    if saturne_bin:
+    # AUTO mode, among the runtimes the adapter supports:
+    if saturne_bin and RUNTIME_NATIVE in supported:
         return native_selection(saturne_bin)
-    if singularity_image:
+    if singularity_image and RUNTIME_SINGULARITY in supported:
         return singularity_selection()
-    if shutil.which("docker"):
+    if shutil.which("docker") and RUNTIME_DOCKER in supported and docker_image:
         return RuntimeSelection(runtime=RUNTIME_DOCKER, docker_image=docker_image)
-    resolved_native = resolve_saturne_bin(None, bin_name=bin_name)
+    resolved_native = resolve_saturne_bin(None, bin_name=bin_name) if RUNTIME_NATIVE in supported else None
     if resolved_native:
         return RuntimeSelection(
             runtime=RUNTIME_NATIVE,
@@ -158,15 +167,15 @@ def resolve_runtime(
             saturne_bin=resolved_native,
         )
     raise FileNotFoundError(
-        f"No execution backend available (docker/{bin_name}/apptainer). "
-        "Configure runtime/saturne_bin/singularity_image in csauto.toml."
+        f"No execution backend available for {adapter.name} ({', '.join(sorted(supported))}). "
+        "Configure runtime/saturne_bin/singularity_image/docker_image in csauto.toml."
     )
 
 
 def shared_dir_symlink_mounts(
     runs_dir: Path,
-    shared_dirs: Sequence[str] = ("MESH", "POST"),
-    readonly_dirs: Sequence[str] = ("MESH",),
+    shared_dirs: Sequence[str],
+    readonly_dirs: Collection[str] = (),
 ) -> list[tuple[Path, bool]]:
     """(target, readonly) pairs for shared dirs that are symlinks out of `runs_dir`.
 
@@ -187,7 +196,9 @@ def shared_dir_symlink_mounts(
     return mounts
 
 
-def check_shared_dir_symlinks(runs_dir: Path, runtime: str, shared_dirs: Sequence[str] = ("MESH", "POST")) -> None:
+def check_shared_dir_symlinks(
+    runs_dir: Path, runtime: str, shared_dirs: Sequence[str], container_root: str | None = None
+) -> None:
     """Raise if a symlinked shared dir cannot be made visible inside a container.
 
     Symlink targets outside `runs_dir` are bind-mounted into containers at the
@@ -197,6 +208,11 @@ def check_shared_dir_symlinks(runs_dir: Path, runtime: str, shared_dirs: Sequenc
     if runtime not in (RUNTIME_DOCKER, RUNTIME_SINGULARITY):
         return
     for target, _readonly in shared_dir_symlink_mounts(runs_dir, shared_dirs):
+        if container_root and (target == Path(container_root) or Path(container_root) in target.parents):
+            raise RuntimeError(
+                f"{target} is mounted at its own path inside the {runtime} container, which collides with "
+                f"the campaign mount point {container_root}. Move it, or prepare with mesh_mode=copy."
+            )
         if not target.is_dir():
             raise RuntimeError(
                 f"{runs_dir} contains a shared-dir symlink to {target}, which does not exist, "
@@ -230,6 +246,30 @@ def singularity_shell_exec_prefix(pwd_var: str, env_flags_str: str, extra_binds:
     return parts
 
 
+def solver_command(adapter: SolverAdapter, binary: str, args: Sequence[str], *, in_container: bool) -> list[str]:
+    """The solver's own command, behind the adapter's container setup when it has one."""
+    if in_container and adapter.container_setup:
+        if not binary:
+            raise ValueError(f"{adapter.name}: container_setup needs a container_bin_name to run after it.")
+        return ["bash", "-c", f'{adapter.container_setup} && exec "$0" "$@"', binary, *args]
+    return [binary, *args]
+
+
+def _singularity_prefix(case_dir: Path, selection: RuntimeSelection, adapter: SolverAdapter) -> list[str]:
+    """`apptainer exec` with the campaign mounted and the case as working directory."""
+    if not selection.singularity_bin or not selection.singularity_image:
+        raise ValueError("Incomplete singularity configuration.")
+    if not adapter.container_bin_name:
+        raise ValueError(f"{adapter.name}: the singularity runtime needs a container_bin_name.")
+    runs_root, container_root, container_case = singularity_paths(case_dir, adapter.container_root)
+    cmd = [selection.singularity_bin, "exec", "--bind", f"{runs_root}:{container_root}", "--pwd", container_case]
+    for target, readonly in shared_dir_symlink_mounts(
+        runs_root, adapter.shared_dir_names, adapter.readonly_shared_dir_names
+    ):
+        cmd.extend(["--bind", f"{target}:{target}:ro" if readonly else f"{target}:{target}"])
+    return cmd
+
+
 def build_runtime_run_command(
     case_dir: Path,
     nprocs: int,
@@ -241,45 +281,34 @@ def build_runtime_run_command(
     env_vars: Mapping[str, str] | None = None,
     adapter: SolverAdapter | None = None,
 ) -> list[str]:
-    """Build the command list to launch a solver run for the given runtime."""
+    """Build the command list to launch a solver run for the given runtime.
+
+    Every runtime starts the command inside the case folder: the runner's
+    working directory for native runs, `-w` for docker, `--pwd` for apptainer.
+    """
     adapter = adapter or _default_adapter()
+    args = adapter.run_argv(case_dir, nprocs, nt, run_args)
     if selection.runtime == RUNTIME_DOCKER:
         return build_run_command(
             case_dir,
-            nprocs,
-            nt,
             selection.docker_image,
+            args,
             cidfile=cidfile,
-            run_args=run_args,
             env_vars=env_vars,
             adapter=adapter,
         )
     if selection.runtime == RUNTIME_NATIVE:
         if not selection.saturne_bin:
             raise ValueError("saturne_bin required for native runtime.")
-        return ["nohup", selection.saturne_bin, *adapter.run_argv(case_dir, nprocs, nt, run_args)]
+        return ["nohup", *solver_command(adapter, selection.saturne_bin, args, in_container=False)]
     if selection.runtime == RUNTIME_SINGULARITY:
-        if not selection.singularity_bin or not selection.singularity_image:
-            raise ValueError("Incomplete singularity configuration.")
-        runs_root, container_root, container_case = singularity_paths(case_dir, adapter.container_root)
-        cmd = [
-            "nohup",
-            selection.singularity_bin,
-            "exec",
-            "--bind",
-            f"{runs_root}:{container_root}",
-            "--pwd",
-            container_case,
-        ]
-        for target, readonly in shared_dir_symlink_mounts(runs_root, adapter.shared_dir_names):
-            cmd.extend(["--bind", f"{target}:{target}:ro" if readonly else f"{target}:{target}"])
+        cmd = ["nohup", *_singularity_prefix(case_dir, selection, adapter)]
         if cleanenv:
             cmd.append("--cleanenv")
         for key, value in sorted((env_vars or {}).items()):
             cmd.extend(["--env", f"{key}={value}"])
-        cmd.append(selection.singularity_image)
-        cmd.append(adapter.container_bin_name)
-        cmd.extend(adapter.run_argv(container_case, nprocs, nt, run_args))
+        cmd.append(str(selection.singularity_image))
+        cmd.extend(solver_command(adapter, adapter.container_bin_name, args, in_container=True))
         return cmd
     raise ValueError(f"Unsupported runtime: {selection.runtime}")
 
@@ -289,38 +318,25 @@ def build_runtime_gui_command(
     selection: RuntimeSelection,
     adapter: SolverAdapter | None = None,
 ) -> list[str]:
-    """Build the command list to open the solver GUI for the given runtime."""
+    """Build the command list to open the solver GUI, started inside the case folder."""
     adapter = adapter or _default_adapter()
-    if selection.runtime == RUNTIME_DOCKER:
-        return build_gui_command(case_dir, docker_image=selection.docker_image, adapter=adapter)
     setup_path = adapter.find_setup_file(case_dir)
     try:
-        setup_rel = setup_path.relative_to(case_dir)
+        setup_rel = setup_path.relative_to(case_dir).as_posix()
     except ValueError:
-        setup_rel = Path(setup_path.name)
+        setup_rel = setup_path.name
+    args = adapter.gui_argv(setup_rel)
+    if selection.runtime == RUNTIME_DOCKER:
+        return build_gui_command(case_dir, selection.docker_image, args, adapter=adapter)
     if selection.runtime == RUNTIME_NATIVE:
         if not selection.saturne_bin:
             raise ValueError("saturne_bin required for native runtime.")
-        return [selection.saturne_bin, *adapter.gui_argv(setup_path)]
+        return solver_command(adapter, selection.saturne_bin, args, in_container=False)
     if selection.runtime == RUNTIME_SINGULARITY:
-        if not selection.singularity_bin or not selection.singularity_image:
-            raise ValueError("Incomplete singularity configuration.")
-        runs_root, container_root, container_case = singularity_paths(case_dir, adapter.container_root)
-        container_setup = f"{container_case}/{setup_rel.as_posix()}"
-        cmd: list[str] = [
-            selection.singularity_bin,
-            "exec",
-            "--bind",
-            f"{runs_root}:{container_root}",
-            "--pwd",
-            container_case,
-        ]
-        for target, readonly in shared_dir_symlink_mounts(runs_root, adapter.shared_dir_names):
-            cmd.extend(["--bind", f"{target}:{target}:ro" if readonly else f"{target}:{target}"])
+        cmd = _singularity_prefix(case_dir, selection, adapter)
         if os.environ.get("DISPLAY") and Path("/tmp/.X11-unix").exists():
             cmd.extend(["--bind", "/tmp/.X11-unix:/tmp/.X11-unix"])
-        cmd.append(selection.singularity_image)
-        cmd.append(adapter.container_bin_name)
-        cmd.extend(adapter.gui_argv(container_setup))
+        cmd.append(str(selection.singularity_image))
+        cmd.extend(solver_command(adapter, adapter.container_bin_name, args, in_container=True))
         return cmd
     raise ValueError(f"open_gui not available for runtime {selection.runtime}")

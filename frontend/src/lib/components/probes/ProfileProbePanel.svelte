@@ -11,14 +11,10 @@
   import FormLabel from "$lib/components/shared/FormLabel.svelte";
   import Dropdown from "$lib/components/shared/Dropdown.svelte";
   import Icon from "$lib/components/shared/Icon.svelte";
-  import { Download } from "lucide-svelte";
+  import { Download } from "@lucide/svelte";
   import { savePngFromContainer, buildPlotFilename } from "$lib/actions/export";
   import { createProbeLoader } from "$lib/actions/probeLoader";
-  import {
-    getProfileState,
-    setProfileState,
-    setProfileHasData,
-  } from "$lib/stores/probes.svelte";
+  import { getProfileState, setProfileState } from "$lib/stores/probes.svelte";
 
   interface Props {
     allCases: string[];
@@ -59,7 +55,6 @@
     scope: "profiles",
     getState: getProfileState,
     setState: setProfileState,
-    setHasData: setProfileHasData,
     onColumnsLoaded: (cols) => {
       const axis = state.axis || chooseAxis(cols);
       const values = cols
@@ -93,8 +88,8 @@
     state.files.map((f) => ({
       value: f,
       label: f
+        .replace(/^.*\//, "")
         .replace(/\.csv$/i, "")
-        .replace(/^profiles\//i, "")
         .replace(/_/g, " "),
     })),
   );
@@ -120,13 +115,18 @@
   let emptyMessage = $derived(
     state.selectedCases.length === 0
       ? "Please select at least one case."
-      : state.selectedColumns.length === 0
-        ? "Please select at least one value."
-        : "No data to display.",
+      : state.files.length === 0
+        ? "No profile data for the selected cases yet."
+        : state.selectedColumns.length === 0
+          ? "Please select at least one value."
+          : "No data to display.",
   );
 </script>
 
-{#if state.files.length > 0}
+<!-- The controls stay put even with nothing to plot: hiding them with the
+     plot would strand a user who picked a case that has not run yet, with no
+     selector left to pick another. -->
+{#if allCases.length > 0}
   <PlotControls
     prefix="profile"
     {allCases}

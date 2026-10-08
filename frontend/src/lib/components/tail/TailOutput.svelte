@@ -1,20 +1,18 @@
 <!--
-  TailOutput — rendered log lines with severity coloring, search highlighting, and new-line flash.
+  TailOutput: rendered log lines with severity coloring, search highlighting, and new-line flash.
 -->
 <script lang="ts">
   import { tick } from "svelte";
   import { escapeHtml } from "$lib/utils/escapeHtml";
-  import type { Severity } from "$lib/utils/severity";
+  import type { LogSeverity, TailLine } from "$lib/api/types";
 
-  interface TailLine {
-    text: string;
+  interface Line extends TailLine {
     index: number;
-    severity: Severity;
     isNew: boolean;
   }
 
   interface Props {
-    lines: TailLine[];
+    lines: Line[];
     searchQuery: string;
     autoScroll: boolean;
   }
@@ -35,10 +33,9 @@
     }
   }
 
-  function severityClass(sev: Severity): string {
+  function severityClass(sev: LogSeverity | null): string {
     if (sev === "error") return "tail-sev-error";
     if (sev === "warn") return "tail-sev-warn";
-    if (sev === "info") return "tail-sev-info";
     return "";
   }
 

@@ -76,7 +76,9 @@ def test_generate_cases_missing_column_error_message(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError) as excinfo:
         generate_cases(headers, rows, template_dir, output_dir)
-    assert str(excinfo.value) == "Variables without matching DOE columns: bar"
+    message = str(excinfo.value)
+    assert message.startswith("Variables without matching DOE columns: bar in setup.xml.")
+    assert "\\{bar}" in message
 
 
 def test_generate_cases_duplicate_case_id_raises(tmp_path: Path) -> None:
@@ -93,3 +95,86 @@ def test_generate_cases_duplicate_case_id_raises(tmp_path: Path) -> None:
     with pytest.raises(ValueError) as excinfo:
         generate_cases(headers, rows, template_dir, output_dir)
     assert str(excinfo.value) == "Duplicate case_id in DOE: caseA"
+
+
+def test_generate_cases_keeps_non_utf8_bytes_and_binaries(tmp_path: Path) -> None:
+    from csauto.solvers import get_solver_adapter
+
+    template_dir = tmp_path / "TEMPLATE"
+    template_dir.mkdir()
+    (template_dir / "study.export").write_text("F comm study.comm D 1\n", encoding="utf-8")
+    (template_dir / "study.comm").write_bytes("# débit imposé\nQ = {inflow}\n".encode("latin-1"))
+    (template_dir / "mesh.med").write_bytes(b"\x89HDF\x00{inflow}\xff")
+
+    generate_cases(
+        ["inflow"], [{"inflow": "2.5"}], template_dir, tmp_path / "RUNS", adapter=get_solver_adapter("code_aster")
+    )
+
+    case_dir = tmp_path / "RUNS" / "case0001"
+    assert (case_dir / "study.comm").read_bytes() == "# débit imposé\nQ = 2.5\n".encode("latin-1")
+    assert (case_dir / "mesh.med").read_bytes() == b"\x89HDF\x00{inflow}\xff"
+    # Rendering is stable, so preparing again recognises the existing case.
+    generate_cases(
+        ["inflow"], [{"inflow": "2.5"}], template_dir, tmp_path / "RUNS", adapter=get_solver_adapter("code_aster")
+    )
+
+
+def test_missing_column_error_names_the_file_and_the_escape(tmp_path: Path) -> None:
+    from csauto.solvers import get_solver_adapter
+
+    template_dir = tmp_path / "TEMPLATE"
+    template_dir.mkdir()
+    (template_dir / "study.export").write_text("F comm study.comm D 1\n", encoding="utf-8")
+    (template_dir / "study.comm").write_text("print(f'step {i}')\n", encoding="utf-8")
+    with pytest.raises(ValueError) as excinfo:
+        generate_cases(["x"], [{"x": "1"}], template_dir, tmp_path / "RUNS", adapter=get_solver_adapter("code_aster"))
+    assert "i in study.comm" in str(excinfo.value)
+    assert "\\{i}" in str(excinfo.value)
+
+
+def test_escaped_braces_are_unescaped_even_without_placeholders(tmp_path: Path) -> None:
+    from csauto.solvers import get_solver_adapter
+
+    template_dir = tmp_path / "TEMPLATE"
+    template_dir.mkdir()
+    (template_dir / "study.export").write_text("F comm study.comm D 1\nP x {x}\n", encoding="utf-8")
+    (template_dir / "study.comm").write_text("print(f'step \\{i}')\n", encoding="utf-8")
+    generate_cases(["x"], [{"x": "1"}], template_dir, tmp_path / "RUNS", adapter=get_solver_adapter("code_aster"))
+    assert (tmp_path / "RUNS" / "case0001" / "study.comm").read_text(encoding="utf-8") == "print(f'step {i}')\n"
+
+
+def test_a_bad_doe_value_leaves_no_half_made_case(tmp_path: Path) -> None:
+    from csauto.solvers import get_solver_adapter
+
+    template_dir = tmp_path / "TEMPLATE"
+    template_dir.mkdir()
+    (template_dir / "stub.toml").write_text("steps = {steps}\n", encoding="utf-8")
+    runs = tmp_path / "RUNS"
+    with pytest.raises(ValueError, match="Missing placeholder values"):
+        generate_cases(["steps"], [{"steps": ""}], template_dir, runs, adapter=get_solver_adapter("stub"))
+    assert not (runs / "case0001").exists()
+    generate_cases(["steps"], [{"steps": "3"}], template_dir, runs, adapter=get_solver_adapter("stub"))
+    assert (runs / "case0001" / "stub.toml").read_text(encoding="utf-8") == "steps = 3\n"
+
+
+def test_cases_written_by_older_versions_still_match(tmp_path: Path) -> None:
+    template_dir = tmp_path / "TEMPLATE"
+    (template_dir / "DATA").mkdir(parents=True)
+    (template_dir / "DATA" / "setup.xml").write_bytes(b"<root>\r\n  {foo}\r\n  <!-- caf\xe9 -->\r\n</root>\r\n")
+    output_dir = tmp_path / "RUNS"
+    generate_cases(["foo"], [{"foo": "1"}], template_dir, output_dir)
+    setup = output_dir / "case0001" / "DATA" / "setup.xml"
+    assert setup.read_bytes() == b"<root>\r\n  1\r\n  <!-- caf\xe9 -->\r\n</root>\r\n"
+    # csauto 0.5 wrote LF line endings and dropped the bytes that were not UTF-8.
+    setup.write_bytes(b"<root>\n  1\n  <!-- caf -->\n</root>\n")
+    generate_cases(["foo"], [{"foo": "1"}], template_dir, output_dir)
+
+
+def test_a_binary_with_a_text_head_is_copied_verbatim(tmp_path: Path) -> None:
+    template_dir = tmp_path / "TEMPLATE"
+    (template_dir / "DATA").mkdir(parents=True)
+    (template_dir / "DATA" / "setup.xml").write_text("<root>{foo}</root>", encoding="utf-8")
+    blob = b"{foo}\n" * 2000 + b"\x00\xff"  # the NUL byte comes after the 8 KiB sniff
+    (template_dir / "mesh.bin").write_bytes(blob)
+    generate_cases(["foo"], [{"foo": "1"}], template_dir, tmp_path / "RUNS")
+    assert (tmp_path / "RUNS" / "case0001" / "mesh.bin").read_bytes() == blob

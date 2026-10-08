@@ -4,10 +4,11 @@ import contextlib
 import os
 import shutil
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .pathutil import is_within_root
+from .registry import STATUS_PENDING, STATUS_RUNNING, campaign_case_dirs, load_registry
 
 
 @dataclass
@@ -69,9 +70,9 @@ def run_doctor(
     else:
         add("ok", f"write OK: {runs_dir}")
 
-    case_dirs = sorted(p for p in runs_dir.iterdir() if p.is_dir() and p.name.startswith("case"))
+    case_dirs = campaign_case_dirs(runs_dir)
     if not case_dirs:
-        add("fail", "no case* directory found")
+        add("fail", "no case found (run csauto prepare first)")
     else:
         add("ok", f"{len(case_dirs)} cases detected")
 
@@ -90,9 +91,16 @@ def run_doctor(
     add("ok", f"solver {adapter.name}: panels {', '.join(adapter.dashboard_panels)}")
     capability_names = sorted(adapter.capabilities)
     add("ok", f"solver {adapter.name}: capabilities {', '.join(capability_names) if capability_names else 'none'}")
+    if adapter.control_actions:
+        actions = ", ".join(a.name + (f" <{a.value_label}>" if a.value_label else "") for a in adapter.control_actions)
+        add("ok", f"solver {adapter.name}: control actions {actions}")
 
     solver_bin_name = adapter.native_bin_name
     _rt = (runtime or "auto").strip().lower()
+    supported = adapter.supported_runtimes
+    add("ok", f"solver {adapter.name}: runtimes {', '.join(sorted(supported))}")
+    if _rt != "auto" and _rt not in supported:
+        add("fail", f"solver {adapter.name} does not support the {_rt} runtime")
     # Override legacy flags with explicit runtime when provided
     if runtime:
         require_docker = _rt == "docker"
@@ -146,12 +154,13 @@ def run_doctor(
             _found.append("docker")
         if shutil.which("apptainer") or shutil.which("singularity"):
             _found.append("singularity")
+        _found = [name for name in _found if name in supported]
         if _found:
             add("ok", f"available runtimes: {', '.join(_found)}")
         else:
-            add("warn", f"no runtime found ({solver_bin_name}, docker, apptainer/singularity)")
+            add("warn", f"no runtime found for {adapter.name} ({solver_bin_name}, docker, apptainer/singularity)")
 
-    if check_display:
+    if check_display and "gui" in adapter.capabilities:
         display = os.environ.get("DISPLAY")
         if not display:
             add("warn", "DISPLAY not set (GUI unavailable)")
@@ -174,6 +183,7 @@ class CleanupReport:
     bytes_freed: int = 0
     cid_removed: int = 0
     pycache_removed: int = 0
+    skipped_active: list[str] = field(default_factory=list)
 
 
 def _truncate_file(path: Path, max_bytes: int) -> int:
@@ -207,7 +217,7 @@ def _safe_case_dir(runs_dir: Path, case_id: str) -> Path | None:
 
 def _case_dirs(runs_dir: Path) -> Iterable[Path]:
     root = runs_dir.resolve()
-    return sorted(p for p in runs_dir.iterdir() if p.is_dir() and p.name.startswith("case") and is_within_root(p, root))
+    return [p for p in campaign_case_dirs(runs_dir) if is_within_root(p, root)]
 
 
 def _iter_case_dirs(runs_dir: Path, cases: Sequence[str] | None) -> Iterable[Path]:
@@ -261,14 +271,21 @@ def cleanup_runs(
     if keep_names and delete_names:
         raise ValueError("keep_resu and delete_resu are mutually exclusive")
     log_names = adapter.cleanup_log_names
+    statuses = {case_id: str(record.get("status") or "") for case_id, record in load_registry(runs_dir).items()}
 
     for case_dir in _iter_case_dirs(runs_dir, cases):
-        resu_root = adapter.results_root(case_dir)
-        if prune_resu and resu_root.is_dir():
-            resu_dirs = [p for p in resu_root.iterdir() if p.is_dir()]
-            resu_dirs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        if statuses.get(case_dir.name) in (STATUS_RUNNING, STATUS_PENDING):
+            # Never delete or truncate files a live run is writing.
+            report.skipped_active.append(case_dir.name)
+            continue
+        # Only the folders the adapter reports as runs are ever deleted.
+        resu_dirs = adapter.list_run_dirs(case_dir)
+        if prune_resu:
             if keep_names:
-                targets = [resu_dir for resu_dir in resu_dirs if resu_dir.name not in keep_names]
+                # A case that has none of the kept folders keeps everything: the
+                # names were picked from another case's runs, or mistyped.
+                kept = [resu_dir for resu_dir in resu_dirs if resu_dir.name in keep_names]
+                targets = [resu_dir for resu_dir in resu_dirs if resu_dir.name not in keep_names] if kept else []
             elif delete_names:
                 targets = [resu_dir for resu_dir in resu_dirs if resu_dir.name in delete_names]
             else:
@@ -303,12 +320,13 @@ def cleanup_runs(
                 candidate = case_dir / name
                 if candidate.is_file():
                     candidates.append(candidate)
-            if resu_root.is_dir():
-                for resu_dir in resu_root.iterdir():
-                    for name in log_names:
-                        candidate = resu_dir / name
-                        if candidate.is_file():
-                            candidates.append(candidate)
+            for resu_dir in resu_dirs:
+                if not resu_dir.is_dir():
+                    continue
+                for name in log_names:
+                    candidate = resu_dir / name
+                    if candidate.is_file():
+                        candidates.append(candidate)
             for path in candidates:
                 if path.stat().st_size <= max_bytes:
                     continue

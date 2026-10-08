@@ -8,7 +8,7 @@
   import { tick } from "svelte";
   import Icon from "./Icon.svelte";
   import Portal from "./Portal.svelte";
-  import { ChevronDown } from "lucide-svelte";
+  import { ChevronDown } from "@lucide/svelte";
 
   interface Option {
     value: string;

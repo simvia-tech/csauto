@@ -187,23 +187,15 @@ def test_serve_command_invokes_fastapi_entrypoint(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    ("flags", "expected_action", "expected_value"),
-    [
-        (["--stop"], "stop", None),
-        (["--extend", "500"], "extend", 500),
-        (["--checkpoint"], "checkpoint", None),
-        (["--flush"], "flush", None),
-    ],
+    ("words", "expected_action", "expected_value"),
+    [(["stop"], "stop", None), (["extend", "500"], "extend", 500.0), (["pause", "0.5"], "pause", 0.5)],
 )
-def test_control_command_parses_action_flags(flags: list[str], expected_action: str, expected_value) -> None:
-    _parser, args = parse_arguments(["control", "RUNS", "case0007", *flags], Config())
+def test_control_command_parses_action_and_value(words: list[str], expected_action: str, expected_value) -> None:
+    _parser, args = parse_arguments(["control", "RUNS", "case0007", *words], Config())
     assert args.command == "control"
     assert args.runs_dir == Path("RUNS")
     assert args.case == "case0007"
-    if expected_action == "extend":
-        assert args.extend == expected_value
-    else:
-        assert getattr(args, expected_action) is True
+    assert (args.action, args.value) == (expected_action, expected_value)
 
 
 def test_control_command_requires_an_action() -> None:
@@ -211,9 +203,19 @@ def test_control_command_requires_an_action() -> None:
         parse_arguments(["control", "RUNS", "case0007"], Config())
 
 
-def test_control_command_rejects_multiple_actions() -> None:
-    with pytest.raises(SystemExit):
-        parse_arguments(["control", "RUNS", "case0007", "--stop", "--checkpoint"], Config())
+def test_control_command_takes_a_positional_action(tmp_path: Path, monkeypatch) -> None:
+    from csauto import cli as cli_module
+
+    calls: list[tuple[str, object]] = []
+    monkeypatch.setattr(
+        cli_module,
+        "control_case",
+        lambda _runs, _case, action, *, value=None, source="cli", adapter=None: calls.append((action, value)) or {},
+    )
+    runs_dir = tmp_path / "RUNS"
+    runs_dir.mkdir()
+    assert main(["control", str(runs_dir), "case0007", "extend", "50"]) == 0
+    assert calls == [("extend", 50.0)]
 
 
 def test_control_command_invokes_control_case(tmp_path: Path) -> None:
@@ -231,7 +233,7 @@ def test_control_command_invokes_control_case(tmp_path: Path) -> None:
     original_control_case = cli_module.control_case
     cli_module.control_case = control_case_stub
     try:
-        exit_code = main(["control", str(runs_dir), "case0007", "--extend", "500"])
+        exit_code = main(["control", str(runs_dir), "case0007", "extend", "500"])
     finally:
         cli_module.control_case = original_control_case
 

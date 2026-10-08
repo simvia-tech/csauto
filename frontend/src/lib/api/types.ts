@@ -30,9 +30,10 @@ export interface StatusPayload {
 
 /* Performance */
 
+/** case_id plus one value per PerfColumn.key; the adapter picks the value types. */
 export interface PerfRecord {
   case_id: string;
-  [key: string]: string | null;
+  [key: string]: unknown;
 }
 
 export interface PerfColumn {
@@ -42,8 +43,8 @@ export interface PerfColumn {
 }
 
 export interface PerfPayload {
-  /** Column metadata from the solver adapter; absent on older backends. */
-  columns?: PerfColumn[];
+  /** Columns the solver adapter declares; empty when it reports no timings. */
+  columns: PerfColumn[];
   records: PerfRecord[];
 }
 
@@ -52,13 +53,33 @@ export interface CompareKindOption {
   label: string;
 }
 
+/**
+ * A live control action or a restart mode declared by the solver adapter.
+ * The value, when there is one, must be positive (and whole for "int").
+ */
+export interface SolverOption {
+  name: string;
+  label: string;
+  /** Label of the value field; empty when it takes no value. */
+  value_label: string;
+  value_kind: "int" | "float";
+}
+
 export interface AppConfig {
   solver: string;
   panels: string[];
   capabilities: string[];
   compare_kinds: CompareKindOption[];
   error_files: string[];
-  control_actions: string[];
+  tail_files: string[];
+  control_actions: SolverOption[];
+  restart_modes: SolverOption[];
+  /** Residual columns preselected when present. */
+  default_residual_columns: string[];
+  /** True when /api/solver_logo serves an SVG. */
+  logo: boolean;
+  /** True when /api/solver_icon serves an SVG. */
+  icon: boolean;
 }
 
 /* Shared */
@@ -67,6 +88,21 @@ export interface StringListResponse {
   columns?: string[];
   dirs?: string[];
   files?: string[];
+}
+
+/* Log tail */
+
+export type LogSeverity = "error" | "warn";
+
+export interface TailLine {
+  text: string;
+  /** From the solver's anomaly patterns; null for an ordinary line. */
+  severity: LogSeverity | null;
+}
+
+export interface TailLinesResponse {
+  file: string;
+  lines: TailLine[];
 }
 
 /* Errors */
@@ -114,6 +150,7 @@ export interface CleanupResponse {
   bytes_freed: number;
   cid_removed: number;
   pycache_removed: number;
+  skipped_active: string[];
 }
 
 /* Action params (sent by frontend) */
@@ -125,8 +162,12 @@ export interface RunParams {
 }
 
 export interface RestartParams extends RunParams {
-  restartMode: "iterations" | "physical_time";
-  restartValue: number;
+  /** A restart_modes name, or "" when the solver declares none. */
+  restartMode: string;
+  /** Null when the mode takes no value. */
+  restartValue: number | null;
+  /** A run folder of the case (from /api/resu_dirs); null restarts from the latest run. */
+  restartPath: string | null;
 }
 
 export interface CleanChoice {

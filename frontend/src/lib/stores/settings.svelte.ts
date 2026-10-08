@@ -50,7 +50,8 @@ export function setRunSettings(s: RunSettings): void {
 /* Restart settings */
 
 export interface RestartSettings extends RunSettings {
-  mode: "iterations" | "physical_time";
+  /** Last restart mode name picked; the dialog ignores it if the solver no longer declares it. */
+  mode: string;
   value: number;
 }
 
@@ -59,9 +60,7 @@ export function getRestartSettings(): RestartSettings {
     n: readNumber("csauto_restart_n", 1),
     nt: readNumber("csauto_restart_nt", 1),
     maxParallel: readNumber("csauto_restart_max_parallel", 0) || null,
-    mode: readString("csauto_restart_mode", "iterations") as
-      | "iterations"
-      | "physical_time",
+    mode: readString("csauto_restart_mode", ""),
     value: readNumber("csauto_restart_value", 100),
   };
 }

@@ -28,13 +28,20 @@ The header always shows:
 When a filter is active, each metric shows the filtered count out of the total
 (e.g., "2 / 5").
 
-Branding is solver-aware: code_saturne campaigns show the Code_Saturne logo in
-the header, other solvers show their name as text, and the browser-tab favicon
-switches to a solver-specific icon when the frontend ships one.
+The header shows the solver's logo and the browser tab its icon, both provided
+by the solver adapter; a solver without a logo shows its name as text. Until
+the dashboard has loaded the solver's description from the server, it shows
+only the Status, Log Tail and Recent Errors panels and no solver action.
+
+The panels and buttons depend on the solver: each one appears only when the
+solver provides what it needs (see
+[Adding a new solver](./adding-a-solver.md#4-fill-the-dashboard)). The examples
+below use code_saturne, which uses all of them.
 
 **Settings** (gear icon, top right): opens a dialog where you can set the
 **API token** (if the server requires authentication) and the **auto-refresh
-rate**. The token is stored in the browser session.
+rate**. The token is saved in the browser (localStorage), so it is asked once per
+browser and server address.
 
 ---
 
@@ -60,10 +67,10 @@ The toolbar provides:
 | `THREAD COUNT` | Number of OpenMP threads per rank |
 | `LAST ITER` | Last completed iteration |
 | `DURATION` | Elapsed time since launch |
-| `RESU SIZE (MB)` | Total RESU disk usage |
+| `RESULTS (MB)` | Disk usage of the case's results folder |
 | `LAST MODIFIED` | Timestamp of the last state change |
 
-Each row also has an **Open GUI** button to launch the code_saturne GUI for that case.
+When the solver has a GUI (code_saturne does), each row also has an **Open GUI** button that opens it on the case's setup file.
 
 ### Selecting cases
 
@@ -80,46 +87,52 @@ Each row also has an **Open GUI** button to launch the code_saturne GUI for that
 With one or more cases selected, the action buttons activate:
 
 **Run**: launch the selected cases (`PREPARED`, `DONE`, or `FAILED`). A popup
-asks for `--n` (MPI ranks), `--nt` (OMP threads), and `--max-parallel`.
+asks for **MPI Ranks (n)**, **OMP Threads (nt)** and **Max Parallel** (left
+empty, every selected case starts at once).
 
-**Restart**: restart from the latest checkpoint. A popup asks for the
-stop criterion:
-- `Iterations`: add N more iterations beyond the current checkpoint
-- `Physical time`: run until a physical time target
+**Restart** (when the solver supports it): continue finished cases. A popup
+offers the solver's restart modes and asks for a value when the mode takes
+one. With code_saturne:
+- `Additional iterations`: add N more iterations beyond the checkpoint
+- `Additional physical time`: run for that much more physical time
 
-csauto automatically finds the latest checkpoint and computes the absolute
-target value. You do not need to know the checkpoint path.
+**Restart from** picks the run to restart from (one case selected); by default
+csauto uses the latest run that has a checkpoint and computes the absolute
+target value for you.
 
-**Stop**: gracefully stop the selected running cases — code_saturne finishes
-its current time step, writes a checkpoint, and exits on its own. Unlike
-Kill, no process is signaled and no restart is needed afterwards.
+**Control** (when the solver supports live control): a menu of the actions the
+solver offers for running cases. Actions that take a value ask for it; the
+others ask for confirmation. With code_saturne:
+- **Stop gracefully**: finish the current time step, write a checkpoint and
+  exit. Unlike Kill, no process is signaled and no restart is needed.
+- **Extend**: raise the time step limit so the case keeps going. Asks for the
+  number of additional time steps (repeated extends stack correctly).
+- **Write a checkpoint**: at the next time step, without stopping the run.
+  Plots mark restarts (new runs launched from a checkpoint), not in-place
+  checkpoints.
+- **Flush logs and plots**: write logs and probe files to disk now. It does
+  not affect the simulation.
 
-**More ▾**: secondary controls for running cases, next to Stop:
-- **Extend**: raise the time step limit so the case keeps going instead of
-  stopping. A popup asks how many additional time steps to add to the case's
-  configured limit (repeated extends stack correctly).
-- **Checkpoint**: request a checkpoint at the next time step, without
-  stopping the run. Useful for grabbing a restart point mid-run. This does
-  not add a marker to the Residuals/Probes plots — those only mark actual
-  restarts (a new run launched from a checkpoint), not in-place checkpoints.
-- **Flush**: force logs and time-plot/probe files to be written to disk
-  immediately, without waiting for the next automatic write. Doesn't affect
-  the simulation itself.
+**Kill**: stop the selected running cases at once. Works for local processes,
+containers and Slurm jobs. Prefer a graceful stop when the solver offers one:
+Kill discards in-flight work.
 
-**Kill**: send a termination signal to the selected running cases.
-Works for both local processes and Slurm jobs. Use Stop instead when you
-just want the run to wind down cleanly — Kill discards in-flight work and
-requires restarting from the last checkpoint.
-
-**Clean**: remove old RESU directories and/or truncate heavy logs for
-the selected cases. A popup lets you choose which RESU runs to keep or delete.
+**Clean**: delete old run folders and/or shorten heavy logs for the selected
+finished cases. A popup lets you keep the latest N runs, delete them all, or,
+with a single case selected, pick the run folders to keep or delete (run
+folders are named per case). Clean only deletes the folders the solver reports
+as runs (code_saturne: each `RESU/<run>`; code_aster: `RESU` itself, its single
+run) and never touches running or queued cases; a notice lists the ones it
+skipped. A case whose runs were all deleted returns to `PREPARED`. Clean
+also shortens logs larger than 50 MB to their last 50 MB and removes the
+docker container id file (`.csauto.cid`).
 
 ### Context menu on finished cases
 
 Right-click a `DONE` or `FAILED` row to:
 - **Mark Converged**: set convergence label to `converged`
 - **Mark Not Converged**: set to `not converged`
-- **Clear**: remove the convergence label
+- **Clear Mark**: remove the convergence label
 
 ---
 
@@ -132,7 +145,7 @@ Use this panel to inspect solver convergence for one or more cases.
 1. Select one or more cases from the **Cases** dropdown
 2. Choose the **Variables** to plot (e.g., velocity, pressure)
 3. Choose the **Start from** point:
-   - `Zero`: plot from the very beginning, including previous runs in RESU history
+   - `Zero`: plot from the very beginning, including the case's previous runs
    - `Restart start`: start from the last restart checkpoint iteration
    - `Custom`: manually set the minimum iteration to display
 4. The chart updates automatically when auto-refresh is enabled
@@ -148,12 +161,12 @@ Click **Download as PNG** to export the chart.
 
 ![Probes and Profiles](./assets/ui-probes.png)
 
-This panel has two tabs — **Probes** and **Profiles** — each shown only when
-the relevant output files exist in the case's RESU directory.
+This panel has two tabs, **Probes** and **Profiles**, each shown when the case
+has such files (with code_saturne, in its latest `RESU/<run>`).
 
 ### Probes tab
 
-Shown when `RESU/<run>/monitoring/*.csv` files exist.
+With code_saturne: `RESU/<run>/monitoring/*.csv`.
 
 1. Select one or more cases from the **Cases** dropdown
 2. Choose the **Quantity** (probe file to read, e.g., CourantNb)
@@ -165,7 +178,7 @@ The spatial coordinates of each selected probe are displayed below the controls.
 
 ### Profiles tab
 
-Shown when `RESU/<run>/profiles/*.csv` files exist.
+With code_saturne: `RESU/<run>/profiles/*.csv`.
 
 1. Select one or more cases from the **Cases** dropdown
 2. Choose the **Profile** file
@@ -212,9 +225,10 @@ Steps:
    swap button to switch them)
 2. The panel shows a **parameter diff** summary (e.g., "1 difference out of 3
    parameters"). Click **Show all parameters** to see matching parameters too
-3. Choose a **File** to compare — the list is declared by the solver adapter,
-   and its first entry is the default (with code_saturne: `setup.xml`,
-   `doe_row.csv`, `run_solver.log`, or `performance.log`)
+3. Choose a **File** to compare: the list comes from the solver, and its first
+   entry is the default (code_saturne: `setup.xml`, `doe_row.csv`,
+   `run_solver.log`, `performance.log`; code_aster: the export file and
+   `doe_row.csv`)
 4. Use the **Search** bar to filter lines
 
 The output shows a side-by-side diff with line numbers. Differing lines are
@@ -228,13 +242,15 @@ highlighted for quick identification.
 
 Stream the end of a case log file, similar to `tail -f`.
 
-**Which file to read:**
+The **File** list puts the solver's main logs first, then `csauto.stdout` and
+`csauto.stderr` (the console output of the launch, available for every solver)
+and the other `*.log` files of the latest run. The first file is selected by
+default.
 
 | Situation | File to use |
 |---|---|
-| Solver running, check progress | `listing` |
-| Solver error or crash | `run_solver.log` |
-| Launch issue (process didn't start) | `csauto.stdout` / `csauto.stderr` |
+| Solver running, check progress | the solver's main log (code_saturne: `run_solver.log`; code_aster: `csauto.stdout`) |
+| Launch issue (the solver did not start) | `csauto.stderr` / `csauto.stdout` |
 | Slurm submission issue | `csauto.stdout` |
 
 Controls:
@@ -242,7 +258,8 @@ Controls:
 - **File**: choose the log file
 - **Lines**: number of lines to display (default 80)
 - **Filter**: regex filter to match specific lines
-- **Severity**: filter by `error`, `warn`, or `All`
+- **Severity**: filter by `Error`, `Warn` or `All`. Lines are coloured
+  with the same patterns Recent Errors uses for this solver
 
 The bottom bar shows:
 - A **line count** indicator (filtered lines / total, e.g., "80 / 80")
@@ -264,10 +281,10 @@ want a quick summary of what went wrong without reading the full log.
 
 Controls:
 - **Cases**: select which cases to scan
-- **Files**: select which log files to include (multi-select; the list is
-  declared by the solver adapter — with code_saturne: `csauto.stderr`,
-  `run_solver.log`, `listing`, `csauto.stdout`)
-- **Severity**: `All`, `Error`, `Warn`, `Info`
+- **Files**: select which log files to include (multi-select; the list comes
+  from the solver; with code_saturne: `csauto.stderr`, `run_solver.log`,
+  `listing`, `csauto.stdout`)
+- **Severity**: `All`, `Error`, `Warn`
 - **Search**: plain-text search within matched lines
 - **Context**: how many lines before and after each hit to display (default 6)
 
@@ -303,4 +320,4 @@ csauto serve RUNS --host 0.0.0.0 --port 8000
 Without a token, csauto refuses to bind to a public address.
 
 Users accessing the UI must click the **Settings** gear icon and enter the token
-once per browser session.
+once per browser.

@@ -7,8 +7,9 @@ from typing import Any
 
 from ..control import control_case
 from ..execution import resolve_runtime
+from ..logs import find_case_file
 from ..maintenance import cleanup_runs
-from ..registry import STATUS_DONE, STATUS_FAILED, STATUS_RUNNING, registry_transaction, update_case
+from ..registry import STATUS_DONE, STATUS_FAILED, STATUS_PREPARED, STATUS_RUNNING, registry_transaction, update_case
 from ..runner import run_cases
 from ..web_support import default_web_max_parallel, kill_case, log_case_action, normalize_convergence
 from .common import shared_models
@@ -53,7 +54,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
     class ControlCasePayload(BaseModel):
         cases: list[str] | str | None = None
         action: str | None = None
-        value: int | None = None
+        value: float | None = None
 
     class OpenGuiPayload(BaseModel):
         case: str | None = None
@@ -65,7 +66,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         max_parallel: int | None = None
         restart: bool = False
         restart_mode: str = ""
-        restart_value: int | float | None = None
+        restart_value: float | None = None
         restart_path: str | None = None
 
     def normalize_cases(raw: list[str] | str | None) -> list[str] | None:
@@ -73,34 +74,38 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
             return [raw]
         return raw
 
+    def _option_value(option: Any, raw: float | None, http_exc: type) -> int | float | None:
+        """Check `raw` against a ControlAction or RestartMode: required, positive, and of its kind."""
+        if not option.value_label:
+            if raw is not None:
+                raise http_exc(status_code=400, detail=f"{option.name} takes no value")
+            return None
+        if raw is None or not math.isfinite(float(raw)) or raw <= 0:
+            raise http_exc(status_code=400, detail=f"{option.name} needs a positive value ({option.value_label})")
+        if option.value_kind == "int":
+            if not float(raw).is_integer():
+                raise http_exc(status_code=400, detail=f"{option.name} needs a whole number ({option.value_label})")
+            return int(raw)
+        return float(raw)
+
     def _parse_restart_params(
         payload: RunCasePayload,
         http_exc: type,
     ) -> tuple[bool, str | None, int | float | None, str | None]:
-        restart_mode_raw = (payload.restart_mode or "").strip().lower()
-        restart_value_raw = payload.restart_value
-        restart = bool(payload.restart) or bool(restart_mode_raw) or restart_value_raw is not None
-        restart_path: str | None = None
-        if payload.restart_path and payload.restart_path.strip():
-            restart = True
-            restart_path = payload.restart_path.strip()
+        restart_mode_raw = (payload.restart_mode or "").strip()
+        restart_path = (payload.restart_path or "").strip() or None
+        restart = bool(payload.restart or restart_mode_raw or payload.restart_value is not None or restart_path)
         if not restart:
             return False, None, None, None
-        restart_mode: str | None = None
-        restart_value: int | float | None = None
-        if restart_mode_raw in {"iteration", "iterations", "iter"}:
-            restart_mode = "iterations"
-            if restart_value_raw is None or restart_value_raw <= 0 or not float(restart_value_raw).is_integer():
-                raise http_exc(status_code=400, detail="restart_value must be a positive integer for iterations")
-            restart_value = int(restart_value_raw)
-        elif restart_mode_raw in {"physical_time", "time", "tmax"}:
-            restart_mode = "physical_time"
-            if restart_value_raw is None or restart_value_raw <= 0 or not math.isfinite(float(restart_value_raw)):
-                raise http_exc(status_code=400, detail="restart_value must be a positive number for physical_time")
-            restart_value = float(restart_value_raw)
-        elif restart_mode_raw:
-            raise http_exc(status_code=400, detail="restart_mode must be iterations or physical_time")
-        return restart, restart_mode, restart_value, restart_path
+        if not restart_mode_raw:
+            if payload.restart_value is not None:
+                raise http_exc(status_code=400, detail="restart_value needs a restart_mode")
+            return True, None, None, restart_path
+        mode = ctx.adapter.restart_mode(restart_mode_raw)
+        if mode is None:
+            names = ", ".join(m.name for m in ctx.adapter.restart_modes) or "none"
+            raise http_exc(status_code=400, detail=f"Unknown restart_mode {restart_mode_raw!r} (expected: {names})")
+        return True, mode.name, _option_value(mode, payload.restart_value, http_exc), restart_path
 
     @app.post("/api/case_file", response_model=SuccessResponse)
     def api_case_file_update(
@@ -113,13 +118,9 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         if not payload.kind or payload.content is None:
             raise ctx.http_exception_cls(status_code=400, detail="Missing case, kind, content parameters")
         case_id, case_dir = ctx.validated_case_dir(payload.case)
-        target = ctx.adapter.locate_case_file(case_dir, payload.kind)
+        target = find_case_file(case_dir, payload.kind, ctx.adapter)
         if not target:
             raise ctx.http_exception_cls(status_code=404, detail=f"File {payload.kind} not found for {case_id}")
-        try:
-            target.resolve().relative_to(case_dir.resolve())
-        except ValueError as exc:
-            raise ctx.http_exception_cls(status_code=403, detail="Access denied") from exc
         try:
             target.write_text(payload.content, encoding="utf-8")
         except OSError as exc:
@@ -209,6 +210,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         if keep_resu and delete_resu:
             raise ctx.http_exception_cls(status_code=400, detail="keep_resu and delete_resu are mutually exclusive")
 
+        had_runs = {case_id for case_id in case_ids if ctx.adapter.list_run_dirs(ctx.runs_dir / case_id)}
         report = cleanup_runs(
             ctx.runs_dir,
             prune_resu=bool(payload.prune_resu),
@@ -223,16 +225,24 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
             adapter=ctx.adapter,
         )
         actor = request.client.host if request.client else None
-        # Reset status to PREPARED for cases whose results dir is now empty
-        if not payload.dry_run:
+        # A finished case whose runs were all deleted goes back to PREPARED.
+        if payload.prune_resu and not payload.dry_run:
             with registry_transaction(ctx.runs_dir) as registry:
-                for case_id in case_ids:
-                    resu_dir = ctx.adapter.results_root(ctx.runs_dir / case_id)
-                    has_resu = resu_dir.is_dir() and any(resu_dir.iterdir())
-                    if not has_resu:
-                        current = registry.get(case_id, {}).get("status", "")
-                        if current in (STATUS_DONE, STATUS_FAILED):
-                            update_case(registry, case_id, status="PREPARED", convergence=None)
+                for case_id in had_runs:
+                    if ctx.adapter.list_run_dirs(ctx.runs_dir / case_id):
+                        continue
+                    current = registry.get(case_id, {}).get("status", "")
+                    if current in (STATUS_DONE, STATUS_FAILED):
+                        # Without a start time, a refresh no longer reads the verdict of the
+                        # deleted run from logs that live outside the run folders.
+                        update_case(
+                            registry,
+                            case_id,
+                            status=STATUS_PREPARED,
+                            convergence=None,
+                            start_time=None,
+                            end_time=None,
+                        )
         for case_id in case_ids:
             log_case_action(
                 ctx.runs_dir,
@@ -260,6 +270,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
             "bytes_freed": report.bytes_freed,
             "cid_removed": report.cid_removed,
             "pycache_removed": report.pycache_removed,
+            "skipped_active": report.skipped_active,
         }
 
     @app.post("/api/kill_case", response_model=SuccessResponse)
@@ -320,10 +331,11 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
     ) -> dict[str, str]:
         ctx.require_auth(x_csauto_token, authorization)
         ctx.require_capability("control")
-        if payload.action not in ctx.adapter.control_actions:
-            raise ctx.http_exception_cls(
-                status_code=400, detail=f"Invalid action (expected one of {sorted(ctx.adapter.control_actions)})"
-            )
+        action = ctx.adapter.control_action(payload.action or "")
+        if action is None:
+            names = ", ".join(a.name for a in ctx.adapter.control_actions)
+            raise ctx.http_exception_cls(status_code=400, detail=f"Invalid action (expected one of: {names})")
+        value = _option_value(action, payload.value, ctx.http_exception_cls)
         cases = normalize_cases(payload.cases)
         if not cases:
             raise ctx.http_exception_cls(status_code=400, detail="Missing cases parameter")
@@ -338,8 +350,8 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
                 control_case(
                     ctx.runs_dir,
                     case_ids[0],
-                    payload.action,
-                    value=payload.value,
+                    action.name,
+                    value=value,
                     source="web",
                     actor=actor,
                     adapter=ctx.adapter,
@@ -354,8 +366,8 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
                         control_case,
                         ctx.runs_dir,
                         case_id,
-                        payload.action,
-                        value=payload.value,
+                        action.name,
+                        value=value,
                         source="web",
                         actor=actor,
                         adapter=ctx.adapter,
@@ -406,7 +418,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         try:
             subprocess.Popen(
                 cmd,
-                cwd=case_dir.parent,
+                cwd=case_dir,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,

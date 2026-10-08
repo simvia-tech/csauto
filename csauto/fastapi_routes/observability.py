@@ -1,4 +1,5 @@
 import math
+from pathlib import Path
 from typing import Annotated, Any
 
 from ..logs import (
@@ -16,6 +17,7 @@ from .common import expand_csv_query, shared_models
 def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]) -> None:
     BaseModel = components["BaseModel"]
     Field = components["Field"]
+    FileResponse = components["FileResponse"]
     Header = components["Header"]
     Query = components["Query"]
     Request = components["Request"]
@@ -58,14 +60,10 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
         doe_columns: list[str]
 
     class PerformanceRecordModel(BaseModel):
+        """case_id plus one value per key of the adapter's performance_columns."""
+
         case_id: str
-        elapsed_time: str | None = None
-        mpi_ranks: str | None = None
-        threads: str | None = None
-        io_time: str | None = None
-        linear_solver_time: str | None = None
-        gradients_time: str | None = None
-        balances_time: str | None = None
+        model_config = {"extra": "allow"}
 
     class PerfColumnModel(BaseModel):
         key: str
@@ -80,13 +78,26 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
         value: str
         label: str
 
+    class OptionModel(BaseModel):
+        """A ControlAction or RestartMode: value_label is empty when it takes no value."""
+
+        name: str
+        label: str
+        value_label: str
+        value_kind: str
+
     class AppConfigModel(BaseModel):
         solver: str
         panels: list[str]
         capabilities: list[str]
         compare_kinds: list[CompareKindModel]
         error_files: list[str]
-        control_actions: list[str]
+        tail_files: list[str]
+        control_actions: list[OptionModel]
+        restart_modes: list[OptionModel]
+        default_residual_columns: list[str]
+        logo: bool
+        icon: bool
 
     class RecentErrorItemModel(BaseModel):
         case_id: str
@@ -149,8 +160,28 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
             "capabilities": sorted(ctx.adapter.capabilities),
             "compare_kinds": [{"value": kind.value, "label": kind.label} for kind in ctx.adapter.compare_kinds],
             "error_files": list(ctx.adapter.anomaly_file_names),
-            "control_actions": sorted(ctx.adapter.control_actions),
+            "tail_files": list(ctx.adapter.tail_file_names),
+            "control_actions": [action._asdict() for action in ctx.adapter.control_actions],
+            "restart_modes": [mode._asdict() for mode in ctx.adapter.restart_modes],
+            "default_residual_columns": list(ctx.adapter.default_residual_columns),
+            "logo": bool(ctx.adapter.logo_file and ctx.adapter.logo_file.is_file()),
+            "icon": bool(ctx.adapter.icon_file and ctx.adapter.icon_file.is_file()),
         }
+
+    def _svg_or_404(path: Path | None) -> Any:
+        if not path or not path.is_file():
+            raise ctx.http_exception_cls(status_code=404, detail=f"No such image for solver {ctx.adapter.name}")
+        # Revalidate every time: the same URL serves whichever solver this server runs.
+        return FileResponse(path, media_type="image/svg+xml", headers={"Cache-Control": "no-cache"})
+
+    # Branding images are public, like the dashboard's own assets.
+    @app.get("/api/solver_logo", response_model=None)
+    def api_solver_logo() -> Any:
+        return _svg_or_404(ctx.adapter.logo_file)
+
+    @app.get("/api/solver_icon", response_model=None)
+    def api_solver_icon() -> Any:
+        return _svg_or_404(ctx.adapter.icon_file)
 
     @app.get("/api/restart_origin", response_model=RestartOriginResponse)
     def api_restart_origin(

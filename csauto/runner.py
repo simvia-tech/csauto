@@ -25,6 +25,7 @@ from .execution import (
     RuntimeSelection,
     resolve_runtime,
 )
+from .logs import is_recent, parse_start_time
 from .registry import (
     STATUS_DONE,
     STATUS_FAILED,
@@ -32,6 +33,7 @@ from .registry import (
     STATUS_PREPARED,
     STATUS_RUNNING,
     append_history,
+    campaign_case_dirs,
     load_registry,
     mutate_registry,
     registry_transaction,
@@ -53,9 +55,11 @@ SLURM_HPC_ENV_HINTS = (
 SLURM_TRUE_VALUES = {"1", "true", "yes", "on"}
 SLURM_FALSE_VALUES = {"0", "false", "no", "off"}
 LAUNCH_LOCKFILE = ".csauto.launch.lock"
+# Written in the case folder by the launch wrapper when the run command ends.
+EXIT_CODE_FILE = ".csauto.exitcode"
 LAUNCH_THREAD_LOCK = threading.RLock()
-RESU_SIZE_CACHE_LOCK = threading.RLock()
-RESU_SIZE_CACHE: dict[str, dict[str, float | None]] = {}
+RESULTS_SIZE_CACHE_LOCK = threading.RLock()
+RESULTS_SIZE_CACHE: dict[str, dict[str, float | None]] = {}
 
 try:
     import fcntl
@@ -159,6 +163,8 @@ def _submit_slurm_job(
     command: Sequence[object],
     stdout_path: Path,
     stderr_path: Path,
+    nprocs: int,
+    nt: int,
     env: Mapping[str, str] | None = None,
 ) -> str:
     launch_parts = _strip_nohup_prefix(command)
@@ -168,6 +174,7 @@ def _submit_slurm_job(
     env_prefix = " ".join(f"{key}={shlex.quote(value)}" for key, value in sorted((env or {}).items()))
     if env_prefix:
         wrapped = f"{env_prefix} {wrapped}"
+    wrapped = f"{wrapped}; rc=$?; echo $rc > {EXIT_CODE_FILE}; exit $rc"
     submit_cmd = [
         "sbatch",
         "--parsable",
@@ -179,6 +186,10 @@ def _submit_slurm_job(
         str(stderr_path),
         "--job-name",
         f"csauto_{case_dir.name}",
+        "--ntasks",
+        str(nprocs),
+        "--cpus-per-task",
+        str(nt),
         "--wrap",
         wrapped,
     ]
@@ -206,7 +217,7 @@ def _submit_slurm_script_job(
     stdout_path: Path,
     stderr_path: Path,
 ) -> str:
-    script_path = case_dir / ".csauto.slurm.singularity.sh"
+    script_path = case_dir / ".csauto.slurm.sh"
     script_path.write_text(script_content, encoding="utf-8")
     script_path.chmod(0o755)
     submit_cmd = [
@@ -312,9 +323,11 @@ def _start_case(
             return False
 
         cidfile = case_dir / ".csauto.cid" if selection.runtime == RUNTIME_DOCKER else None
-        if cidfile and cidfile.exists():
-            with contextlib.suppress(OSError):
-                cidfile.unlink()
+        for stale in (cidfile, case_dir / EXIT_CODE_FILE):
+            if stale and stale.exists():
+                with contextlib.suppress(OSError):
+                    stale.unlink()
+        adapter.prepare_launch(case_dir, nprocs, nt)
         scheduler = "slurm" if use_slurm_scheduler else None
 
         base_update: dict[str, Any] = dict(
@@ -430,6 +443,8 @@ def _launch_slurm(
                 cmd,
                 stdout_path,
                 stderr_path,
+                nprocs,
+                nt,
                 env=adapter.mpi_env(submit_mpi_exec_options),
             )
     except (OSError, ValueError, RuntimeError) as exc:
@@ -458,6 +473,29 @@ def _launch_slurm(
     )
 
 
+def _with_exit_code(command: Sequence[object]) -> list[str]:
+    """Run `command` through sh, which writes its exit status to EXIT_CODE_FILE when it ends."""
+    script = f'"$@"; rc=$?; echo $rc > {EXIT_CODE_FILE}; exit $rc'
+    return ["nohup", "sh", "-c", script, "csauto-run", *_strip_nohup_prefix(command)]
+
+
+def exit_status_outcome(case_dir: Path, start_time: str | None) -> str | None:
+    """DONE or FAILED from the exit status of the current run's command, or None when unknown."""
+    path = case_dir / EXIT_CODE_FILE
+    if not path.is_file() or not is_recent(path, parse_start_time(start_time)):
+        return None
+    try:
+        code = int(path.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return None
+    return STATUS_DONE if code == 0 else STATUS_FAILED
+
+
+def final_outcome(adapter: SolverAdapter, case_dir: Path, start_time: str | None) -> str:
+    """Status of a run that has ended: the solver's own verdict, else its exit status, else FAILED."""
+    return adapter.detect_outcome(case_dir, start_time) or exit_status_outcome(case_dir, start_time) or STATUS_FAILED
+
+
 def _launch_local(
     case_dir: Path,
     case_id: str,
@@ -466,6 +504,7 @@ def _launch_local(
     registry: dict[str, Any],
     base_update: dict[str, Any],
 ) -> None:
+    cmd = _with_exit_code(cmd)
     stdout_path = case_dir / "csauto.stdout"
     stderr_path = case_dir / "csauto.stderr"
     with ExitStack() as _fh:
@@ -513,6 +552,7 @@ def _launch_local(
             start_time=timestamp_now(),
             end_time=None,
             pid=proc.pid,
+            pid_identity=process_identity(proc.pid),
             job_id=None,
         )
         if cidfile:
@@ -543,6 +583,9 @@ def run_cases(
     adapter: SolverAdapter | None = None,
 ) -> None:
     """Launch solver runs for each case directory."""
+    # Commands start inside the case folder, so every path handed to them
+    # (the docker cidfile, the case itself) must be absolute.
+    runs_dir = runs_dir.resolve()
     if nprocs <= 0 or nt <= 0:
         raise ValueError("nprocs and nt must be > 0")
     if max_parallel <= 0:
@@ -577,12 +620,13 @@ def run_cases(
             raise ValueError(f"Requested cases not found in {runs_dir}: {', '.join(missing)}")
         case_dirs = [runs_dir / name for name in allowed_list]
     else:
-        case_dirs = sorted(p for p in runs_dir.iterdir() if p.is_dir() and p.name.startswith("case"))
+        case_dirs = campaign_case_dirs(runs_dir)
 
     if not case_dirs:
-        raise ValueError(f"No case* directory found in {runs_dir}")
+        raise ValueError(f"No case found in {runs_dir} (run csauto prepare first)")
 
     launched = 0
+    errors: list[str] = []
 
     for case_dir in case_dirs:
         case_id = case_dir.name
@@ -595,6 +639,7 @@ def run_cases(
                 continue
             if resume_only_failed and status not in {STATUS_FAILED}:
                 continue
+            previous_status = status or STATUS_PREPARED
             update_case(registry, case_id, status=STATUS_PENDING)
 
         def _do_start(selected_case: Path = case_dir) -> None:
@@ -616,7 +661,18 @@ def run_cases(
             ):
                 launched += 1
 
-        _start_case_with_launch_slot(runs_dir, max_parallel, _do_start, adapter)
+        try:
+            _start_case_with_launch_slot(runs_dir, max_parallel, _do_start, adapter)
+        except (OSError, ValueError, RuntimeError) as exc:
+            # A refused launch (no checkpoint to restart from, a missing input
+            # file...) must neither strand the case in PENDING nor stop the batch.
+            errors.append(f"{case_id}: {exc}")
+            with registry_transaction(runs_dir) as registry:
+                if registry.get(case_id, {}).get("status") == STATUS_PENDING:
+                    update_case(registry, case_id, status=previous_status)
+            append_history(case_dir, "launch_error", details={"error": str(exc)}, source=source)
+    if errors:
+        raise RuntimeError(f"{len(errors)} case(s) not launched: " + "; ".join(errors))
     if launched == 0:
         print("No cases launched.", file=sys.stderr)
 
@@ -633,28 +689,24 @@ def _count_running_cases(runs_dir: Path, adapter: SolverAdapter) -> int:
     to_finalize: dict[str, dict[str, Any]] = {}
 
     for case_id, record in snapshot.items():
-        pid = record.get("pid")
-        pid_alive = False
-        if pid is not None:
-            try:
-                pid_alive = is_process_alive(int(pid))
-            except (TypeError, ValueError):
-                pid_alive = False
-        if pid_alive:
-            still_running.add(case_id)
-            continue
-        job_id = _normalize_job_id(record.get("job_id"))
-        if job_id:
-            job_active = _is_slurm_job_active(job_id)
-            if job_active is not False:
+        alive = _run_alive(record, _is_slurm_job_active)
+        case_dir = _resolve_case_dir(runs_dir, record.get("path"), case_id)
+        if alive is None:
+            # Liveness unknown (squeue unavailable): only a verdict frees the slot.
+            outcome = adapter.detect_outcome(case_dir, record.get("start_time"))
+            outcome = outcome or exit_status_outcome(case_dir, record.get("start_time"))
+            if not outcome:
                 still_running.add(case_id)
                 continue
-        case_dir = _resolve_case_dir(runs_dir, record.get("path"), case_id)
-        outcome = adapter.detect_outcome(case_dir, record.get("start_time")) or STATUS_FAILED
+        elif alive:
+            still_running.add(case_id)
+            continue
+        else:
+            outcome = final_outcome(adapter, case_dir, record.get("start_time"))
         to_finalize[case_id] = {
             "status": outcome,
             "pid": None,
-            "job_id": None if job_id else record.get("job_id"),
+            "job_id": None,
             "end_time": record.get("end_time") or timestamp_now(),
         }
 
@@ -706,20 +758,43 @@ def _is_zombie(pid: int) -> bool:
     return bool(fields) and fields[0] == "Z"
 
 
-def is_process_alive(pid: int) -> bool:
+def process_identity(pid: int) -> str | None:
+    """ "<boot id>:<start ticks>" of a process, from procfs, or None without it.
+
+    Unlike wall-clock times, neither part changes when the clock is stepped
+    (WSL2 resyncs often), at a DST change or with another timezone, so it tells
+    a launched process from another one that later got the same PID.
+    """
+    try:
+        boot_id = Path("/proc/sys/kernel/random/boot_id").read_text(encoding="utf-8").strip()
+        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8", errors="ignore")
+        return f"{boot_id}:{stat.rpartition(')')[2].split()[19]}"
+    except (OSError, IndexError):
+        return None
+
+
+def is_process_alive(pid: int, identity: str | None = None) -> bool:
     """Check if a PID is alive (best effort, POSIX-oriented).
 
     A zombie counts as dead. `os.kill(pid, 0)` still succeeds for a process that
     exited but was never reaped, which is what every run launched by the
     long-lived web server becomes: `run_cases` spawns it with Popen and never
     waits. Treating that as alive kept finished cases RUNNING forever.
+
+    With `identity` (from process_identity at launch), a PID now held by
+    another process counts as dead: the PID was reused, for instance after a
+    reboot, possibly by another user's process.
     """
+    with contextlib.suppress(ChildProcessError, OSError, AttributeError):
+        # Reaps our own finished child: without /proc (macOS) nothing else tells it ended.
+        if os.waitpid(pid, os.WNOHANG)[0] == pid:
+            return False
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
         return False
     except PermissionError:
-        return True
+        pass  # alive but owned by someone else: check the identity below
     except OSError:
         return False
     if _is_zombie(pid):
@@ -728,7 +803,26 @@ def is_process_alive(pid: int) -> bool:
         with contextlib.suppress(ChildProcessError, OSError):
             os.waitpid(pid, os.WNOHANG)
         return False
+    if identity is not None:
+        current = process_identity(pid)
+        if current is not None and current != identity:
+            return False
     return True
+
+
+def _run_alive(record: Mapping[str, Any], job_active: Callable[[str], bool | None]) -> bool | None:
+    """Whether a RUNNING case's process or Slurm job still exists; None when squeue cannot tell."""
+    pid = record.get("pid")
+    if pid is not None:
+        try:
+            pid_number = int(pid)
+        except (TypeError, ValueError):
+            return False
+        return is_process_alive(pid_number, identity=record.get("pid_identity"))
+    job_id = _normalize_job_id(record.get("job_id"))
+    if job_id:
+        return job_active(job_id)
+    return False  # nothing left to watch
 
 
 def terminate_pid(pid: int, grace: float = 1.0) -> None:
@@ -813,33 +907,25 @@ def _compute_refresh_result(
     job_id = _normalize_job_id(record.get("job_id"))
 
     if status == STATUS_RUNNING:
-        pid_alive = False
-        if pid is not None:
-            try:
-                pid_alive = is_process_alive(int(pid))
-            except (TypeError, ValueError):
-                pid_alive = False
-        job_active: bool | None = None
-        if not pid_alive and job_id:
-            job_active = job_states.get(job_id)
-        should_finalize = not pid_alive and ((job_id and job_active is False) or (not job_id))
-        if should_finalize:
-            outcome = adapter.detect_outcome(case_dir, start_time) or STATUS_FAILED
+        # A run ends when its process or Slurm job is gone, not when its log
+        # prints a verdict: the solver may still be writing results. Only when
+        # liveness cannot be told (no PID, squeue unavailable) does a verdict
+        # end it early.
+        alive = _run_alive(record, job_states.get)
+        outcome: str | None = None
+        if alive is False:
+            outcome = final_outcome(adapter, case_dir, start_time)
+        elif alive is None and has_started:
+            outcome = adapter.detect_outcome(case_dir, start_time) or exit_status_outcome(case_dir, start_time)
+        if outcome:
             status = outcome
             end_time = end_time or timestamp_now()
             pid = None
             job_id = None
-    if status == STATUS_RUNNING and has_started:
-        # Even if the PID is stale, trust the log end markers.
-        outcome = adapter.detect_outcome(case_dir, start_time)
-        if outcome:
-            status = outcome
-            if outcome == STATUS_DONE and not end_time:
-                end_time = timestamp_now()
-            pid = None
-            job_id = None
-    elif status != STATUS_DONE and has_started:
-        # Only check for completion if a run was actually started.
+    elif status not in (STATUS_DONE, STATUS_PENDING) and has_started:
+        # Only check for completion if a run was actually started. A queued
+        # (PENDING) case still has the previous run's logs, which say nothing
+        # about the run it waits for.
         outcome = adapter.detect_outcome(case_dir, start_time)
         if outcome:
             status = outcome
@@ -1000,16 +1086,16 @@ def _cached_resu_size_mb(case_dir: Path, adapter: SolverAdapter) -> tuple[float 
         except OSError:
             resu_mtime = None
     if resu_mtime is None:
-        with RESU_SIZE_CACHE_LOCK:
-            RESU_SIZE_CACHE.pop(cache_key, None)
+        with RESULTS_SIZE_CACHE_LOCK:
+            RESULTS_SIZE_CACHE.pop(cache_key, None)
         return None, None
-    with RESU_SIZE_CACHE_LOCK:
-        cached = RESU_SIZE_CACHE.get(cache_key)
+    with RESULTS_SIZE_CACHE_LOCK:
+        cached = RESULTS_SIZE_CACHE.get(cache_key)
         if cached and cached.get("mtime") == resu_mtime:
             return resu_mtime, cached.get("size")
     size = _resu_size_mb(case_dir, adapter)
-    with RESU_SIZE_CACHE_LOCK:
-        RESU_SIZE_CACHE[cache_key] = {"mtime": resu_mtime, "size": size}
+    with RESULTS_SIZE_CACHE_LOCK:
+        RESULTS_SIZE_CACHE[cache_key] = {"mtime": resu_mtime, "size": size}
     return resu_mtime, size
 
 

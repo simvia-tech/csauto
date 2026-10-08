@@ -57,9 +57,8 @@ def test_build_runtime_run_command_native(tmp_path: Path) -> None:
         saturne_bin="/opt/code_saturne/bin/code_saturne",
     )
     cmd = build_runtime_run_command(case_dir, nprocs=4, nt=2, selection=selection)
-    assert cmd[:3] == ["nohup", "/opt/code_saturne/bin/code_saturne", "run"]
-    assert "--case" in cmd
-    assert str(case_dir) in cmd
+    # Every runtime starts inside the case folder, so the case is ".".
+    assert cmd[:5] == ["nohup", "/opt/code_saturne/bin/code_saturne", "run", "--case", "."]
     assert "-n" in cmd and cmd[cmd.index("-n") + 1] == "4"
     assert "--nt" in cmd and cmd[cmd.index("--nt") + 1] == "2"
 
@@ -109,13 +108,13 @@ def test_build_runtime_run_command_singularity_slurm_uses_cleanenv_and_env(tmp_p
         "code_saturne",
         "run",
         "--case",
-        "/home/code_saturne/case0001",
+        ".",
         "-n",
         "4",
         "--nt",
         "2",
     ]
-    assert "--pwd" in cmd and cmd[cmd.index("--pwd") + 1] == "/home/code_saturne/case0001"
+    assert "--pwd" in cmd and cmd[cmd.index("--pwd") + 1] == "/csauto/case0001"
 
 
 def test_build_runtime_gui_command_native(tmp_path: Path) -> None:
@@ -128,11 +127,7 @@ def test_build_runtime_gui_command_native(tmp_path: Path) -> None:
         saturne_bin="/opt/code_saturne/bin/code_saturne",
     )
     cmd = build_runtime_gui_command(case_dir, selection)
-    assert cmd == [
-        "/opt/code_saturne/bin/code_saturne",
-        "gui",
-        str(case_dir / "DATA" / "setup.xml"),
-    ]
+    assert cmd == ["/opt/code_saturne/bin/code_saturne", "gui", "DATA/setup.xml"]
 
 
 def test_build_runtime_gui_command_singularity(tmp_path: Path, monkeypatch) -> None:
@@ -147,14 +142,13 @@ def test_build_runtime_gui_command_singularity(tmp_path: Path, monkeypatch) -> N
         singularity_image="/images/code_saturne.sif",
     )
     cmd = build_runtime_gui_command(case_dir, selection)
-    container_case = "/home/code_saturne/case0001"
-    container_setup = f"{container_case}/DATA/setup.xml"
+    container_case = "/csauto/case0001"
     assert cmd[:2] == ["/usr/bin/apptainer", "exec"]
     assert "--bind" in cmd
-    assert f"{case_dir.parent.resolve()}:/home/code_saturne" in cmd
+    assert f"{case_dir.parent.resolve()}:/csauto" in cmd
     assert "--pwd" in cmd
     assert container_case in cmd
-    assert cmd[-4:] == ["/images/code_saturne.sif", "code_saturne", "gui", container_setup]
+    assert cmd[-4:] == ["/images/code_saturne.sif", "code_saturne", "gui", "DATA/setup.xml"]
 
 
 def test_build_singularity_slurm_script_uses_stage_solver_finalize(tmp_path: Path) -> None:
@@ -200,15 +194,15 @@ def test_check_shared_dir_symlinks_native_is_always_ok(tmp_path: Path) -> None:
     outside.mkdir(parents=True)
     (runs_dir / "MESH").symlink_to(outside, target_is_directory=True)
 
-    check_shared_dir_symlinks(runs_dir, RUNTIME_NATIVE)
+    check_shared_dir_symlinks(runs_dir, RUNTIME_NATIVE, ("MESH", "POST"))
 
 
 def test_check_shared_dir_symlinks_no_symlink_is_ok_for_containers(tmp_path: Path) -> None:
     runs_dir = tmp_path / "RUNS"
     (runs_dir / "MESH").mkdir(parents=True)
 
-    check_shared_dir_symlinks(runs_dir, RUNTIME_DOCKER)
-    check_shared_dir_symlinks(runs_dir, RUNTIME_SINGULARITY)
+    check_shared_dir_symlinks(runs_dir, RUNTIME_DOCKER, ("MESH", "POST"))
+    check_shared_dir_symlinks(runs_dir, RUNTIME_SINGULARITY, ("MESH", "POST"))
 
 
 def test_check_shared_dir_symlinks_inside_runs_dir_is_ok_for_containers(tmp_path: Path) -> None:
@@ -217,7 +211,7 @@ def test_check_shared_dir_symlinks_inside_runs_dir_is_ok_for_containers(tmp_path
     real_mesh.mkdir(parents=True)
     (runs_dir / "MESH").symlink_to(real_mesh, target_is_directory=True)
 
-    check_shared_dir_symlinks(runs_dir, RUNTIME_DOCKER)
+    check_shared_dir_symlinks(runs_dir, RUNTIME_DOCKER, ("MESH", "POST"))
 
 
 @pytest.mark.parametrize("runtime", [RUNTIME_DOCKER, RUNTIME_SINGULARITY])
@@ -228,7 +222,7 @@ def test_check_shared_dir_symlinks_outside_runs_dir_is_ok_for_containers(tmp_pat
     outside.mkdir(parents=True)
     (runs_dir / "MESH").symlink_to(outside, target_is_directory=True)
 
-    check_shared_dir_symlinks(runs_dir, runtime)
+    check_shared_dir_symlinks(runs_dir, runtime, ("MESH", "POST"))
 
 
 @pytest.mark.parametrize("runtime", [RUNTIME_DOCKER, RUNTIME_SINGULARITY])
@@ -238,7 +232,7 @@ def test_check_shared_dir_symlinks_raises_for_broken_symlink(tmp_path: Path, run
     (runs_dir / "MESH").symlink_to(tmp_path / "gone", target_is_directory=True)
 
     with pytest.raises(RuntimeError, match="does not exist"):
-        check_shared_dir_symlinks(runs_dir, runtime)
+        check_shared_dir_symlinks(runs_dir, runtime, ("MESH", "POST"))
 
 
 def test_shared_dir_symlink_mounts_lists_outside_targets(tmp_path: Path) -> None:
@@ -253,7 +247,7 @@ def test_shared_dir_symlink_mounts_lists_outside_targets(tmp_path: Path) -> None
     (runs_dir / "MESH").symlink_to(mesh, target_is_directory=True)
     (runs_dir / "POST").symlink_to(post, target_is_directory=True)
 
-    mounts = shared_dir_symlink_mounts(runs_dir)
+    mounts = shared_dir_symlink_mounts(runs_dir, ("MESH", "POST"), {"MESH"})
 
     assert (mesh.resolve(), True) in mounts
     assert (post.resolve(), False) in mounts
@@ -268,7 +262,7 @@ def test_shared_dir_symlink_mounts_ignores_real_dirs_and_internal_links(tmp_path
     (runs_dir / "MESH").symlink_to(real_mesh, target_is_directory=True)
     (runs_dir / "POST").mkdir()
 
-    assert shared_dir_symlink_mounts(runs_dir) == []
+    assert shared_dir_symlink_mounts(runs_dir, ("MESH", "POST"), {"MESH"}) == []
 
 
 def test_build_runtime_run_command_singularity_binds_symlinked_shared_dirs(tmp_path: Path) -> None:
@@ -335,3 +329,14 @@ def test_build_runtime_gui_command_singularity_mounts_shared_dir_symlinks(tmp_pa
 
     assert f"{mesh.resolve()}:{mesh.resolve()}:ro" in cmd
     assert f"{post.resolve()}:{post.resolve()}" in cmd
+
+
+def test_check_shared_dir_symlinks_refuses_targets_under_the_container_root(tmp_path: Path) -> None:
+    runs_dir = tmp_path / "RUNS"
+    runs_dir.mkdir()
+    mesh = tmp_path / "data" / "MESH"
+    mesh.mkdir(parents=True)
+    (runs_dir / "MESH").symlink_to(mesh)
+    with pytest.raises(RuntimeError, match="collides with the campaign mount point"):
+        check_shared_dir_symlinks(runs_dir, RUNTIME_DOCKER, ("MESH",), container_root=str(mesh.parent.resolve()))
+    check_shared_dir_symlinks(runs_dir, RUNTIME_DOCKER, ("MESH",), container_root="/csauto")

@@ -1,7 +1,7 @@
 <!--
-  PerformanceCard — timing snapshot table with CSV export.
+  PerformanceCard: timing snapshot table with CSV export.
 
-  Displays elapsed time, I/O, solver, gradients, balances per case.
+  One row per case, one column per timing the solver adapter declares.
   Auto-refreshes and reacts to global refresh (e.g. after cleanup).
 -->
 <script lang="ts">
@@ -16,7 +16,7 @@
   import { fetchPerf } from "$lib/api/endpoints";
   import { saveCsvBlob, buildPlotFilename } from "$lib/actions/export";
   import type { PerfColumn, PerfRecord } from "$lib/api/types";
-  import { RefreshCw, Download } from "lucide-svelte";
+  import { RefreshCw, Download } from "@lucide/svelte";
   import {
     startTimer,
     stopTimer,
@@ -42,30 +42,20 @@
 
   const PERF_REFRESH_MS = 5000;
 
-  /* Columns come from the solver adapter via /api/perf; this hardcoded set
-     is only the fallback for older backends whose payload has no metadata. */
-  const FALLBACK_COLUMNS: PerfColumn[] = [
-    { key: "elapsed_time", label: "Elapsed (s)", kind: "time" },
-    { key: "io_time", label: "I/O (s)", kind: "time" },
-    { key: "linear_solver_time", label: "Linear Solver (s)", kind: "time" },
-    { key: "gradients_time", label: "Gradients (s)", kind: "time" },
-    { key: "balances_time", label: "Balances (s)", kind: "time" },
-    { key: "mpi_ranks", label: "MPI Ranks", kind: "int" },
-    { key: "threads", label: "Threads", kind: "int" },
-  ];
-  let columns = $state<PerfColumn[]>(FALLBACK_COLUMNS);
+  /* Declared by the solver adapter, sent with every /api/perf payload. */
+  let columns = $state<PerfColumn[]>([]);
 
   let caseOptions = $derived(allCases.map((c) => ({ value: c, label: c })));
-  let hasData = $derived(records.length > 0);
+  let hasData = $derived(columns.length > 0 && records.length > 0);
 
   async function load() {
     if (!selectedCases.length) return;
     loading = true;
     try {
       const data = await fetchPerf(selectedCases);
-      if (data.columns?.length) columns = data.columns;
+      columns = data.columns;
       records = data.records;
-      if (records.length > 0) hasAvailableData = true;
+      if (hasData) hasAvailableData = true;
     } catch (err) {
       console.error("Failed to load perf:", err);
     }
@@ -81,11 +71,11 @@
     load();
   }
 
-  function formatCell(kind: PerfColumn["kind"], value: string | null): string {
+  function formatCell(kind: PerfColumn["kind"], value: unknown): string {
     if (value === null || value === undefined || value === "") return "-";
-    if (kind === "text") return value;
+    if (kind === "text") return String(value);
     const n = Number(value);
-    if (!Number.isFinite(n)) return value;
+    if (!Number.isFinite(n)) return String(value);
     if (kind === "int") return String(Math.round(n));
     return n.toFixed(3);
   }
@@ -109,9 +99,9 @@
       selectedCases = [...allCases];
       fetchPerf(allCases)
         .then((data) => {
-          if (data.columns?.length) columns = data.columns;
-          hasAvailableData = data.records.length > 0;
+          columns = data.columns;
           records = data.records;
+          hasAvailableData = hasData;
         })
         .catch(() => {});
     }

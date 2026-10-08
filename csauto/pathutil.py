@@ -17,7 +17,10 @@ def safe_subpath(base: Path, relative: str | Path) -> Path | None:
     rel = Path(relative)
     if not str(relative) or rel.is_absolute():
         return None
-    candidate = (base / rel).resolve()
+    try:
+        candidate = (base / rel).resolve()
+    except (OSError, ValueError):  # a NUL byte, a symlink loop
+        return None
     if not is_within_root(candidate, base.resolve()):
         return None
     return candidate

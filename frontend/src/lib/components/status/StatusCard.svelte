@@ -1,5 +1,5 @@
 <!--
-  StatusCard — the main case status table card.
+  StatusCard: the main case status table card.
 
   Orchestrates StatusControls (search, DOE selector, views, bulk actions)
   and StatusTable (sortable columns, selectable rows, sticky layout).
@@ -13,17 +13,7 @@
   import ViewManager from "./ViewManager.svelte";
   import StatusTable from "./StatusTable.svelte";
   import ConvergenceMenu from "./ConvergenceMenu.svelte";
-  import {
-    RefreshCw,
-    Play,
-    RotateCcw,
-    XCircle,
-    Trash2,
-    CircleStop,
-    FastForward,
-    Save,
-    Droplets,
-  } from "lucide-svelte";
+  import { RefreshCw, Play, RotateCcw, XCircle, Trash2 } from "@lucide/svelte";
   import {
     getAutoRefresh,
     setAutoRefresh,
@@ -43,7 +33,8 @@
     clearSelection,
     getSelectionAnchor,
     getSelectedStatuses,
-    hasSelectedWithResu,
+    hasSelectedWithResults,
+    getRows,
   } from "$lib/stores/status.svelte";
   import {
     getStatusRefreshMs,
@@ -51,10 +42,7 @@
     setAutoRefreshEnabled,
     triggerGlobalRefresh,
   } from "$lib/stores/refresh.svelte";
-  import {
-    hasCapability,
-    hasControlAction,
-  } from "$lib/stores/appConfig.svelte";
+  import { getAppConfig, hasCapability } from "$lib/stores/appConfig.svelte";
   import {
     openRunDialog,
     openRestartDialog,
@@ -70,6 +58,8 @@
     cleanupCases,
   } from "$lib/api/endpoints";
   import { appAlert } from "$lib/actions/dialog.svelte";
+  import { optionValueError } from "$lib/utils/options";
+  import type { SolverOption } from "$lib/api/types";
 
   interface Props {
     onRefresh: () => void;
@@ -108,15 +98,7 @@
     const params = await openRestartDialog(cases);
     if (!params) return;
     try {
-      await runCase({
-        cases,
-        n: params.n,
-        nt: params.nt,
-        maxParallel: params.maxParallel,
-        restart: true,
-        restartMode: params.restartMode,
-        restartValue: params.restartValue,
-      });
+      await runCase({ cases, ...params, restart: true });
       onRefresh();
     } catch (err) {
       await appAlert(
@@ -147,86 +129,48 @@
     }
   }
 
-  async function stopSelected() {
-    const cases = getSelectedArray();
-    if (!cases.length) return;
-    const ok = await appConfirm(
-      `Stop ${cases.length} case${cases.length > 1 ? "s" : ""} gracefully (checkpoint + exit)?`,
-      "Confirm Stop",
-      "Stop",
-      "danger",
+  /* A live control action declared by the solver adapter: one with a
+     value_label asks for its value, the others for confirmation. */
+  async function controlSelected(action: SolverOption) {
+    // Only running cases can take a control action; skip the others.
+    const running = new Set(
+      getRows()
+        .filter((r) => r.status?.toUpperCase() === "RUNNING")
+        .map((r) => r.case_id),
     );
-    if (!ok) return;
-    try {
-      await controlCase({ cases, action: "stop" });
-      onRefresh();
-      showToast(
-        `Stop requested for ${cases.length} case${cases.length > 1 ? "s" : ""} — will checkpoint and exit`,
-      );
-    } catch (err) {
-      await appAlert(
-        `Stop failed: ${err instanceof Error ? err.message : err}`,
-        "Error",
-      );
-    }
-  }
-
-  async function checkpointSelected() {
-    const cases = getSelectedArray();
+    const cases = getSelectedArray().filter((c) => running.has(c));
     if (!cases.length) return;
+    const count = `${cases.length} case${cases.length > 1 ? "s" : ""}`;
+    let value: number | null = null;
+    if (action.value_label) {
+      const input = await appPrompt(
+        `${action.value_label} for ${count}:`,
+        "",
+        action.label,
+      );
+      if (input === null) return;
+      value = Number(input.trim().replace(",", "."));
+      const error = optionValueError(action, value);
+      if (error) {
+        await appAlert(error, "Invalid value");
+        return;
+      }
+    } else {
+      const ok = await appConfirm(
+        `${action.label} for ${count}?`,
+        action.label,
+        action.label,
+        "warning",
+      );
+      if (!ok) return;
+    }
     try {
-      await controlCase({ cases, action: "checkpoint" });
+      await controlCase({ cases, action: action.name, value });
       onRefresh();
-      showToast(
-        `Checkpoint requested for ${cases.length} case${cases.length > 1 ? "s" : ""}`,
-      );
+      showToast(`${action.label} requested for ${count}`);
     } catch (err) {
       await appAlert(
-        `Checkpoint failed: ${err instanceof Error ? err.message : err}`,
-        "Error",
-      );
-    }
-  }
-
-  async function extendSelected() {
-    const cases = getSelectedArray();
-    if (!cases.length) return;
-    const input = await appPrompt(
-      "Extend by how many additional time steps?",
-      "500",
-      "Extend Run",
-    );
-    if (input === null) return;
-    const n = parseInt(input, 10);
-    if (!Number.isFinite(n) || n <= 0) {
-      await appAlert("Enter a positive integer number of time steps.", "Error");
-      return;
-    }
-    try {
-      await controlCase({ cases, action: "extend", value: n });
-      onRefresh();
-      showToast(
-        `Extended ${cases.length} case${cases.length > 1 ? "s" : ""} by ${n} time steps`,
-      );
-    } catch (err) {
-      await appAlert(
-        `Extend failed: ${err instanceof Error ? err.message : err}`,
-        "Error",
-      );
-    }
-  }
-
-  async function flushSelected() {
-    const cases = getSelectedArray();
-    if (!cases.length) return;
-    try {
-      await controlCase({ cases, action: "flush" });
-      showToast(
-        `Flush requested for ${cases.length} case${cases.length > 1 ? "s" : ""}`,
-      );
-    } catch (err) {
-      await appAlert(
-        `Flush failed: ${err instanceof Error ? err.message : err}`,
+        `${action.label} failed: ${err instanceof Error ? err.message : err}`,
         "Error",
       );
     }
@@ -238,13 +182,16 @@
     const choice = await openCleanDialog(cases);
     if (!choice) return;
     try {
-      await cleanupCases({
+      const report = await cleanupCases({
         cases,
         keepLast: choice.keepLast,
         keepResu: choice.keepResu,
         deleteResu: choice.deleteResu,
         pruneResu: true,
       });
+      if (report.skipped_active?.length) {
+        showToast(`Skipped running cases: ${report.skipped_active.join(", ")}`);
+      }
       onRefresh();
       triggerGlobalRefresh();
     } catch (err) {
@@ -292,48 +239,25 @@
     return (
       statuses.size > 0 &&
       [...statuses].some((s) => s === "DONE" || s === "FAILED") &&
-      hasSelectedWithResu()
+      hasSelectedWithResults()
     );
   });
   let canKill = $derived.by(() => {
     const statuses = getSelectedStatuses();
     return statuses.size > 0 && statuses.has("RUNNING");
   });
-  let canControl = $derived.by(() => {
-    if (!hasCapability("control")) return false;
-    const statuses = getSelectedStatuses();
-    return statuses.size > 0 && statuses.has("RUNNING");
-  });
+  let canControl = $derived(getSelectedStatuses().has("RUNNING"));
 
-  /* Live control directives the solver declares, so unsupported ones are
-     removed from the More menu rather than shown disabled. */
-  const CONTROL_MENU = [
-    {
-      label: "Extend",
-      icon: FastForward,
-      onClick: extendSelected,
-      action: "extend",
-    },
-    {
-      label: "Checkpoint",
-      icon: Save,
-      onClick: checkpointSelected,
-      action: "checkpoint",
-    },
-    { label: "Flush", icon: Droplets, onClick: flushSelected, action: "flush" },
-  ];
-
-  let moreControlItems = $derived(
-    CONTROL_MENU.filter((item) => hasControlAction(item.action)).map(
-      (item) => ({
-        label: item.label,
-        icon: item.icon,
-        onClick: item.onClick,
-        disabled: !canControl,
-      }),
-    ),
+  /* The Control menu lists the solver's live control actions; none before
+     the config loads or when the solver declares none. */
+  let controlItems = $derived(
+    (getAppConfig()?.control_actions ?? []).map((action) => ({
+      label: action.label,
+      onClick: () => controlSelected(action),
+      disabled: !canControl,
+    })),
   );
-  let canClean = $derived(hasSelectedWithResu());
+  let canClean = $derived(hasSelectedWithResults());
 
   /* Search */
   let searchValue = $state(getSearchQuery());
@@ -482,16 +406,8 @@
             disabled={!canRestart}><Icon icon={RotateCcw} /> Restart</Button
           >
         {/if}
-        {#if hasCapability("control")}
-          <Button
-            variant="warning"
-            size="sm"
-            onclick={stopSelected}
-            disabled={!canControl}><Icon icon={CircleStop} /> Stop</Button
-          >
-        {/if}
-        {#if moreControlItems.length > 0}
-          <ActionMenuButton items={moreControlItems} />
+        {#if controlItems.length > 0}
+          <ActionMenuButton label="Control" items={controlItems} />
         {/if}
         <Button
           variant="danger"

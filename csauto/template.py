@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
-from pathlib import Path
 
-# Match csauto placeholders while ignoring shell expansions like ${HOME}.
-PLACEHOLDER_PATTERN = re.compile(r"(?<!\$){\s*([A-Za-z0-9_.-]+)\s*}")
+# `{name}` placeholders. Shell expansions like ${HOME} are left alone, and
+# `\{name}` is an escape rendered as a literal `{name}`, for files where
+# braces are code (Python f-strings and sets in code_aster .comm files).
+PLACEHOLDER_PATTERN = re.compile(r"(?<![$\\]){\s*([A-Za-z0-9_.-]+)\s*}")
+ESCAPED_PLACEHOLDER_PATTERN = re.compile(r"\\({\s*[A-Za-z0-9_.-]+\s*})")
 COND_START_PATTERN = re.compile(r"<!--\s*IF\s+(.+?)\s*-->", re.IGNORECASE)
 COND_END_PATTERN = re.compile(r"<!--\s*ENDIF\s*-->", re.IGNORECASE)
 COND_EXPR_PATTERN = re.compile(r"^([A-Za-z0-9_.-]+)\s*(==|=|!=)\s*(.+)$")
@@ -116,44 +118,4 @@ def render_template(
         joined = ", ".join(sorted(set(remaining)))
         raise ValueError(f"Unresolved placeholders after rendering for {case_id}: {joined}")
 
-    return rendered
-
-
-def find_setup_file(template_dir: Path) -> Path:
-    """Locate setup.xml in the template directory."""
-    candidates = [
-        template_dir / "setup.xml",
-        template_dir / "DATA" / "setup.xml",
-    ]
-    for candidate in candidates:
-        if candidate.is_file():
-            return candidate
-
-    matches = list(template_dir.rglob("setup.xml"))
-    if not matches:
-        raise FileNotFoundError(f"setup.xml not found in template: {template_dir}")
-    if len(matches) > 1:
-        found = ", ".join(str(p.relative_to(template_dir)) for p in matches[:5])
-        suffix = " ..." if len(matches) > 5 else ""
-        raise ValueError(f"Multiple setup.xml found in {template_dir}: {found}{suffix}")
-    return matches[0]
-
-
-def find_run_cfg(template_dir: Path) -> Path | None:
-    """Locate run.cfg in the template directory if exactly one candidate exists."""
-    candidates = [
-        template_dir / "run.cfg",
-        template_dir / "DATA" / "run.cfg",
-    ]
-    for candidate in candidates:
-        if candidate.is_file():
-            return candidate
-
-    matches = list(template_dir.rglob("run.cfg"))
-    if not matches:
-        return None
-    if len(matches) == 1:
-        return matches[0]
-    found = ", ".join(str(p.relative_to(template_dir)) for p in matches[:5])
-    suffix = " ..." if len(matches) > 5 else ""
-    raise ValueError(f"Multiple run.cfg found in {template_dir}: {found}{suffix}")
+    return ESCAPED_PLACEHOLDER_PATTERN.sub(r"\1", rendered)

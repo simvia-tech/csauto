@@ -1,7 +1,7 @@
 # Task Cookbook
 
 Copy/paste recipes for common operations.
-The web UI is the primary interface — CLI alternatives are noted where available.
+The web UI is the primary interface; CLI alternatives are noted where available.
 
 ---
 
@@ -15,15 +15,13 @@ The web UI is the primary interface — CLI alternatives are noted where availab
 csauto prepare doe.csv TEMPLATE RUNS
 ```
 
-Run this again whenever you change `doe.csv` (new rows, new columns) or modify
-template placeholders.
+Run this again after adding rows to `doe.csv`: unchanged cases are kept and
+new ones are added.
 
-Important:
-
-- `prepare` is incremental for unchanged existing cases: re-running it adds only the
-  missing cases.
-- If an existing case no longer matches the current DOE row or template content,
-  `prepare` fails for that case.
+Important: after adding a column or changing the template, existing cases no
+longer match. `prepare` stops at the first one (`Existing case differs from
+current DOE/template content`). Generate into a new folder, or remove those
+cases first.
 
 ### Add new cases to an existing campaign
 
@@ -50,8 +48,8 @@ Fix all `[FAIL]` lines from `doctor` before proceeding.
 
 ### Launch all cases
 
-In the **Status** panel: `Ctrl/Cmd + A` → **Run Selected** → fill in `n`, `nt`,
-`max parallel` → **Submit**.
+In the **Status** panel: `Ctrl/Cmd + A` → **Run** → fill in `n`, `nt`,
+`max parallel` → **Run**.
 
 CLI alternative:
 
@@ -61,7 +59,7 @@ csauto run RUNS --n 8 --nt 2 --max-parallel 4
 
 ### Launch specific cases only
 
-In the **Status** panel: select the target rows → **Run Selected**.
+In the **Status** panel: select the target rows → **Run**.
 
 CLI alternative:
 
@@ -71,7 +69,7 @@ csauto run RUNS --n 8 --nt 2 --case case0003 --case case0010
 
 ### Re-run only failed cases
 
-In the **Status** panel: filter by `FAILED` status → select all → **Run Selected**.
+In the **Status** panel: filter by `FAILED` status → select all → **Run**.
 
 CLI alternative:
 
@@ -81,7 +79,7 @@ csauto run RUNS --n 8 --nt 2 --resume
 
 ### Launch on Slurm with many cases
 
-Same UI flow — with `use_slurm = true` in `csauto.toml`, each submission goes
+Same UI flow: with `use_slurm = true` in `csauto.toml`, each submission goes
 through `sbatch` automatically. Verify with `squeue -u "$USER"` in the terminal.
 
 CLI alternative:
@@ -131,23 +129,25 @@ csauto status RUNS
 
 ### Stream a case log in real time
 
-In the **Log Tail** tab: select the case and file (`listing` for the solver log),
-set line count, enable auto-scroll.
+In the **Log Tail** tab: select the case and file (the solver's main log comes
+first: `run_solver.log` for code_saturne, `csauto.stdout` for code_aster), set
+line count, enable auto-scroll.
 
 CLI alternative:
 
 ```bash
-# Main solver log
-csauto tail RUNS --case case0001 --file listing -n 200
+# Main solver log (the default file)
+csauto tail RUNS --case case0001
 
 # Launch log (if process didn't start)
-csauto tail RUNS --case case0001 --file csauto.stdout -n 50 --no-follow
+csauto tail RUNS --case case0001 --file csauto.stdout --no-follow
 ```
 
 ### Inspect residuals
 
-In the **Residuals Plot** tab: select case(s), choose physical quantities,
-set start point, click **Plot**.
+In the **Residuals Plot** tab: select the **Cases** and **Variables**, and
+choose **Start from**. The plot updates by itself (**Refresh** when auto-refresh
+is off); **Download as PNG** saves it.
 
 CLI alternative (export to CSV + SVG):
 
@@ -162,7 +162,8 @@ csauto residuals RUNS --case case0001 --case case0002 \
 
 ### Inspect performance metrics
 
-In the **Timing Snapshot** tab: select a case, click **Load**.
+In the **Timing Snapshot** tab: every case with a timing log is listed. Narrow
+the list with **Cases**, export it with **Download as CSV**.
 
 CLI alternative:
 
@@ -173,8 +174,9 @@ csauto perf RUNS --case case0001 --case case0005 --out perf.csv
 
 ### Scan for errors after a failure
 
-In the **Recent Errors** tab: select the case, choose severity (`error`, `warn`,
-`all`), click **Scan**.
+In the **Recent Errors** tab: select the case in **Cases** and a **Severity**
+(All, Error, Warn, Info). The list updates by itself (**Refresh** when
+auto-refresh is off).
 
 ---
 
@@ -182,16 +184,20 @@ In the **Recent Errors** tab: select the case, choose severity (`error`, `warn`,
 
 ### Restart from checkpoint
 
-In the **Status** panel:
+Restart is available for code_saturne. In the **Status** panel:
 
 1. Select the case(s) to restart
-2. Click **Restart Selected**
-3. Choose stop criterion:
-   - `Iterations` + number of additional iterations
-   - `Physical time` + additional physical time
-4. Click **Submit**
+2. Click **Restart**
+3. Choose the **Mode**, how far to go:
+   - **Additional iterations**, then the number of iterations
+   - **Additional physical time**, then the time in seconds
+4. With one case selected, **Restart from** picks the run to restart from
+   (default: **Latest run**, the newest run with a checkpoint). With several
+   cases, each one restarts from its own latest run.
+5. Click **Restart** in the popup
 
-csauto resolves the latest checkpoint automatically.
+Through the API, `restart_path` picks the run the same way (for example
+`"restart_path": "20260308-1413"`).
 
 API alternative:
 
@@ -212,16 +218,18 @@ curl -s -X POST "http://127.0.0.1:8000/api/run_case" \
 
 ## Steer a running case without killing it
 
-A case about to hit its time step limit doesn't need a kill + restart round
-trip. Use `csauto control` (or the Status panel's **Stop** / **More ▾** menu)
-instead:
+A code_saturne case about to hit its time step limit doesn't need a kill +
+restart round trip. Use `csauto control` (or the Status panel's **Control**
+menu) instead:
 
 ```bash
-csauto control RUNS case0007 --stop        # finish current step, checkpoint, exit
-csauto control RUNS case0007 --extend 500  # keep going 500 more time steps
-csauto control RUNS case0007 --checkpoint  # checkpoint now, keep running
-csauto control RUNS case0007 --flush       # flush logs/time plots now
+csauto control RUNS case0007 stop          # finish current step, checkpoint, exit
+csauto control RUNS case0007 extend 500    # keep going 500 more time steps
+csauto control RUNS case0007 checkpoint    # checkpoint now, keep running
+csauto control RUNS case0007 flush         # flush logs/time plots now
 ```
+
+The actions come from the solver; `csauto doctor RUNS` lists them.
 
 API alternative:
 
@@ -237,9 +245,9 @@ See [docs/cli.md](./cli.md#control) for details on each action.
 
 ## Kill running cases
 
-In the **Status** panel: select the running cases → **Kill Selected**. Prefer
-**Stop** (above) when you just want the run to wind down cleanly — Kill
-discards in-flight work and requires restarting from the last checkpoint.
+In the **Status** panel: select the running cases → **Kill**. Prefer the
+`stop` control action (above) when you just want the run to wind down cleanly:
+Kill discards in-flight work and requires restarting from the last checkpoint.
 
 API alternative:
 
@@ -253,8 +261,12 @@ curl -s -X POST "http://127.0.0.1:8000/api/kill_case" \
 
 ## Cleanup
 
-In the **Status** panel: select cases → **Clean Selected**. The popup lets you
-choose which RESU runs to keep or delete and whether to truncate heavy logs.
+In the **Status** panel: select cases → **Clean**. The popup lets you choose
+which runs to keep or delete. Of the results, Clean deletes only the solver's
+run folders (each `RESU/<run>` for code_saturne, `RESU` itself for code_aster).
+It also cuts the solver's logs over 50 MB down to their last 50 MB and removes
+`.csauto.cid`. It skips running and pending cases, and returns a finished case
+to `PREPARED` once all its runs are gone.
 
 CLI alternative (always preview with `--dry-run` first):
 
@@ -263,7 +275,7 @@ csauto cleanup RUNS --prune-resu --keep-last 1 --max-log-mb 100 --dry-run
 csauto cleanup RUNS --prune-resu --keep-last 1 --max-log-mb 100 --clear-cid
 ```
 
-Remove all RESU history (disk space emergency):
+Remove every run (disk space emergency):
 
 ```bash
 csauto cleanup RUNS --prune-resu --keep-last 0
@@ -273,13 +285,15 @@ csauto cleanup RUNS --prune-resu --keep-last 0
 
 ## Comparing cases
 
-In the **Multi-Run Compare** tab:
+In the **Compare** panel:
 
-1. Select cases to compare
-2. Choose a base case (reference)
-3. Choose file kind (`setup.xml`, `doe_row.csv`, `listing`, ...)
-4. Optionally add a regex filter
-5. Click **Compare**
+1. Pick the **First case** and the **Second case** (the arrows button swaps them)
+2. Pick the **File** (code_saturne: `setup.xml`, `doe_row.csv`, `run_solver.log`,
+   `performance.log`; code_aster: the export file, `doe_row.csv`)
+
+The DOE values that differ and the side-by-side diff appear at once; type in
+the **Search** box to jump between matching lines. A regex filter is available
+through `GET /api/compare_runs` (`filter`).
 
 ---
 
@@ -288,7 +302,7 @@ In the **Multi-Run Compare** tab:
 Right-click a `DONE` or `FAILED` row in the **Status** panel:
 - **Mark Converged**
 - **Mark Not Converged**
-- **Clear** (remove label)
+- **Clear Mark** (remove label)
 
 ---
 

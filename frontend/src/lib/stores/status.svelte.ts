@@ -1,5 +1,5 @@
 /**
- * Status store — the central state for the case status table.
+ * Status store: the central state for the case status table.
  *
  * Holds all rows from /api/status, selection state, sort/filter/search
  * configuration, named views, and derived data for the hero banner.
@@ -22,7 +22,7 @@ export const BASE_COLUMNS: { key: string; label: string }[] = [
   { key: "last_iter", label: "Last Iter" },
   { key: "duration", label: "Duration" },
   { key: "last_mod", label: "Last Modified" },
-  { key: "resu_size_mb", label: "RESU Size (MB)" },
+  { key: "resu_size_mb", label: "Results (MB)" },
 ];
 
 /* Named view snapshot */
@@ -311,7 +311,7 @@ export function getSelectedStatuses(): Set<string> {
   return statuses;
 }
 
-export function hasSelectedWithResu(): boolean {
+export function hasSelectedWithResults(): boolean {
   for (const row of rows) {
     if (
       selectedCases.has(row.case_id) &&

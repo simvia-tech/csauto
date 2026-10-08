@@ -1,11 +1,11 @@
 <!--
-  Main dashboard page — single-page app composed of card components.
+  Main dashboard page: single-page app composed of card components.
 
-  Loads status on mount, sets up auto-refresh, and renders all cards.
-  Components are added progressively across implementation phases.
+  Loads status and the solver config on mount, and renders the cards of the
+  panels the solver declares.
 -->
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import "../app.css";
 
   import DialogManager from "$lib/components/dialogs/DialogManager.svelte";
@@ -20,7 +20,7 @@
   import CompareCard from "$lib/components/compare/CompareCard.svelte";
   import RecentErrorsCard from "$lib/components/errors/RecentErrorsCard.svelte";
 
-  import { fetchAppConfig, fetchStatus } from "$lib/api/endpoints";
+  import { fetchStatus, solverIconUrl } from "$lib/api/endpoints";
   import {
     setRows,
     setDoeColumns,
@@ -28,7 +28,12 @@
     getFilteredRows,
     getHeroCounts,
   } from "$lib/stores/status.svelte";
-  import { setAppConfig } from "$lib/stores/appConfig.svelte";
+  import {
+    getAppConfig,
+    hasPanel,
+    loadAppConfig,
+  } from "$lib/stores/appConfig.svelte";
+  import { getToken } from "$lib/stores/auth.svelte";
 
   /* Hero counts, updated on every status load */
   let heroCounts = $state({
@@ -43,28 +48,19 @@
   /** All case IDs, updated on each status load */
   let allCaseIds = $state<string[]>([]);
 
-  /* Dashboard panels declared by the solver adapter; null (config not loaded
-     or older backend) renders everything. */
-  let panels = $state<string[] | null>(null);
-  const showPanel = (name: string) => panels === null || panels.includes(name);
+  /* Load the solver config now, and retry at once whenever the API token
+     changes (Settings dialog or the 401 prompt) while it is still missing. */
+  $effect(() => {
+    getToken();
+    untrack(() => void loadAppConfig());
+  });
 
-  /** Solver-specific favicon when a matching asset exists (e.g. /favicon-code_saturne.svg). */
-  async function applySolverFavicon(solver: string): Promise<void> {
-    const href = `/favicon-${solver}.svg`;
-    try {
-      // GET rather than HEAD: the SPA fallback route only accepts GET.
-      const response = await fetch(href);
-      if (
-        !response.ok ||
-        !response.headers.get("content-type")?.includes("svg")
-      )
-        return;
-    } catch {
-      return;
-    }
+  /* The solver's favicon when it ships one; app.html's generic one otherwise. */
+  $effect(() => {
+    const config = getAppConfig();
     const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
-    if (link) link.href = href;
-  }
+    if (link && config?.icon) link.href = solverIconUrl(config.solver);
+  });
 
   async function loadStatus() {
     try {
@@ -80,13 +76,6 @@
 
   onMount(() => {
     loadStatus();
-    fetchAppConfig()
-      .then((config) => {
-        setAppConfig(config);
-        panels = config.panels;
-        void applySolverFavicon(config.solver);
-      })
-      .catch(() => {});
   });
 </script>
 
@@ -103,25 +92,25 @@
 />
 
 <main class="grid grid-cols-12 gap-4 w-[min(1200px,94vw)] mx-auto pt-5 pb-12">
-  {#if showPanel("status")}
+  {#if hasPanel("status")}
     <StatusCard onRefresh={loadStatus} />
   {/if}
-  {#if showPanel("residuals")}
+  {#if hasPanel("residuals")}
     <ResidualPlotCard allCases={allCaseIds} />
   {/if}
-  {#if showPanel("probes")}
+  {#if hasPanel("probes")}
     <ProbesCard allCases={allCaseIds} />
   {/if}
-  {#if showPanel("performance")}
+  {#if hasPanel("performance")}
     <PerformanceCard allCases={allCaseIds} />
   {/if}
-  {#if showPanel("compare")}
+  {#if hasPanel("compare")}
     <CompareCard allCases={allCaseIds} />
   {/if}
-  {#if showPanel("tail")}
+  {#if hasPanel("tail")}
     <LogTailCard allCases={allCaseIds} />
   {/if}
-  {#if showPanel("errors")}
+  {#if hasPanel("errors")}
     <RecentErrorsCard allCases={allCaseIds} />
   {/if}
 </main>

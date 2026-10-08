@@ -242,7 +242,7 @@ def test_fastapi_server_run_case_validation_error(fastapi_server_env) -> None:
         )
     assert excinfo.value.code == 400
     payload = json.loads(excinfo.value.read().decode("utf-8"))
-    assert payload["detail"] == "restart_value must be a positive integer for iterations"
+    assert payload["detail"] == "iterations needs a positive value (Iterations)"
 
 
 def test_fastapi_server_case_convergence_and_compare(fastapi_server_env) -> None:
