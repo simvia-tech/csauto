@@ -113,6 +113,12 @@ max_parallel = 2
 For the `native` runtime, `run_aster` must be in `PATH`, or `saturne_bin` must
 point to it.
 
+In containers, csauto starts `run_aster` with `bash`, after sourcing
+`/opt/activate.sh` when the image has it (the `simvia/code_aster` images do). A
+custom image needs `bash`, and `run_aster` on its `PATH` once that file is
+sourced (or from the start, when the image has no such file). An image whose
+ENTRYPOINT starts `run_aster` itself only gets its arguments.
+
 ### Remote access with authentication
 
 ```toml

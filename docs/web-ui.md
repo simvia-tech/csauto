@@ -40,7 +40,8 @@ below use code_saturne, which uses all of them.
 
 **Settings** (gear icon, top right): opens a dialog where you can set the
 **API token** (if the server requires authentication) and the **auto-refresh
-rate**. The token is stored in the browser session.
+rate**. The token is saved in the browser (localStorage), so it is asked once per
+browser and server address.
 
 ---
 
@@ -319,4 +320,4 @@ csauto serve RUNS --host 0.0.0.0 --port 8000
 Without a token, csauto refuses to bind to a public address.
 
 Users accessing the UI must click the **Settings** gear icon and enter the token
-once per browser session.
+once per browser.

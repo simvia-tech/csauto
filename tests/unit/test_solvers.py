@@ -189,7 +189,7 @@ class TestCodeAsterAdapter:
             "a.sif",
             "bash",
             "-c",
-            'source /opt/activate.sh && exec "$0" "$@"',
+            '[ ! -f /opt/activate.sh ] || source /opt/activate.sh && exec "$0" "$@"',
             "run_aster",
             ".csauto.export",
         ]

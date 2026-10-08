@@ -33,7 +33,8 @@ class CodeAsterAdapter(SolverAdapter):
     native_bin_name: ClassVar[str] = "run_aster"
     container_bin_name: ClassVar[str] = "run_aster"
     default_docker_image: ClassVar[str] = "simvia/code_aster:17.4.0"
-    container_setup: ClassVar[str] = "source /opt/activate.sh"
+    # Images without /opt/activate.sh are expected to have run_aster on PATH already.
+    container_setup: ClassVar[str] = "[ ! -f /opt/activate.sh ] || source /opt/activate.sh"
     results_dirname: ClassVar[str] = "RESU"
     dashboard_panels: ClassVar[tuple[str, ...]] = ("status", "compare", "tail", "errors")
     # Meshes sit next to TEMPLATE and are referenced from a case as ../MESH/<file>.

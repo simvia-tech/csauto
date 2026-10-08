@@ -41,7 +41,12 @@ def test_container_setup_runs_before_the_solver(monkeypatch, tmp_path: Path) -> 
     cmd = build_runtime_run_command(case_dir, 2, 1, _docker("aster"), adapter=get_solver_adapter("code_aster"))
     image = cmd.index("aster")
     assert cmd[image - 2 : image] == ["--entrypoint", "bash"]
-    assert cmd[image + 1 :] == ["-c", 'source /opt/activate.sh && exec "$0" "$@"', "run_aster", ".csauto.export"]
+    assert cmd[image + 1 :] == [
+        "-c",
+        '[ ! -f /opt/activate.sh ] || source /opt/activate.sh && exec "$0" "$@"',
+        "run_aster",
+        ".csauto.export",
+    ]
 
 
 def test_campaign_labels_differ_between_campaigns(tmp_path: Path) -> None:
