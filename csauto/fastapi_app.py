@@ -110,7 +110,7 @@ def create_fastapi_app(
                 continue
             try:
                 uptime = int(_time.monotonic() - start)
-                await send_event_async(EVENT_SERVE, time_execution=uptime, id_docker=runtime)
+                await send_event_async(EVENT_SERVE, time_execution=uptime, id_docker=f"{adapter.name}:{runtime}")
             except Exception:
                 pass
 

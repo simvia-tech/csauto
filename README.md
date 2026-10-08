@@ -156,6 +156,7 @@ csauto collects anonymous usage statistics to help us understand how the tool is
 - csauto version
 - Timezone offset
 - Runtime type (docker, singularity, or native)
+- Solver of the served campaign (code_saturne or code_aster)
 - Event type (install or serve session)
 
 **When it is sent:**
