@@ -16,7 +16,7 @@
   import { fetchPerf } from "$lib/api/endpoints";
   import { saveCsvBlob, buildPlotFilename } from "$lib/actions/export";
   import type { PerfColumn, PerfRecord } from "$lib/api/types";
-  import { RefreshCw, Download } from "lucide-svelte";
+  import { RefreshCw, Download } from "@lucide/svelte";
   import {
     startTimer,
     stopTimer,

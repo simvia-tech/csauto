@@ -13,7 +13,7 @@
   import ViewManager from "./ViewManager.svelte";
   import StatusTable from "./StatusTable.svelte";
   import ConvergenceMenu from "./ConvergenceMenu.svelte";
-  import { RefreshCw, Play, RotateCcw, XCircle, Trash2 } from "lucide-svelte";
+  import { RefreshCw, Play, RotateCcw, XCircle, Trash2 } from "@lucide/svelte";
   import {
     getAutoRefresh,
     setAutoRefresh,

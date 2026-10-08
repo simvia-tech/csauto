@@ -10,7 +10,7 @@
   import AutoRefreshToggle from "$lib/components/shared/AutoRefreshToggle.svelte";
   import Button from "$lib/components/shared/Button.svelte";
   import Icon from "$lib/components/shared/Icon.svelte";
-  import { RefreshCw } from "lucide-svelte";
+  import { RefreshCw } from "@lucide/svelte";
   import TimeProbePanel from "./TimeProbePanel.svelte";
   import ProfileProbePanel from "./ProfileProbePanel.svelte";
   import {
@@ -100,45 +100,44 @@
 </script>
 
 {#if visible}
-  <CardShell wide titleSlot={tabs}>
-    {#snippet tabs()}
-      <div>
-        <div class="text-xs text-muted font-normal">Diagnostics</div>
-        <div class="flex items-baseline gap-4 mt-1">
-          <button
-            class="bg-transparent border-none p-0 m-0 text-lg font-bold tracking-tight transition-colors duration-150
+  {#snippet tabs()}
+    <div>
+      <div class="text-xs text-muted font-normal">Diagnostics</div>
+      <div class="flex items-baseline gap-4 mt-1">
+        <button
+          class="bg-transparent border-none p-0 m-0 text-lg font-bold tracking-tight transition-colors duration-150
 							{!timeHasData
-              ? 'text-edf-gris-moyen cursor-not-allowed opacity-50'
-              : activeTab === 'time'
-                ? 'text-edf-bleu-fonce cursor-pointer'
-                : 'text-edf-gris-moyen cursor-pointer hover:text-muted'}"
-            onclick={() => switchTab("time")}
-            disabled={!timeHasData}
-            title={!timeHasData
-              ? "No probe data available. Run a simulation first."
-              : ""}
-          >
-            Probes
-          </button>
-          <button
-            class="bg-transparent border-none p-0 m-0 text-lg font-bold tracking-tight transition-colors duration-150
+            ? 'text-edf-gris-moyen cursor-not-allowed opacity-50'
+            : activeTab === 'time'
+              ? 'text-edf-bleu-fonce cursor-pointer'
+              : 'text-edf-gris-moyen cursor-pointer hover:text-muted'}"
+          onclick={() => switchTab("time")}
+          disabled={!timeHasData}
+          title={!timeHasData
+            ? "No probe data available. Run a simulation first."
+            : ""}
+        >
+          Probes
+        </button>
+        <button
+          class="bg-transparent border-none p-0 m-0 text-lg font-bold tracking-tight transition-colors duration-150
 							{!profileHasData
-              ? 'text-edf-gris-moyen cursor-not-allowed opacity-50'
-              : activeTab === 'profile'
-                ? 'text-edf-bleu-fonce cursor-pointer'
-                : 'text-edf-gris-moyen cursor-pointer hover:text-muted'}"
-            onclick={() => switchTab("profile")}
-            disabled={!profileHasData}
-            title={!profileHasData
-              ? "No profile data available. Run a simulation first."
-              : ""}
-          >
-            Profiles
-          </button>
-        </div>
+            ? 'text-edf-gris-moyen cursor-not-allowed opacity-50'
+            : activeTab === 'profile'
+              ? 'text-edf-bleu-fonce cursor-pointer'
+              : 'text-edf-gris-moyen cursor-pointer hover:text-muted'}"
+          onclick={() => switchTab("profile")}
+          disabled={!profileHasData}
+          title={!profileHasData
+            ? "No profile data available. Run a simulation first."
+            : ""}
+        >
+          Profiles
+        </button>
       </div>
-    {/snippet}
-
+    </div>
+  {/snippet}
+  <CardShell wide titleSlot={tabs}>
     {#snippet actions()}
       <AutoRefreshToggle
         name={activeTab === "time" ? "probePlot" : "profilePlot"}

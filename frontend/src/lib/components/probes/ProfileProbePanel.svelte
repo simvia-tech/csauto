@@ -11,7 +11,7 @@
   import FormLabel from "$lib/components/shared/FormLabel.svelte";
   import Dropdown from "$lib/components/shared/Dropdown.svelte";
   import Icon from "$lib/components/shared/Icon.svelte";
-  import { Download } from "lucide-svelte";
+  import { Download } from "@lucide/svelte";
   import { savePngFromContainer, buildPlotFilename } from "$lib/actions/export";
   import { createProbeLoader } from "$lib/actions/probeLoader";
   import { getProfileState, setProfileState } from "$lib/stores/probes.svelte";

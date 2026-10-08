@@ -18,7 +18,7 @@
   import Icon from "$lib/components/shared/Icon.svelte";
   import Dropdown from "$lib/components/shared/Dropdown.svelte";
   import Checkbox from "$lib/components/shared/Checkbox.svelte";
-  import { RefreshCw, Pause, Play } from "lucide-svelte";
+  import { RefreshCw, Pause, Play } from "@lucide/svelte";
   import CardShell from "$lib/components/shared/CardShell.svelte";
   import AutoRefreshToggle from "$lib/components/shared/AutoRefreshToggle.svelte";
   import FieldRow from "$lib/components/shared/FieldRow.svelte";

@@ -12,7 +12,7 @@
   import Icon from "./Icon.svelte";
   import Portal from "./Portal.svelte";
   import Button from "./Button.svelte";
-  import { Ellipsis } from "lucide-svelte";
+  import { Ellipsis } from "@lucide/svelte";
 
   interface MenuItem {
     label: string;

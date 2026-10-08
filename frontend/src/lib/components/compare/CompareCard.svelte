@@ -15,7 +15,7 @@
   import { getRows, getDoeColumns } from "$lib/stores/status.svelte";
   import Icon from "$lib/components/shared/Icon.svelte";
   import Button from "$lib/components/shared/Button.svelte";
-  import { ArrowLeftRight } from "lucide-svelte";
+  import { ArrowLeftRight } from "@lucide/svelte";
 
   interface Props {
     allCases: string[];

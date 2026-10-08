@@ -12,7 +12,7 @@
   import PlotControls from "./PlotControls.svelte";
   import SvgHolder from "./SvgHolder.svelte";
   import Button from "$lib/components/shared/Button.svelte";
-  import { RefreshCw, Download } from "lucide-svelte";
+  import { RefreshCw, Download } from "@lucide/svelte";
   import { savePngFromContainer, buildPlotFilename } from "$lib/actions/export";
   import {
     getPlotState,
@@ -45,16 +45,16 @@
 
   let { allCases }: Props = $props();
 
-  let state = $derived(getPlotState());
+  let plotState = $derived(getPlotState());
   let fetchError = $state("");
 
   async function loadColumns() {
-    if (!state.selectedCases.length) return;
+    if (!plotState.selectedCases.length) return;
     try {
       /* "iteration" is the x axis, not a residual. */
-      const columns = (await fetchResidualColumns(state.selectedCases)).filter(
-        (c) => c !== "iteration",
-      );
+      const columns = (
+        await fetchResidualColumns(plotState.selectedCases)
+      ).filter((c) => c !== "iteration");
       fetchError = "";
       setPlotColumns(columns);
       if (columns.length === 0) {
@@ -64,7 +64,7 @@
       }
       /* Same default as the server: the adapter's default columns that
          exist, else the first two. */
-      if (state.selectedColumns.length === 0) {
+      if (plotState.selectedColumns.length === 0) {
         const defaults = (
           getAppConfig()?.default_residual_columns ?? []
         ).filter((c) => columns.includes(c));
@@ -79,29 +79,32 @@
   }
 
   async function loadPlot() {
-    if (!state.selectedCases.length) return;
+    if (!plotState.selectedCases.length) return;
     /* If no columns loaded yet, try fetching them (solver may have started writing) */
-    if (state.columns.length === 0 || state.selectedColumns.length === 0) {
+    if (
+      plotState.columns.length === 0 ||
+      plotState.selectedColumns.length === 0
+    ) {
       await loadColumns();
-      if (!state.selectedColumns.length) return;
+      if (!plotState.selectedColumns.length) return;
     }
     try {
       let xMin = 0;
       let includeHistory = true;
 
-      if (state.startFrom === "restart") {
-        const origins = await fetchRestartOrigin(state.selectedCases);
+      if (plotState.startFrom === "restart") {
+        const origins = await fetchRestartOrigin(plotState.selectedCases);
         const iters = Object.values(origins.origins)
           .map((o) => o.iteration)
           .filter((v): v is number => v !== undefined && Number.isFinite(v));
         xMin = iters.length > 0 ? Math.min(...iters) : 0;
-      } else if (state.startFrom === "custom") {
-        xMin = state.iterMin;
+      } else if (plotState.startFrom === "custom") {
+        xMin = plotState.iterMin;
       }
 
       const svg = await fetchResidualsSvg(
-        state.selectedCases,
-        state.selectedColumns,
+        plotState.selectedCases,
+        plotState.selectedColumns,
         {
           xMin,
           includeHistory,
@@ -201,16 +204,16 @@
     <PlotControls
       prefix="plot"
       {allCases}
-      selectedCases={state.selectedCases}
+      selectedCases={plotState.selectedCases}
       onCasesChange={handleCasesChange}
       columnLabel="Variables"
-      columns={state.columns}
-      selectedColumns={state.selectedColumns}
+      columns={plotState.columns}
+      selectedColumns={plotState.selectedColumns}
       onColumnsChange={handleColumnsChange}
-      startFrom={state.startFrom}
+      startFrom={plotState.startFrom}
       onStartFromChange={handleStartFromChange}
       xMinLabel="Iter min"
-      xMin={state.iterMin}
+      xMin={plotState.iterMin}
       onXMinChange={handleXMinChange}
       extraSlot={saveButton}
     />
@@ -223,9 +226,9 @@
           onclick={() =>
             savePngFromContainer(
               "plot-holder",
-              buildPlotFilename("residuals", state.selectedCases),
+              buildPlotFilename("residuals", plotState.selectedCases),
             )}
-          disabled={!state.svgHtml}
+          disabled={!plotState.svgHtml}
           ><Icon icon={Download} /> Download as PNG</Button
         >
       </div>
@@ -234,12 +237,12 @@
     <div class="flex justify-center">
       <SvgHolder
         id="plot-holder"
-        svgHtml={state.svgHtml}
-        emptyMessage={state.selectedCases.length === 0
+        svgHtml={plotState.svgHtml}
+        emptyMessage={plotState.selectedCases.length === 0
           ? "Please select at least one case."
-          : state.columns.length === 0
+          : plotState.columns.length === 0
             ? "No residuals for the selected cases yet."
-            : state.selectedColumns.length === 0
+            : plotState.selectedColumns.length === 0
               ? "Please select at least one variable."
               : "No data to display."}
       />

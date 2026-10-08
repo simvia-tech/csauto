@@ -32,7 +32,7 @@
     ChevronRight,
     ArrowUp,
     ArrowDown,
-  } from "lucide-svelte";
+  } from "@lucide/svelte";
   import {
     startTimer,
     stopTimer,

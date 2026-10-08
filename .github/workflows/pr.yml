@@ -67,7 +67,6 @@ jobs:
       - name: Svelte check
         working-directory: frontend
         run: pnpm check
-        continue-on-error: true
 
       - name: Prettier check
         working-directory: frontend

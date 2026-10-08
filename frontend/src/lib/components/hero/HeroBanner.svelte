@@ -6,7 +6,7 @@
 <script lang="ts">
   import Icon from "$lib/components/shared/Icon.svelte";
   import SettingsDialog from "$lib/components/settings/SettingsDialog.svelte";
-  import { Settings } from "lucide-svelte";
+  import { Settings } from "@lucide/svelte";
   import { getAppConfig } from "$lib/stores/appConfig.svelte";
   import { solverLogoUrl } from "$lib/api/endpoints";
 

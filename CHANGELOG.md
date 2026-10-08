@@ -38,6 +38,8 @@ Make csauto ready for solvers other than code_saturne: one adapter class describ
 - The solver boundary test now scans every module outside `csauto/solvers/` for a wider set of code_saturne conventions (`listing`, `monitoring`, `run_solver.log`, `performance.log`, ...), with the deliberate residue listed in one named allowlist. The leaks it found are gone: the read-only `MESH` mount is the new adapter attribute `readonly_shared_dir_names`, and `csauto tail` defaults to the solver's main log instead of `listing`
 - Dashboard tabs are now declared by each solver adapter in `dashboard_panels`, and by nothing else: an adapter may leave out a tab it could feed, and Status, Log Tail and Recent Errors are ordinary entries rather than imposed. A test fails when an adapter declares a tab it cannot feed or an unknown tab name. `capabilities` stays derived. No visible change for any shipped solver
 
+- The dashboard uses `@lucide/svelte`, the Svelte 5 build of its icon set, instead of `lucide-svelte`. `pnpm check` now reports no errors and gates CI again
+
 ### Fixed
 - On macOS, a run launched by `csauto serve` no longer stays RUNNING after it ends: the server reaps its own finished processes, since there is no /proc to spot them
 - Clean resetting a code_aster case to PREPARED no longer flips back to DONE or FAILED at the next refresh (the reset now clears the start time, so the kept `csauto.stdout` is not read as a verdict)

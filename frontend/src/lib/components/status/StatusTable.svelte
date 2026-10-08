@@ -32,7 +32,7 @@
   import Icon from "$lib/components/shared/Icon.svelte";
   import Button from "$lib/components/shared/Button.svelte";
   import Checkbox from "$lib/components/shared/Checkbox.svelte";
-  import { ExternalLink, PenLine } from "lucide-svelte";
+  import { ExternalLink, PenLine } from "@lucide/svelte";
 
   interface Props {
     rows: StatusRow[];

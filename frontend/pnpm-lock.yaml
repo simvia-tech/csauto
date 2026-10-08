@@ -7,9 +7,9 @@ settings:
 importers:
   .:
     dependencies:
-      lucide-svelte:
-        specifier: ^1.0.1
-        version: 1.0.1(svelte@5.55.1)
+      "@lucide/svelte":
+        specifier: ^1.52.0
+        version: 1.52.0(svelte@5.55.1)
     devDependencies:
       "@sveltejs/adapter-static":
         specifier: ^3.0.0
@@ -310,6 +310,14 @@ packages:
       {
         integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==,
       }
+
+  "@lucide/svelte@1.52.0":
+    resolution:
+      {
+        integrity: sha512-bQ8t3IcZxWqAdmdMZPyZEv8Qf+MDgBAf7n43eRQoXyBeLWr8HWToiMIO6vKlHxC/lnMiCDdTzm09hjy92ch46A==,
+      }
+    peerDependencies:
+      svelte: ^5
 
   "@polka/url@1.0.0-next.29":
     resolution:
@@ -1020,14 +1028,6 @@ packages:
         integrity: sha512-SW13ws7BjaeJ6p7Q6CO2nchbYEc3X3J6WrmTTDto7yMPqVSZTUyY5Tjbid+Ab8gLnATtygYtiDIJGQRRn2ZOiA==,
       }
 
-  lucide-svelte@1.0.1:
-    resolution:
-      {
-        integrity: sha512-WvzZgk0pqzgda+AErLvgWxHkfg/+GgUwqKMRHvzt0IqyMdmyEDzDCk3Z+Wo/3y753oIgx8u9Q4eUbWkghFa8Jg==,
-      }
-    peerDependencies:
-      svelte: ^3 || ^4 || ^5.0.0-next.42
-
   magic-string@0.30.21:
     resolution:
       {
@@ -1351,6 +1351,10 @@ snapshots:
     dependencies:
       "@jridgewell/resolve-uri": 3.1.2
       "@jridgewell/sourcemap-codec": 1.5.5
+
+  "@lucide/svelte@1.52.0(svelte@5.55.1)":
+    dependencies:
+      svelte: 5.55.1
 
   "@polka/url@1.0.0-next.29": {}
 
@@ -1689,10 +1693,6 @@ snapshots:
       lightningcss-win32-x64-msvc: 1.32.0
 
   locate-character@3.0.0: {}
-
-  lucide-svelte@1.0.1(svelte@5.55.1):
-    dependencies:
-      svelte: 5.55.1
 
   magic-string@0.30.21:
     dependencies:
