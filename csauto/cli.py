@@ -427,11 +427,9 @@ def _use_campaign_solver(runs_dir: Path | None, config: Config) -> bool:
 
 def main(argv: Sequence[str] | None = None) -> int:
     argv_list = list(argv or sys.argv[1:])
-    config_path = _preparse_config(argv_list)
-    config = load_config(config_path)
-    parser, args = parse_arguments(argv_list, config)
-
     try:
+        config = load_config(_preparse_config(argv_list))
+        parser, args = parse_arguments(argv_list, config)
         # Commands on an existing campaign use the solver it was prepared for, so
         # they work from any directory; serve reads it from config.solver.
         if _use_campaign_solver(getattr(args, "runs_dir", None), config):
