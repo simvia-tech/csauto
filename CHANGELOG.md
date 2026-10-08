@@ -66,6 +66,7 @@ Make csauto ready for solvers other than code_saturne: one adapter class describ
 - The Log Tail never offered `csauto.stdout` and `csauto.stderr`, so it stayed empty for solvers that log to their console and for runs that failed before writing a results folder
 - When `/api/app_config` failed once (for example before the API token was entered), the dashboard showed the full code_saturne interface until a reload. It now shows only Status, Log Tail and Recent Errors until the solver's description loads, and fetches it again with a growing delay or as soon as a token is saved
 - The Log Tail's case selector disappeared when the selected case had no log yet, leaving the panel stuck on that case
+- The Residuals, Probes and Profiles panels hid their case selector, and Probes and Profiles disabled their tab, when the selected case had no results yet, leaving no way to pick another case
 - Clean's "Keep specific folders" on several cases deleted every run of all cases but one: the folder list came from a single case. The folder choices are now offered for one case at a time, and Clean leaves alone a case that has none of the folders to keep
 - A queued (PENDING) case could flip to DONE or FAILED on the next refresh, from the logs of its previous run
 - `csauto tail -n N` printed fewer than N lines when they were long: it only read the last 4 KB of the file
