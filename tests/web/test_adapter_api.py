@@ -131,6 +131,9 @@ class _Selection:
 
 
 def test_clean_resets_a_case_only_when_its_runs_are_deleted(client_for, stub_case, runs_dir: Path) -> None:
+    registry = load_registry(runs_dir)
+    registry["case0001"]["start_time"] = "2026-01-01T00:00:00"
+    save_registry(runs_dir, registry)
     client = client_for(StubAdapter())
     logs_only = {"cases": ["case0001"], "prune_resu": False, "max_log_mb": 50}
     assert client.post("/api/cleanup_cases", json=logs_only).status_code == 200
@@ -138,6 +141,15 @@ def test_clean_resets_a_case_only_when_its_runs_are_deleted(client_for, stub_cas
 
     prune = {"cases": ["case0001"], "prune_resu": True, "keep_last": 0}
     assert client.post("/api/cleanup_cases", json=prune).json()["resu_removed"] == 1
+    assert load_registry(runs_dir)["case0001"]["status"] == STATUS_PREPARED
+
+    class VerdictOutsideRuns(StubAdapter):  # code_aster reads its verdict from csauto.stdout, which Clean keeps
+        def detect_outcome(self, case_dir, start_time=None):
+            return STATUS_DONE
+
+    from csauto.runner import refresh_status
+
+    refresh_status(runs_dir, adapter=VerdictOutsideRuns())
     assert load_registry(runs_dir)["case0001"]["status"] == STATUS_PREPARED
 
 

@@ -79,11 +79,12 @@ def dispatch_serve_command(
 
     try:
         from .solvers import get_solver_adapter
-        from .telemetry import EVENT_SERVE, send_event
+        from .telemetry import EVENT_SERVE, is_enabled, send_event
 
-        context = f"{get_solver_adapter(config.solver).name}:{config.runtime}"
-        print(f"[telemetry] Sending serve ping (type={EVENT_SERVE}, context={context})")
-        send_event(EVENT_SERVE, valid_result=True, id_docker=context)
+        if is_enabled():
+            context = f"{get_solver_adapter(config.solver).name}:{config.runtime}"
+            print(f"[telemetry] Sending serve ping (type={EVENT_SERVE}, context={context})")
+            send_event(EVENT_SERVE, valid_result=True, id_docker=context)
     except Exception:
         pass
 

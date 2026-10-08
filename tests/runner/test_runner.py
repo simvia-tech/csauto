@@ -1222,3 +1222,16 @@ def test_cases_with_custom_ids_are_found(runs_dir: Path) -> None:
         (runs_dir / case_id / "doe_row.csv").write_text(f"case_id\n{case_id}\n", encoding="utf-8")
     (runs_dir / "MESH").mkdir()
     assert [p.name for p in campaign_case_dirs(runs_dir)] == ["mesh.fine", "run-A"]
+
+
+def test_a_finished_child_is_dead_without_procfs(monkeypatch) -> None:
+    import subprocess
+    import sys
+    import time
+
+    from csauto import runner
+
+    proc = subprocess.Popen([sys.executable, "-c", "pass"])
+    time.sleep(0.5)  # exited, never reaped: a zombie
+    monkeypatch.setattr(runner, "_is_zombie", lambda pid: False)  # what macOS reports
+    assert runner.is_process_alive(proc.pid) is False

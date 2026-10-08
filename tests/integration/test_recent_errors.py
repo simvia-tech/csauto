@@ -142,3 +142,18 @@ def test_collect_recent_errors_reuses_previous_offset_on_append(tmp_path: Path, 
 
     assert seek_offsets[0] == 0
     assert seek_offsets[-1] == initial_size
+
+
+def test_run_asters_mpi_notice_is_not_an_error(tmp_path: Path) -> None:
+    from csauto.solvers import get_solver_adapter
+
+    case_dir = tmp_path / "RUNS" / "case0001"
+    case_dir.mkdir(parents=True)
+    notice = "WARNING: If MPI_Abort is called during execution, result files could not be copied.\n"
+    (case_dir / "csauto.stdout").write_text(notice + "! <F> <CALCULEL_8> real failure\n", encoding="utf-8")
+
+    items = collect_recent_errors(
+        tmp_path / "RUNS", ["case0001"], files=["csauto.stdout"], adapter=get_solver_adapter("code_aster")
+    )
+    assert [item["severity"] for item in items] == ["error"]
+    assert "CALCULEL_8" in items[0]["line_html"]

@@ -45,6 +45,10 @@ class CodeAsterAdapter(SolverAdapter):
         ("warn", re.compile(r"!\s*<A>\s*<")),
         ("error", re.compile(r"!\s*<[EFS]>\s*<|<EXCEPTION>")),
     )
+    # run_aster prints this notice before every MPI run; "Abort" would read as an error.
+    anomaly_ignore_patterns: ClassVar[tuple[re.Pattern[str], ...]] = (
+        re.compile(r"If MPI_Abort is called during execution"),
+    )
     compare_kinds: ClassVar[tuple[CompareKind, ...]] = (
         CompareKind("export", "Export file"),
         CompareKind("doe_row.csv", "doe_row.csv"),

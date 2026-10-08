@@ -785,6 +785,10 @@ def is_process_alive(pid: int, identity: str | None = None) -> bool:
     another process counts as dead: the PID was reused, for instance after a
     reboot, possibly by another user's process.
     """
+    with contextlib.suppress(ChildProcessError, OSError, AttributeError):
+        # Reaps our own finished child: without /proc (macOS) nothing else tells it ended.
+        if os.waitpid(pid, os.WNOHANG)[0] == pid:
+            return False
     try:
         os.kill(pid, 0)
     except ProcessLookupError:

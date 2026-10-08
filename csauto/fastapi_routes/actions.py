@@ -233,7 +233,16 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
                         continue
                     current = registry.get(case_id, {}).get("status", "")
                     if current in (STATUS_DONE, STATUS_FAILED):
-                        update_case(registry, case_id, status=STATUS_PREPARED, convergence=None)
+                        # Without a start time, a refresh no longer reads the verdict of the
+                        # deleted run from logs that live outside the run folders.
+                        update_case(
+                            registry,
+                            case_id,
+                            status=STATUS_PREPARED,
+                            convergence=None,
+                            start_time=None,
+                            end_time=None,
+                        )
         for case_id in case_ids:
             log_case_action(
                 ctx.runs_dir,
