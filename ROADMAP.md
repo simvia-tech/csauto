@@ -4,22 +4,22 @@
 
 This roadmap is a declaration of intent, not a contractual engagement. It is updated at each minor or major release.
 
-*Last updated: v0.5.0 — 2026-08-03*
+*Last updated: v0.6.0 — 2026-10-08*
 
-## Current Capabilities (v0.5.0)
+## Current Capabilities (v0.6.0)
 
 - Case generation from DOE CSV + template directory, or a generated parameter spec
 - Local and Slurm job execution
 - Web monitoring dashboard (residuals, probes, logs, status)
 - Restart from checkpoint, live case steering (stop/extend/checkpoint), input file comparison, cleanup
 - Support for native, Docker, and Singularity runtimes
+- code_saturne and code_aster solvers, each described by one adapter class that the CLI and dashboard follow
 
 ## Short Term
 
 - Add total line count indicator in the log tail panel
 - Show timing snapshots for previous restarts
 - Show log tail history for previous restarts
-- Avoid copying the mesh folder into the calculation directory to reduce disk space usage
 
 ## Medium Term
 

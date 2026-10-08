@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.6.0] - 2026-10-08
 
 Make csauto ready for solvers other than code_saturne: one adapter class describes a solver, the CLI and the dashboard read everything from it, and code_aster now runs on the same launch path as code_saturne. Panels and action buttons follow what each solver can actually do.
 
