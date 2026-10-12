@@ -4,13 +4,16 @@
   Pre-fills from localStorage settings. Validates inputs before resolving.
 -->
 <script lang="ts">
-  import { closeDialog } from "$lib/actions/dialog.svelte";
-  import { appAlert } from "$lib/actions/dialog.svelte";
+  import { closeDialog } from "#lib/actions/dialog.svelte.ts";
+  import { appAlert } from "#lib/actions/dialog.svelte.ts";
   import DialogShell from "./DialogShell.svelte";
-  import Button from "$lib/components/shared/Button.svelte";
-  import FormLabel from "$lib/components/shared/FormLabel.svelte";
-  import { getRunSettings, setRunSettings } from "$lib/stores/settings.svelte";
-  import type { RunParams } from "$lib/api/types";
+  import Button from "#lib/components/shared/Button.svelte";
+  import FormLabel from "#lib/components/shared/FormLabel.svelte";
+  import {
+    getRunSettings,
+    setRunSettings,
+  } from "#lib/stores/settings.svelte.ts";
+  import type { RunParams } from "#lib/api/types.ts";
 
   interface Props {
     cases: string[];

@@ -43,7 +43,7 @@ csauto becomes extension-first: the repository now ships a VS Code extension tha
 - The `.vsix` ships only the bundled wheel, extension bundle, and assets (the Python source tree is no longer duplicated inside it)
 - `csauto/__init__.py` version detection works in wheel installs (falls back to package metadata)
 - README restructured extension-first; the CLI and the browser dashboard remain the headless/HPC path
-- Frontend and extension toolchains upgraded (Vite 8, Svelte 5.57, TypeScript 7 for the extension)
+- Frontend and extension toolchains upgraded (SvelteKit 3 with its config in `vite.config.ts`, Vite 8, Svelte 5.57, TypeScript 7 for the extension), which clears the Dependabot alerts on the dashboard's build dependencies; CI actions moved to their latest major versions
 - Dialog backdrops use a neutral scrim instead of the EDF blue tint
 
 ### Fixed

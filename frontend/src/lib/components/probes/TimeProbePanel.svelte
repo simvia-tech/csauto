@@ -5,17 +5,20 @@
   and SVG plot with auto-refresh.
 -->
 <script lang="ts">
-  import PlotControls from "$lib/components/plots/PlotControls.svelte";
-  import SvgHolder from "$lib/components/plots/SvgHolder.svelte";
-  import Button from "$lib/components/shared/Button.svelte";
-  import FormLabel from "$lib/components/shared/FormLabel.svelte";
-  import Dropdown from "$lib/components/shared/Dropdown.svelte";
-  import Icon from "$lib/components/shared/Icon.svelte";
+  import PlotControls from "#lib/components/plots/PlotControls.svelte";
+  import SvgHolder from "#lib/components/plots/SvgHolder.svelte";
+  import Button from "#lib/components/shared/Button.svelte";
+  import FormLabel from "#lib/components/shared/FormLabel.svelte";
+  import Dropdown from "#lib/components/shared/Dropdown.svelte";
+  import Icon from "#lib/components/shared/Icon.svelte";
   import { Download } from "@lucide/svelte";
-  import { savePngFromContainer, buildPlotFilename } from "$lib/actions/export";
-  import { createProbeLoader } from "$lib/actions/probeLoader";
-  import { getTimeState, setTimeState } from "$lib/stores/probes.svelte";
-  import { fetchProbePosition } from "$lib/api/endpoints";
+  import {
+    savePngFromContainer,
+    buildPlotFilename,
+  } from "#lib/actions/export.ts";
+  import { createProbeLoader } from "#lib/actions/probeLoader.ts";
+  import { getTimeState, setTimeState } from "#lib/stores/probes.svelte.ts";
+  import { fetchProbePosition } from "#lib/api/endpoints.ts";
 
   interface Props {
     allCases: string[];

@@ -18,7 +18,7 @@ jobs:
     if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 2
@@ -66,19 +66,19 @@ jobs:
 
       - name: Set up Node
         if: steps.version_changed.outputs.changed == 'true' && steps.check_tag.outputs.exists == 'false'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
 
       - name: Set up Python
         if: steps.version_changed.outputs.changed == 'true' && steps.check_tag.outputs.exists == 'false'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
 
       - name: Install pnpm
         if: steps.version_changed.outputs.changed == 'true' && steps.check_tag.outputs.exists == 'false'
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 11
 

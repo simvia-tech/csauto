@@ -2,7 +2,7 @@
   ProbeTabBar — tab buttons for switching between time probes and profile plots.
 -->
 <script lang="ts">
-  import Button from "$lib/components/shared/Button.svelte";
+  import Button from "#lib/components/shared/Button.svelte";
 
   interface Props {
     activeTab: "time" | "profile";

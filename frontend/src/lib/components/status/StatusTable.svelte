@@ -11,7 +11,7 @@
 -->
 <script lang="ts">
   import { tick } from "svelte";
-  import type { StatusRow } from "$lib/api/types";
+  import type { StatusRow } from "#lib/api/types.ts";
   import {
     getSelectedCases,
     getActiveCaseId,
@@ -25,13 +25,13 @@
     getSelectionAnchor,
     getVisibleCaseIds,
     updateSort,
-  } from "$lib/stores/status.svelte";
-  import { hasCapability } from "$lib/stores/appConfig.svelte";
-  import { setCaseNote, openGui } from "$lib/api/endpoints";
-  import { appPrompt, appAlert } from "$lib/actions/dialog.svelte";
-  import Icon from "$lib/components/shared/Icon.svelte";
-  import Button from "$lib/components/shared/Button.svelte";
-  import Checkbox from "$lib/components/shared/Checkbox.svelte";
+  } from "#lib/stores/status.svelte.ts";
+  import { hasCapability } from "#lib/stores/appConfig.svelte.ts";
+  import { setCaseNote, openGui } from "#lib/api/endpoints.ts";
+  import { appPrompt, appAlert } from "#lib/actions/dialog.svelte.ts";
+  import Icon from "#lib/components/shared/Icon.svelte";
+  import Button from "#lib/components/shared/Button.svelte";
+  import Checkbox from "#lib/components/shared/Checkbox.svelte";
   import { ExternalLink, PenLine } from "@lucide/svelte";
 
   interface Props {

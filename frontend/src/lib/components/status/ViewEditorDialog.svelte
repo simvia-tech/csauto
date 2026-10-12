@@ -2,9 +2,9 @@
   ViewEditorDialog — popup to create or edit a view (name + column selection).
 -->
 <script lang="ts">
-  import Checkbox from "$lib/components/shared/Checkbox.svelte";
-  import Button from "$lib/components/shared/Button.svelte";
-  import { getDoeColumns, BASE_COLUMNS } from "$lib/stores/status.svelte";
+  import Checkbox from "#lib/components/shared/Checkbox.svelte";
+  import Button from "#lib/components/shared/Button.svelte";
+  import { getDoeColumns, BASE_COLUMNS } from "#lib/stores/status.svelte.ts";
 
   interface Props {
     mode: "create" | "edit";

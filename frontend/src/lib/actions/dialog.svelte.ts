@@ -7,7 +7,7 @@
  * closeDialog() resolves the promise.
  */
 
-import type { RunParams, RestartParams, CleanChoice } from "$lib/api/types";
+import type { RunParams, RestartParams, CleanChoice } from "#lib/api/types.ts";
 
 export type DialogType =
   "none" | "run" | "restart" | "clean" | "alert" | "confirm" | "prompt";

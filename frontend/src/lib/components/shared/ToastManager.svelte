@@ -4,7 +4,7 @@
   Placed once in +page.svelte, alongside DialogManager.
 -->
 <script lang="ts">
-  import { getToasts, dismissToast } from "$lib/actions/toast.svelte";
+  import { getToasts, dismissToast } from "#lib/actions/toast.svelte.ts";
   import Portal from "./Portal.svelte";
 
   let toasts = $derived(getToasts());

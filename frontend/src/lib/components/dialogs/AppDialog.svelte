@@ -5,9 +5,9 @@
   Enter confirms, Escape cancels, backdrop click cancels.
 -->
 <script lang="ts">
-  import { closeDialog } from "$lib/actions/dialog.svelte";
+  import { closeDialog } from "#lib/actions/dialog.svelte.ts";
   import DialogShell from "./DialogShell.svelte";
-  import Button from "$lib/components/shared/Button.svelte";
+  import Button from "#lib/components/shared/Button.svelte";
 
   interface Props {
     mode: "alert" | "confirm" | "prompt";

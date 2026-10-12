@@ -13,10 +13,10 @@
     setVisibleColumns,
     getDoeColumns,
     BASE_COLUMNS,
-  } from "$lib/stores/status.svelte";
-  import Icon from "$lib/components/shared/Icon.svelte";
-  import Dropdown from "$lib/components/shared/Dropdown.svelte";
-  import Portal from "$lib/components/shared/Portal.svelte";
+  } from "#lib/stores/status.svelte.ts";
+  import Icon from "#lib/components/shared/Icon.svelte";
+  import Dropdown from "#lib/components/shared/Dropdown.svelte";
+  import Portal from "#lib/components/shared/Portal.svelte";
   import ViewEditorDialog from "./ViewEditorDialog.svelte";
   import { Pencil, Plus } from "@lucide/svelte";
 

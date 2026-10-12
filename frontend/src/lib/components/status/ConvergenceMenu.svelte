@@ -5,7 +5,7 @@
   scroll, or Escape.
 -->
 <script lang="ts">
-  import { setCaseConvergence } from "$lib/api/endpoints";
+  import { setCaseConvergence } from "#lib/api/endpoints.ts";
 
   interface Props {
     cases: string[];

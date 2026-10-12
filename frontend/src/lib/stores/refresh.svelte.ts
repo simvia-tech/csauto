@@ -7,7 +7,7 @@
  * Refresh intervals are reactive and persisted to localStorage.
  */
 
-import { readJson, writeJson } from "$lib/utils/localStorage";
+import { readJson, writeJson } from "#lib/utils/localStorage.ts";
 
 const timers = new Map<string, ReturnType<typeof setInterval>>();
 

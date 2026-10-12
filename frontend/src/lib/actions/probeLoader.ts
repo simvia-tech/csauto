@@ -5,13 +5,13 @@
  * load/handle patterns.
  */
 
-import type { ProbeTabState } from "$lib/stores/probes.svelte";
+import type { ProbeTabState } from "#lib/stores/probes.svelte.ts";
 import {
   fetchProbeFiles,
   fetchProbeColumns,
   fetchProbeSvg,
   fetchRestartOrigin,
-} from "$lib/api/endpoints";
+} from "#lib/api/endpoints.ts";
 
 export interface ProbeLoaderConfig {
   scope: "probes" | "profiles";

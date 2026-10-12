@@ -14,17 +14,17 @@
 -->
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import Button from "$lib/components/shared/Button.svelte";
-  import Icon from "$lib/components/shared/Icon.svelte";
-  import Dropdown from "$lib/components/shared/Dropdown.svelte";
-  import Checkbox from "$lib/components/shared/Checkbox.svelte";
+  import Button from "#lib/components/shared/Button.svelte";
+  import Icon from "#lib/components/shared/Icon.svelte";
+  import Dropdown from "#lib/components/shared/Dropdown.svelte";
+  import Checkbox from "#lib/components/shared/Checkbox.svelte";
   import { RefreshCw, Pause, Play } from "@lucide/svelte";
-  import CardShell from "$lib/components/shared/CardShell.svelte";
-  import AutoRefreshToggle from "$lib/components/shared/AutoRefreshToggle.svelte";
-  import FieldRow from "$lib/components/shared/FieldRow.svelte";
-  import FormLabel from "$lib/components/shared/FormLabel.svelte";
+  import CardShell from "#lib/components/shared/CardShell.svelte";
+  import AutoRefreshToggle from "#lib/components/shared/AutoRefreshToggle.svelte";
+  import FieldRow from "#lib/components/shared/FieldRow.svelte";
+  import FormLabel from "#lib/components/shared/FormLabel.svelte";
   import TailOutput from "./TailOutput.svelte";
-  import { fetchTailFiles, fetchTailLines } from "$lib/api/endpoints";
+  import { fetchTailFiles, fetchTailLines } from "#lib/api/endpoints.ts";
   import {
     startTimer,
     stopTimer,
@@ -32,10 +32,10 @@
     getAutoRefreshEnabled,
     setAutoRefreshEnabled,
     onGlobalRefresh,
-  } from "$lib/stores/refresh.svelte";
-  import { getRows } from "$lib/stores/status.svelte";
-  import { toCaseOptions } from "$lib/utils/options";
-  import type { TailLine } from "$lib/api/types";
+  } from "#lib/stores/refresh.svelte.ts";
+  import { getRows } from "#lib/stores/status.svelte.ts";
+  import { toCaseOptions } from "#lib/utils/options.ts";
+  import type { TailLine } from "#lib/api/types.ts";
 
   interface Props {
     allCases: string[];

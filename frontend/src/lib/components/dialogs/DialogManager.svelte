@@ -4,7 +4,7 @@
   Placed once in +page.svelte. Reacts to getDialog() state changes.
 -->
 <script lang="ts">
-  import { getDialog } from "$lib/actions/dialog.svelte";
+  import { getDialog } from "#lib/actions/dialog.svelte.ts";
   import AppDialog from "./AppDialog.svelte";
   import RunDialog from "./RunDialog.svelte";
   import RestartDialog from "./RestartDialog.svelte";

@@ -6,16 +6,16 @@
 -->
 <script lang="ts">
   import { onDestroy } from "svelte";
-  import Button from "$lib/components/shared/Button.svelte";
-  import CardShell from "$lib/components/shared/CardShell.svelte";
-  import AutoRefreshToggle from "$lib/components/shared/AutoRefreshToggle.svelte";
-  import MultiDropdown from "$lib/components/shared/MultiDropdown.svelte";
-  import FieldRow from "$lib/components/shared/FieldRow.svelte";
-  import FormLabel from "$lib/components/shared/FormLabel.svelte";
-  import Icon from "$lib/components/shared/Icon.svelte";
-  import { fetchPerf } from "$lib/api/endpoints";
-  import { saveCsvBlob, buildPlotFilename } from "$lib/actions/export";
-  import type { PerfColumn, PerfRecord } from "$lib/api/types";
+  import Button from "#lib/components/shared/Button.svelte";
+  import CardShell from "#lib/components/shared/CardShell.svelte";
+  import AutoRefreshToggle from "#lib/components/shared/AutoRefreshToggle.svelte";
+  import MultiDropdown from "#lib/components/shared/MultiDropdown.svelte";
+  import FieldRow from "#lib/components/shared/FieldRow.svelte";
+  import FormLabel from "#lib/components/shared/FormLabel.svelte";
+  import Icon from "#lib/components/shared/Icon.svelte";
+  import { fetchPerf } from "#lib/api/endpoints.ts";
+  import { saveCsvBlob, buildPlotFilename } from "#lib/actions/export.ts";
+  import type { PerfColumn, PerfRecord } from "#lib/api/types.ts";
   import { RefreshCw, Download } from "@lucide/svelte";
   import {
     startTimer,
@@ -23,7 +23,7 @@
     getAutoRefreshEnabled,
     setAutoRefreshEnabled,
     onGlobalRefresh,
-  } from "$lib/stores/refresh.svelte";
+  } from "#lib/stores/refresh.svelte.ts";
 
   interface Props {
     allCases: string[];

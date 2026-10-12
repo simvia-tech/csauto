@@ -6,13 +6,13 @@
 -->
 <script lang="ts">
   import { tick } from "svelte";
-  import Button from "$lib/components/shared/Button.svelte";
-  import { escapeHtml } from "$lib/utils/escapeHtml";
+  import Button from "#lib/components/shared/Button.svelte";
+  import { escapeHtml } from "#lib/utils/escapeHtml.ts";
   import {
     parseDiff,
     type DiffRow,
     type DisplayItem,
-  } from "$lib/utils/diffParser";
+  } from "#lib/utils/diffParser.ts";
 
   interface Props {
     diffText: string;

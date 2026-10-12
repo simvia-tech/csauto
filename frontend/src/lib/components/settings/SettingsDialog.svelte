@@ -2,10 +2,10 @@
   SettingsDialog — app settings popup with sections for API token and refresh rates.
 -->
 <script lang="ts">
-  import Button from "$lib/components/shared/Button.svelte";
-  import Checkbox from "$lib/components/shared/Checkbox.svelte";
-  import DialogShell from "$lib/components/dialogs/DialogShell.svelte";
-  import { getToken, setToken } from "$lib/stores/auth.svelte";
+  import Button from "#lib/components/shared/Button.svelte";
+  import Checkbox from "#lib/components/shared/Checkbox.svelte";
+  import DialogShell from "#lib/components/dialogs/DialogShell.svelte";
+  import { getToken, setToken } from "#lib/stores/auth.svelte.ts";
   import {
     getRefreshRates,
     setRefreshRate,
@@ -13,11 +13,11 @@
     REFRESH_KEYS,
     REFRESH_META,
     REFRESH_DEFAULTS,
-  } from "$lib/stores/refresh.svelte";
+  } from "#lib/stores/refresh.svelte.ts";
   import {
     fetchTelemetrySettings,
     setTelemetrySettings,
-  } from "$lib/api/endpoints";
+  } from "#lib/api/endpoints.ts";
 
   interface Props {
     onClose: () => void;

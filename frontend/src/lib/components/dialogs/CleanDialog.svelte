@@ -7,18 +7,18 @@
 -->
 <script lang="ts">
   import { onMount } from "svelte";
-  import { closeDialog, appAlert } from "$lib/actions/dialog.svelte";
+  import { closeDialog, appAlert } from "#lib/actions/dialog.svelte.ts";
   import DialogShell from "./DialogShell.svelte";
-  import Button from "$lib/components/shared/Button.svelte";
-  import FormLabel from "$lib/components/shared/FormLabel.svelte";
-  import Dropdown from "$lib/components/shared/Dropdown.svelte";
-  import MultiDropdown from "$lib/components/shared/MultiDropdown.svelte";
+  import Button from "#lib/components/shared/Button.svelte";
+  import FormLabel from "#lib/components/shared/FormLabel.svelte";
+  import Dropdown from "#lib/components/shared/Dropdown.svelte";
+  import MultiDropdown from "#lib/components/shared/MultiDropdown.svelte";
   import {
     getCleanSettings,
     setCleanSettings,
-  } from "$lib/stores/settings.svelte";
-  import { fetchResuDirs } from "$lib/api/endpoints";
-  import type { CleanChoice } from "$lib/api/types";
+  } from "#lib/stores/settings.svelte.ts";
+  import { fetchResuDirs } from "#lib/api/endpoints.ts";
+  import type { CleanChoice } from "#lib/api/types.ts";
 
   interface Props {
     cases: string[];

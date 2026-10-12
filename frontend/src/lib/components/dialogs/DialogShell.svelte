@@ -6,8 +6,8 @@
 -->
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import { closeDialog } from "$lib/actions/dialog.svelte";
-  import Portal from "$lib/components/shared/Portal.svelte";
+  import { closeDialog } from "#lib/actions/dialog.svelte.ts";
+  import Portal from "#lib/components/shared/Portal.svelte";
 
   interface Props {
     title: string;

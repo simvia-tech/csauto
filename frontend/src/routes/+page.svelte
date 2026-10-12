@@ -8,33 +8,33 @@
   import { onMount, untrack } from "svelte";
   import "../app.css";
 
-  import DialogManager from "$lib/components/dialogs/DialogManager.svelte";
-  import ToastManager from "$lib/components/shared/ToastManager.svelte";
-  import HeroBanner from "$lib/components/hero/HeroBanner.svelte";
+  import DialogManager from "#lib/components/dialogs/DialogManager.svelte";
+  import ToastManager from "#lib/components/shared/ToastManager.svelte";
+  import HeroBanner from "#lib/components/hero/HeroBanner.svelte";
   import simviaLogo from "../assets/simvia-logo.svg";
-  import StatusCard from "$lib/components/status/StatusCard.svelte";
-  import ResidualPlotCard from "$lib/components/plots/ResidualPlotCard.svelte";
-  import ProbesCard from "$lib/components/probes/ProbesCard.svelte";
-  import PerformanceCard from "$lib/components/performance/PerformanceCard.svelte";
-  import LogTailCard from "$lib/components/tail/LogTailCard.svelte";
-  import CompareCard from "$lib/components/compare/CompareCard.svelte";
-  import RecentErrorsCard from "$lib/components/errors/RecentErrorsCard.svelte";
-  import SectionNav from "$lib/components/shared/SectionNav.svelte";
+  import StatusCard from "#lib/components/status/StatusCard.svelte";
+  import ResidualPlotCard from "#lib/components/plots/ResidualPlotCard.svelte";
+  import ProbesCard from "#lib/components/probes/ProbesCard.svelte";
+  import PerformanceCard from "#lib/components/performance/PerformanceCard.svelte";
+  import LogTailCard from "#lib/components/tail/LogTailCard.svelte";
+  import CompareCard from "#lib/components/compare/CompareCard.svelte";
+  import RecentErrorsCard from "#lib/components/errors/RecentErrorsCard.svelte";
+  import SectionNav from "#lib/components/shared/SectionNav.svelte";
 
-  import { fetchStatus, solverIconUrl } from "$lib/api/endpoints";
+  import { fetchStatus, solverIconUrl } from "#lib/api/endpoints.ts";
   import {
     setRows,
     setDoeColumns,
     getRows,
     getFilteredRows,
     getHeroCounts,
-  } from "$lib/stores/status.svelte";
+  } from "#lib/stores/status.svelte.ts";
   import {
     getAppConfig,
     hasPanel,
     loadAppConfig,
-  } from "$lib/stores/appConfig.svelte";
-  import { getToken } from "$lib/stores/auth.svelte";
+  } from "#lib/stores/appConfig.svelte.ts";
+  import { getToken } from "#lib/stores/auth.svelte.ts";
 
   /* Hero counts, updated on every status load */
   let heroCounts = $state({

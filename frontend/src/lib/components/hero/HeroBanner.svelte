@@ -4,11 +4,11 @@
   Counts show "shown / total" when a search filter is active.
 -->
 <script lang="ts">
-  import Icon from "$lib/components/shared/Icon.svelte";
-  import SettingsDialog from "$lib/components/settings/SettingsDialog.svelte";
+  import Icon from "#lib/components/shared/Icon.svelte";
+  import SettingsDialog from "#lib/components/settings/SettingsDialog.svelte";
   import { Settings } from "@lucide/svelte";
-  import { getAppConfig } from "$lib/stores/appConfig.svelte";
-  import { solverLogoUrl } from "$lib/api/endpoints";
+  import { getAppConfig } from "#lib/stores/appConfig.svelte.ts";
+  import { solverLogoUrl } from "#lib/api/endpoints.ts";
 
   interface Props {
     totalCases: number;
