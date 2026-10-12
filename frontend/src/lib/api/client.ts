@@ -5,8 +5,8 @@
  * prompting the user for a new token, then retrying the request once.
  */
 
-import { getToken, setToken } from "$lib/stores/auth.svelte";
-import { appPrompt } from "$lib/actions/dialog.svelte";
+import { getToken, setToken } from "#lib/stores/auth.svelte.ts";
+import { appPrompt } from "#lib/actions/dialog.svelte.ts";
 
 let authPromptActive: Promise<string | null> | null = null;
 

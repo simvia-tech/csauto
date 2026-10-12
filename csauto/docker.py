@@ -39,7 +39,11 @@ def _docker_prefix(case_dir: Path, adapter: SolverAdapter) -> tuple[list[str], s
         cmd.extend(["-v", f"{target}:{target}:ro" if readonly else f"{target}:{target}"])
     display = os.environ.get("DISPLAY")
     if display:
-        cmd.extend(["-e", f"DISPLAY=unix{display}", "-v", "/tmp/.X11-unix:/tmp/.X11-unix"])
+        # Unprefixed: the legacy unix: form breaks Qt's xcb platform.
+        cmd.extend(["-e", f"DISPLAY={display}"])
+        socket_dir = find_x11_socket_dir()
+        if socket_dir:
+            cmd.extend(["-v", f"{socket_dir}:/tmp/.X11-unix"])
     return cmd, container_case
 
 
@@ -127,15 +131,39 @@ def build_run_command(
     return ["nohup", *cmd]
 
 
+_X11_SOCKET_CANDIDATES = ("/mnt/wslg/.X11-unix", "/tmp/.X11-unix")
+
+
+def find_x11_socket_dir() -> str | None:
+    """The host directory holding X sockets, as visible to the docker daemon.
+
+    /mnt/wslg is preferred on WSL: /tmp/.X11-unix is bind-mounted per
+    namespace there, and Docker Desktop's daemon resolves volume mounts in its
+    own namespace where /tmp/.X11-unix is empty: only the /mnt/wslg path is
+    shared with it.
+    """
+    for candidate in _X11_SOCKET_CANDIDATES:
+        path = Path(candidate)
+        try:
+            if path.is_dir() and any(path.iterdir()):
+                return str(path.resolve())
+        except OSError:
+            continue
+    return None
+
+
 def build_gui_command(
     case_dir: Path,
     docker_image: str | None,
     args: Sequence[str],
     adapter: SolverAdapter | None = None,
+    extra_env: Mapping[str, str] | None = None,
 ) -> list[str]:
     """Build the docker command that opens the solver GUI for a case."""
     adapter = adapter or _default_adapter()
     cmd, container_case = _docker_prefix(case_dir, adapter)
+    for key, value in (extra_env or {}).items():
+        cmd.extend(["-e", f"{key}={value}"])
     image = docker_image or adapter.default_docker_image
     cmd.extend(["-w", container_case, *_docker_solver(image, args, adapter)])
     return cmd

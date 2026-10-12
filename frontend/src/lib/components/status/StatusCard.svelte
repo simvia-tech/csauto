@@ -5,11 +5,11 @@
   and StatusTable (sortable columns, selectable rows, sticky layout).
 -->
 <script lang="ts">
-  import CardShell from "$lib/components/shared/CardShell.svelte";
-  import AutoRefreshToggle from "$lib/components/shared/AutoRefreshToggle.svelte";
-  import Button from "$lib/components/shared/Button.svelte";
-  import Icon from "$lib/components/shared/Icon.svelte";
-  import ActionMenuButton from "$lib/components/shared/ActionMenuButton.svelte";
+  import CardShell from "#lib/components/shared/CardShell.svelte";
+  import AutoRefreshToggle from "#lib/components/shared/AutoRefreshToggle.svelte";
+  import Button from "#lib/components/shared/Button.svelte";
+  import Icon from "#lib/components/shared/Icon.svelte";
+  import ActionMenuButton from "#lib/components/shared/ActionMenuButton.svelte";
   import ViewManager from "./ViewManager.svelte";
   import StatusTable from "./StatusTable.svelte";
   import ConvergenceMenu from "./ConvergenceMenu.svelte";
@@ -35,31 +35,31 @@
     getSelectedStatuses,
     hasSelectedWithResults,
     getRows,
-  } from "$lib/stores/status.svelte";
+  } from "#lib/stores/status.svelte.ts";
   import {
     getStatusRefreshMs,
     getAutoRefreshEnabled,
     setAutoRefreshEnabled,
     triggerGlobalRefresh,
-  } from "$lib/stores/refresh.svelte";
-  import { getAppConfig, hasCapability } from "$lib/stores/appConfig.svelte";
+  } from "#lib/stores/refresh.svelte.ts";
+  import { getAppConfig, hasCapability } from "#lib/stores/appConfig.svelte.ts";
   import {
     openRunDialog,
     openRestartDialog,
     openCleanDialog,
     appConfirm,
     appPrompt,
-  } from "$lib/actions/dialog.svelte";
-  import { showToast } from "$lib/actions/toast.svelte";
+  } from "#lib/actions/dialog.svelte.ts";
+  import { showToast } from "#lib/actions/toast.svelte.ts";
   import {
     runCase,
     killCase,
     controlCase,
     cleanupCases,
-  } from "$lib/api/endpoints";
-  import { appAlert } from "$lib/actions/dialog.svelte";
-  import { optionValueError } from "$lib/utils/options";
-  import type { SolverOption } from "$lib/api/types";
+  } from "#lib/api/endpoints.ts";
+  import { appAlert } from "#lib/actions/dialog.svelte.ts";
+  import { optionValueError } from "#lib/utils/options.ts";
+  import type { SolverOption } from "#lib/api/types.ts";
 
   interface Props {
     onRefresh: () => void;

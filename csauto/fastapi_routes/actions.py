@@ -1,3 +1,5 @@
+import contextlib
+import inspect
 import math
 import os
 import shlex
@@ -13,6 +15,19 @@ from ..registry import STATUS_DONE, STATUS_FAILED, STATUS_PREPARED, STATUS_RUNNI
 from ..runner import run_cases
 from ..web_support import default_web_max_parallel, kill_case, log_case_action, normalize_convergence
 from .common import shared_models
+
+
+def gui_command(adapter: Any, case_dir: Any, selection: Any, gui_env: dict[str, str]) -> list[str]:
+    """The adapter's GUI command, with the display settings when its override accepts them.
+
+    Adapters written before `gui_env` existed override `build_gui_command`
+    without it; they still open, at the default scaling.
+    """
+    build = adapter.build_gui_command
+    params = inspect.signature(build).parameters.values()
+    if any(p.name == "gui_env" or p.kind is p.VAR_KEYWORD for p in params):
+        return build(case_dir, selection, gui_env=gui_env)
+    return build(case_dir, selection)
 
 
 def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> None:
@@ -58,6 +73,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
 
     class OpenGuiPayload(BaseModel):
         case: str | None = None
+        scale: float | None = None
 
     class RunCasePayload(BaseModel):
         cases: list[str] | str | None = None
@@ -408,23 +424,45 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
             )
         except Exception as exc:
             raise ctx.http_exception_cls(status_code=500, detail=f"Runtime error: {exc}") from exc
+        # The client reports its devicePixelRatio so the GUI matches the
+        # user's display scaling (WSLg/X11 default to 96dpi otherwise).
+        gui_env: dict[str, str] = {}
+        if payload.scale is not None and 1.0 < payload.scale <= 4.0:
+            gui_env["QT_SCALE_FACTOR"] = f"{payload.scale:.2f}"
         try:
-            cmd = ctx.adapter.build_gui_command(case_dir, runtime_selection)
+            cmd = gui_command(ctx.adapter, case_dir, runtime_selection, gui_env)
         except FileNotFoundError as exc:
             raise ctx.http_exception_cls(status_code=404, detail="Solver setup file not found for case") from exc
         except ValueError as exc:
             raise ctx.http_exception_cls(status_code=400, detail=str(exc)) from exc
         cmd_str = " ".join(shlex.quote(part) for part in cmd)
+        gui_log = case_dir / ".csauto.gui.log"
         try:
-            subprocess.Popen(
-                cmd,
-                cwd=case_dir,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
+            with gui_log.open("wb") as log_handle:
+                proc = subprocess.Popen(
+                    cmd,
+                    cwd=case_dir,
+                    stdout=log_handle,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                    env={**os.environ, **gui_env},
+                )
         except Exception as exc:
             raise ctx.http_exception_cls(status_code=500, detail=f"Launch error: {exc}") from exc
+        # A GUI that dies immediately (missing X socket, broken image, ...)
+        # would otherwise fail silently: catch the early exit and surface it.
+        try:
+            returncode = proc.wait(timeout=1.5)
+        except subprocess.TimeoutExpired:
+            returncode = None
+        if returncode is not None and returncode != 0:
+            tail = ""
+            with contextlib.suppress(OSError):
+                tail = gui_log.read_text(encoding="utf-8", errors="ignore").strip()[-500:]
+            raise ctx.http_exception_cls(
+                status_code=500,
+                detail=f"GUI exited immediately (code {returncode}): {tail or 'no output'}",
+            )
         log_case_action(
             ctx.runs_dir,
             case_id,

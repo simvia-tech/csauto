@@ -279,7 +279,10 @@ export function setCaseConvergence(
 }
 
 export function openGui(caseId: string): Promise<void> {
-  return apiPost("/api/open_gui", { case: caseId }).then(() => undefined);
+  return apiPost("/api/open_gui", {
+    case: caseId,
+    scale: window.devicePixelRatio,
+  }).then(() => undefined);
 }
 
 /* Settings */

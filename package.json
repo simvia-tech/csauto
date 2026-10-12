@@ -1,0 +1,478 @@
+{
+  "name": "csauto",
+  "displayName": "csauto",
+  "version": "1.0.0-rc.1",
+  "description": "Automate and monitor CFD simulation campaigns from VS Code (code_saturne and other solver adapters)",
+  "publisher": "simvia",
+  "license": "GPL-3.0",
+  "author": {
+    "name": "Simvia SAS",
+    "url": "https://simvia.tech"
+  },
+  "repository": "https://github.com/simvia-tech/csauto",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "icon": "assets/icon.png",
+  "categories": [
+    "Data Science",
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "code_aster",
+    "code_saturne",
+    "code saturne",
+    "cfd",
+    "fea",
+    "structural mechanics",
+    "simulation",
+    "hpc",
+    "slurm",
+    "doe",
+    "campaign"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/csauto.toml",
+    "workspaceContains:**/RUNS/registry.json"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "csauto.newCampaign",
+        "title": "New Campaign…",
+        "category": "csauto",
+        "icon": "$(add)"
+      },
+      {
+        "command": "csauto.refreshCampaigns",
+        "title": "Refresh Campaigns",
+        "category": "csauto",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "csauto.openDashboard",
+        "title": "Open Dashboard",
+        "category": "csauto",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "csauto.startServer",
+        "title": "Start Server",
+        "category": "csauto"
+      },
+      {
+        "command": "csauto.stopServer",
+        "title": "Stop Server",
+        "category": "csauto"
+      },
+      {
+        "command": "csauto.restartServer",
+        "title": "Restart Server",
+        "category": "csauto"
+      },
+      {
+        "command": "csauto.showLogs",
+        "title": "Show Extension Logs",
+        "category": "csauto"
+      },
+      {
+        "command": "csauto.installCli",
+        "title": "Install/Update csauto CLI",
+        "category": "csauto"
+      },
+      {
+        "command": "csauto.disableCliAlias",
+        "title": "Disable the csauto Shell Alias",
+        "category": "csauto"
+      },
+      {
+        "command": "csauto.runDoctor",
+        "title": "Check Environment",
+        "category": "csauto"
+      },
+      {
+        "command": "csauto.reloadDashboard",
+        "title": "Reload Dashboard",
+        "category": "csauto"
+      },
+      {
+        "command": "csauto.stopAllServers",
+        "title": "Stop All Servers",
+        "category": "csauto"
+      },
+      {
+        "command": "csauto.openCampaignDashboardFor",
+        "title": "Open Dashboard",
+        "category": "csauto",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "csauto.generateCasesFor",
+        "title": "Generate Cases",
+        "category": "csauto",
+        "icon": "$(run-all)"
+      },
+      {
+        "command": "csauto.changeSolverFor",
+        "title": "Change Solver Version…",
+        "category": "csauto",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "csauto.runDoctorFor",
+        "title": "Check Environment",
+        "category": "csauto",
+        "icon": "$(pass)"
+      },
+      {
+        "command": "csauto.editConfigFor",
+        "title": "Edit csauto.toml",
+        "category": "csauto",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "csauto.revealCampaignFor",
+        "title": "Reveal in Explorer",
+        "category": "csauto",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "csauto.restartServerFor",
+        "title": "Restart Dashboard Server",
+        "category": "csauto",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "csauto.showLogsFor",
+        "title": "Show Server Logs",
+        "category": "csauto",
+        "icon": "$(output)"
+      },
+      {
+        "command": "csauto.deleteCasesFor",
+        "title": "Delete Generated Cases…",
+        "category": "csauto",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "csauto.deleteCampaignFor",
+        "title": "Delete Campaign…",
+        "category": "csauto",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "csauto.stopServerFor",
+        "title": "Stop Dashboard Server",
+        "category": "csauto",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "csauto.openSetupGuide",
+        "title": "Open Setup Guide",
+        "category": "csauto"
+      },
+      {
+        "command": "csauto.checkSetup",
+        "title": "Check What csauto Needs",
+        "category": "csauto"
+      },
+      {
+        "command": "csauto.setUpRuntime",
+        "title": "Set Up csauto",
+        "category": "csauto"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "csauto",
+          "title": "csauto",
+          "icon": "assets/csauto-activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "csauto": [
+        {
+          "id": "csauto.campaigns",
+          "name": "Campaigns",
+          "icon": "assets/csauto-activity.svg"
+        },
+        {
+          "id": "csauto.setup",
+          "name": "Setup",
+          "icon": "assets/csauto-activity.svg",
+          "visibility": "collapsed"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "csauto",
+      "properties": {
+        "csauto.pythonPath": {
+          "type": "string",
+          "default": "",
+          "description": "Python interpreter with csauto installed, used instead of the extension's managed runtime. Leave empty to let the extension manage its own environment."
+        },
+        "csauto.port": {
+          "type": "number",
+          "default": 0,
+          "description": "Port for the csauto server. 0 picks a free port automatically."
+        },
+        "csauto.enableTelemetry": {
+          "type": "boolean",
+          "default": true,
+          "description": "Send anonymous usage statistics, from the extension and from the csauto servers it starts. Also requires VS Code's own telemetry to be enabled; csauto's CLI-level opt-out (csauto disable-telemetry) is honored too."
+        },
+        "csauto.notifyOnRunCompletion": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a notification when a running case finishes (DONE or FAILED)."
+        },
+        "csauto.serveArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Extra arguments appended to `csauto serve` (e.g. --show-api-logs)."
+        }
+      }
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "csauto.newCampaign",
+          "when": "view == csauto.campaigns",
+          "group": "navigation@1"
+        },
+        {
+          "command": "csauto.refreshCampaigns",
+          "when": "view == csauto.campaigns",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "csauto.openCampaignDashboardFor",
+          "when": "view == csauto.campaigns && viewItem =~ /^campaign\\.generated/",
+          "group": "inline"
+        },
+        {
+          "command": "csauto.generateCasesFor",
+          "when": "view == csauto.campaigns && viewItem == campaign",
+          "group": "inline"
+        },
+        {
+          "command": "csauto.openCampaignDashboardFor",
+          "when": "view == csauto.campaigns && viewItem =~ /^campaign\\.generated/",
+          "group": "1_run@1"
+        },
+        {
+          "command": "csauto.generateCasesFor",
+          "when": "view == csauto.campaigns && viewItem =~ /^campaign/",
+          "group": "1_run@2"
+        },
+        {
+          "command": "csauto.changeSolverFor",
+          "when": "view == csauto.campaigns && viewItem =~ /^campaign/",
+          "group": "2_setup@1"
+        },
+        {
+          "command": "csauto.runDoctorFor",
+          "when": "view == csauto.campaigns && viewItem =~ /^campaign\\.generated/",
+          "group": "2_setup@2"
+        },
+        {
+          "command": "csauto.editConfigFor",
+          "when": "view == csauto.campaigns && viewItem =~ /^campaign/",
+          "group": "2_setup@3"
+        },
+        {
+          "command": "csauto.revealCampaignFor",
+          "when": "view == csauto.campaigns && viewItem =~ /^campaign/",
+          "group": "3_files@1"
+        },
+        {
+          "command": "csauto.restartServerFor",
+          "when": "view == csauto.campaigns && viewItem =~ /^campaign\\.generated/",
+          "group": "4_server@1"
+        },
+        {
+          "command": "csauto.stopServerFor",
+          "when": "view == csauto.campaigns && viewItem == campaign.generated.running",
+          "group": "4_server@0"
+        },
+        {
+          "command": "csauto.showLogsFor",
+          "when": "view == csauto.campaigns && viewItem =~ /^campaign\\.generated/",
+          "group": "4_server@2"
+        },
+        {
+          "command": "csauto.deleteCasesFor",
+          "when": "view == csauto.campaigns && viewItem =~ /^campaign\\.generated/",
+          "group": "9_delete@1"
+        },
+        {
+          "command": "csauto.deleteCampaignFor",
+          "when": "view == csauto.campaigns && viewItem =~ /^campaign/",
+          "group": "9_delete@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "csauto.openCampaignDashboardFor",
+          "when": "false"
+        },
+        {
+          "command": "csauto.generateCasesFor",
+          "when": "false"
+        },
+        {
+          "command": "csauto.changeSolverFor",
+          "when": "false"
+        },
+        {
+          "command": "csauto.runDoctorFor",
+          "when": "false"
+        },
+        {
+          "command": "csauto.editConfigFor",
+          "when": "false"
+        },
+        {
+          "command": "csauto.revealCampaignFor",
+          "when": "false"
+        },
+        {
+          "command": "csauto.restartServerFor",
+          "when": "false"
+        },
+        {
+          "command": "csauto.showLogsFor",
+          "when": "false"
+        },
+        {
+          "command": "csauto.deleteCasesFor",
+          "when": "false"
+        },
+        {
+          "command": "csauto.deleteCampaignFor",
+          "when": "false"
+        },
+        {
+          "command": "csauto.stopServerFor",
+          "when": "false"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "csauto.campaigns",
+        "contents": "A campaign is a folder with a template case, a DOE table (one row per case) and the solver to run them.\n[New Campaign](command:csauto.newCampaign)"
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "csauto.setup",
+        "title": "Get started with csauto",
+        "icon": "assets/csauto-logo.png",
+        "description": "Check what csauto needs on this machine, then create your first campaign.",
+        "steps": [
+          {
+            "id": "wsl",
+            "title": "Open a WSL window",
+            "description": "On Windows, csauto runs inside WSL (Windows Subsystem for Linux), where the solvers run too.\n[Connect to WSL](command:remote-wsl.connect)",
+            "media": {
+              "markdown": "assets/walkthrough/wsl.md"
+            },
+            "when": "isWindows && !remoteName"
+          },
+          {
+            "id": "python",
+            "title": "Python 3.11 or newer",
+            "description": "csauto's server runs on Python. The extension looks for `python3` or `python` on the PATH.\n[Check my setup](command:csauto.checkSetup)\nAlready have an interpreter with csauto installed? [Use my own Python](command:workbench.action.openSettings?%5B%22csauto.pythonPath%22%5D).",
+            "media": {
+              "markdown": "assets/walkthrough/python.md"
+            },
+            "completionEvents": [
+              "onContext:csauto.setup.python"
+            ]
+          },
+          {
+            "id": "venv",
+            "title": "Python can create environments",
+            "description": "csauto installs itself into a private environment, so Python needs its `venv` module. Debian and Ubuntu ship it separately.\n[Check again](command:csauto.checkSetup)",
+            "media": {
+              "markdown": "assets/walkthrough/venv.md"
+            },
+            "completionEvents": [
+              "onContext:csauto.setup.venv"
+            ]
+          },
+          {
+            "id": "runtime",
+            "title": "Set up csauto",
+            "description": "Creates csauto's private Python environment in the extension's storage. It takes about a minute, once per machine.\n[Set up csauto](command:csauto.setUpRuntime)",
+            "media": {
+              "markdown": "assets/walkthrough/runtime.md"
+            },
+            "completionEvents": [
+              "onContext:csauto.setup.runtime"
+            ]
+          },
+          {
+            "id": "solvers",
+            "title": "Solvers",
+            "description": "csauto runs code_aster and code_saturne, in Docker, natively or with Apptainer/Singularity. Ticks once one of them can run: you only need the solvers you use.\n[Check again](command:csauto.checkSetup)",
+            "media": {
+              "markdown": "assets/walkthrough/solvers.md"
+            },
+            "completionEvents": [
+              "onContext:csauto.setup.solver"
+            ]
+          },
+          {
+            "id": "campaign",
+            "title": "Create your first campaign",
+            "description": "Pick a solver, start from its example or your own files, and csauto generates one case per row of your parameter table.\n[New Campaign](command:csauto.newCampaign)",
+            "media": {
+              "markdown": "assets/walkthrough/campaign.md"
+            },
+            "completionEvents": [
+              "onCommand:csauto.newCampaign"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "npm run check-types && node esbuild.js && npm run build:webview",
+    "build:webview": "vite build --config webviews/new-campaign/vite.config.mts",
+    "watch:webview": "vite build --config webviews/new-campaign/vite.config.mts --watch",
+    "check:webview": "frontend/node_modules/.bin/svelte-check --workspace webviews/new-campaign --tsconfig \"$PWD/webviews/new-campaign/tsconfig.json\"",
+    "check-types": "tsc --noEmit",
+    "watch": "npm-run-all -p watch:esbuild watch:tsc watch:frontend watch:webview",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch",
+    "watch:frontend": "pnpm --dir frontend build --watch",
+    "package": "npm run check-types && node esbuild.js --production && npm run build:webview",
+    "bundle": "bash scripts/bundle-wheel.sh",
+    "vscode:prepublish": "[ -n \"$CSAUTO_SKIP_PREPUBLISH\" ] || (rm -rf bundled/wheels && npm run package && npm run bundle)"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^26.6.4",
+    "@types/vscode": "~1.90.0",
+    "esbuild": "^0.28.2",
+    "npm-run-all2": "^8.0.4",
+    "svelte": "^5.57.2",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4"
+  }
+}

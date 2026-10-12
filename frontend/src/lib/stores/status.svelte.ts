@@ -5,8 +5,8 @@
  * configuration, named views, and derived data for the hero banner.
  */
 
-import type { StatusRow } from "$lib/api/types";
-import { readJson, writeJson } from "$lib/utils/localStorage";
+import type { StatusRow } from "#lib/api/types.ts";
+import { readJson, writeJson } from "#lib/utils/localStorage.ts";
 
 /* Sort direction type */
 export interface SortRule {

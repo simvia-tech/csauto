@@ -203,3 +203,19 @@ def test_kill_only_searches_docker_for_docker_runs(runs_dir: Path, monkeypatch) 
         with pytest.raises(ValueError, match="No PID, container_id or job_id"):
             kill_case(runs_dir, "case0001", actor=None, job_id_patterns=[], adapter=StubAdapter())
     assert lookups == [("case0001", runs_dir)]
+
+
+def test_gui_command_passes_gui_env_only_to_overrides_that_accept_it(tmp_path) -> None:
+    from csauto.fastapi_routes.actions import gui_command
+
+    class Current:
+        def build_gui_command(self, case_dir, selection, gui_env=None):
+            return ["gui", gui_env["QT_SCALE_FACTOR"]]
+
+    class Legacy:
+        def build_gui_command(self, case_dir, selection):
+            return ["gui"]
+
+    env = {"QT_SCALE_FACTOR": "1.50"}
+    assert gui_command(Current(), tmp_path, None, env) == ["gui", "1.50"]
+    assert gui_command(Legacy(), tmp_path, None, env) == ["gui"]

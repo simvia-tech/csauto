@@ -19,8 +19,16 @@ TELEMETRY_DIR = Path.home() / ".local" / "share" / "csauto"
 TELEMETRY_FILE = TELEMETRY_DIR / "telemetry.json"
 TELEMETRY_TIMEOUT_S = 5
 
+# Event types. The server (code-telemetry-server) rejects types it does not
+# know, so a new one must be added there first.
+# CLI without VS Code: install.sh, and `csauto serve` with a daily heartbeat.
 EVENT_INSTALL = 3
 EVENT_SERVE = 4
+# VS Code extension: the first two are sent by the extension through
+# `csauto _telemetry-ping`, the last by the servers it starts.
+EVENT_EXT_ACTIVATED = 5
+EVENT_EXT_CAMPAIGN_CREATED = 6
+EVENT_EXT_RUN_FINISHED = 7
 
 _lock = threading.Lock()
 
@@ -77,6 +85,17 @@ def set_enabled(enabled: bool) -> None:
     _save_state(state)
 
 
+def extension_client() -> str:
+    """Where VS Code runs ("local", "wsl", ...) when the extension started this process, else ""."""
+    return os.environ.get("CSAUTO_CLIENT", "").strip()
+
+
+def extension_payload() -> dict[str, str]:
+    """The extension's version as a payload override, when the extension started this process."""
+    version = os.environ.get("CSAUTO_CLIENT_VERSION", "").strip()
+    return {"version": version} if version else {}
+
+
 def _get_timezone() -> str:
     now = datetime.now(UTC).astimezone()
     offset = now.utcoffset()
@@ -129,6 +148,14 @@ def send_event(event_type: int, *, block: bool = False, **extra: Any) -> None:
     else:
         t = threading.Thread(target=_send_sync, args=(payload,), daemon=True)
         t.start()
+
+
+def send_events(event_type: int, events: list[dict[str, Any]]) -> None:
+    """Send several events of one type from a single background thread, one after the other."""
+    if not events or not is_enabled():
+        return
+    payloads = [_build_payload(event_type, **extra) for extra in events]
+    threading.Thread(target=lambda: [_send_sync(payload) for payload in payloads], daemon=True).start()
 
 
 async def send_event_async(event_type: int, **extra: Any) -> None:

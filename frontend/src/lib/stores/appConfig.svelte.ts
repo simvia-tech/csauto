@@ -7,8 +7,8 @@
  * solver may not support.
  */
 
-import type { AppConfig } from "$lib/api/types";
-import { fetchAppConfig } from "$lib/api/endpoints";
+import type { AppConfig } from "#lib/api/types.ts";
+import { fetchAppConfig } from "#lib/api/endpoints.ts";
 
 /** Fed by the registry and the launcher logs, whatever the solver. */
 const GENERIC_PANELS = ["status", "tail", "errors"];

@@ -6,13 +6,13 @@
 -->
 <script lang="ts">
   import { tick } from "svelte";
-  import Button from "$lib/components/shared/Button.svelte";
-  import { escapeHtml } from "$lib/utils/escapeHtml";
+  import Button from "#lib/components/shared/Button.svelte";
+  import { escapeHtml } from "#lib/utils/escapeHtml.ts";
   import {
     parseDiff,
     type DiffRow,
     type DisplayItem,
-  } from "$lib/utils/diffParser";
+  } from "#lib/utils/diffParser.ts";
 
   interface Props {
     diffText: string;
@@ -350,13 +350,15 @@
           class="flex w-full bg-edf-gris-clair text-muted text-center py-0.5"
         >
           <span
-            class="w-[40px] shrink-0 border-r border-[rgba(51,51,51,0.08)] sticky left-0 z-[1] bg-edf-gris-clair"
+            class="w-[40px] shrink-0 border-r border-separator sticky left-0 z-[1] bg-edf-gris-clair"
           ></span>
           <span class="px-2 text-[11px]"
             >... {item.skipped} lines hidden ...</span
           >
         </div>
       {:else if item.row}
+        <!-- Focusable only when its role is button (a change or a search match). -->
+        <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
         <div
           class="flex w-full {lineClass(item.row.type, side)} {item.row.type !==
             'equal' || searchMatches.includes(idx)
@@ -390,7 +392,7 @@
           }}
         >
           <span
-            class="w-[40px] shrink-0 text-right pr-2 select-none border-r border-[rgba(51,51,51,0.08)] sticky left-0 z-[1]"
+            class="w-[40px] shrink-0 text-right pr-2 select-none border-r border-separator sticky left-0 z-[1]"
             style="background: {isActive
               ? 'rgb(16,87,200)'
               : gutterBg(item.row.type, side)}; color: {isActive
@@ -436,7 +438,7 @@
 
   {#if loading}
     <div
-      class="absolute inset-0 bg-white/60 flex items-center justify-center z-10"
+      class="absolute inset-0 bg-control/60 flex items-center justify-center z-10"
     >
       <span class="text-sm text-muted">Loading...</span>
     </div>

@@ -1,6 +1,6 @@
 /** Shared helpers for dropdown option lists and the solver's declared options. */
 
-import type { SolverOption } from "$lib/api/types";
+import type { SolverOption } from "#lib/api/types.ts";
 
 export interface DropdownOption {
   value: string;

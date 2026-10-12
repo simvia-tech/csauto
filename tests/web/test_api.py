@@ -11,7 +11,7 @@ from urllib.error import HTTPError
 import pytest
 
 from csauto.execution import RuntimeSelection
-from csauto.fastapi_app import create_fastapi_app
+from csauto.fastapi_app import _DIST_DIR, create_fastapi_app
 from csauto.registry import load_registry, save_registry
 
 _ACTIVE_TEST_CLIENT = None
@@ -191,6 +191,12 @@ def test_api_status_uses_short_cache_and_invalidates_on_note_update(
 
 def test_web_index_serves_svelte_spa(web_env) -> None:
     base_url, _case_dir = web_env
+    if not (_DIST_DIR / "index.html").is_file():
+        with pytest.raises(HTTPError) as excinfo:
+            _http_get(f"{base_url}/")
+        assert excinfo.value.code == 503
+        assert "pnpm build" in excinfo.value.read().decode()
+        return
     status, body = _http_get(f"{base_url}/")
     assert status == 200
     assert "_app/" in body

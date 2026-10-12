@@ -7,7 +7,29 @@
 
 const STORAGE_KEY = "csauto_token";
 
-let token = $state(localStorage.getItem(STORAGE_KEY) ?? "");
+/**
+ * A `?token=` query parameter (used by the VS Code extension to hand over the
+ * server token) takes precedence over localStorage and is stripped from the
+ * URL after being stored.
+ */
+function initialToken(): string {
+  const params = new URLSearchParams(window.location.search);
+  const urlToken = params.get("token");
+  if (urlToken === null) {
+    return localStorage.getItem(STORAGE_KEY) ?? "";
+  }
+  if (urlToken) {
+    localStorage.setItem(STORAGE_KEY, urlToken);
+  } else {
+    localStorage.removeItem(STORAGE_KEY);
+  }
+  const url = new URL(window.location.href);
+  url.searchParams.delete("token");
+  window.history.replaceState(null, "", url.toString());
+  return urlToken;
+}
+
+let token = $state(initialToken());
 
 export function getToken(): string {
   return token;

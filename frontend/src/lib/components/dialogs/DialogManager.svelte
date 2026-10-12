@@ -4,7 +4,7 @@
   Placed once in +page.svelte. Reacts to getDialog() state changes.
 -->
 <script lang="ts">
-  import { getDialog } from "$lib/actions/dialog.svelte";
+  import { getDialog } from "#lib/actions/dialog.svelte.ts";
   import AppDialog from "./AppDialog.svelte";
   import RunDialog from "./RunDialog.svelte";
   import RestartDialog from "./RestartDialog.svelte";
@@ -26,12 +26,7 @@
     message={dialog.props.message as string}
     confirmLabel={dialog.props.confirmLabel as string | undefined}
     confirmVariant={dialog.props.confirmVariant as
-      | "primary"
-      | "secondary"
-      | "warning"
-      | "run"
-      | "danger"
-      | undefined}
+      "primary" | "secondary" | "warning" | "run" | "danger" | undefined}
     value={dialog.props.value as string | undefined}
     placeholder={dialog.props.placeholder as string | undefined}
     multiline={dialog.props.multiline as boolean | undefined}

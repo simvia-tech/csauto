@@ -249,6 +249,9 @@ Optional, with their default:
 | `cleanup_log_names` | `csauto.stdout`, `csauto.stderr`: logs Clean may shorten |
 | `compare_kinds`, `performance_columns`, `control_actions`, `restart_modes`, `default_residual_columns` | none |
 | `logo_file`, `icon_file` | none |
+| `description` | none: one line shown by the VS Code extension's New Campaign; without it the solver is not offered there (test solvers) |
+| `case_inputs`, `assemble_case` | none: the files the extension's New Campaign asks for to build a case (`CaseInput`: label, extensions, destination folder, required, multiple, rename), and how they are placed; override `assemble_case` when the files reference each other (code_aster writes or relinks its `.export`) |
+| `example_dir` | none: a folder under `examples/` a new campaign can start from (also list its parts under `force-include` in `pyproject.toml`, which a test checks) |
 | `prepare_launch` | does nothing |
 | `detect_outcome` | no verdict: the exit status decides |
 | `read_progress`, `read_restart_origin` | no value |

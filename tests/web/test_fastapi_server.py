@@ -12,6 +12,8 @@ from urllib.error import HTTPError, URLError
 
 import pytest
 
+from csauto.fastapi_app import _DIST_DIR
+
 
 def _reserve_local_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -130,9 +132,10 @@ def fastapi_server_env(runs_dir: Path, case_factory, registry_factory):
 def test_fastapi_server_status_and_index(fastapi_server_env) -> None:
     base_url, _case_dir, _proc = fastapi_server_env
 
-    status, body = _http_get(f"{base_url}/")
-    assert status == 200
-    assert "<title>csauto by Simvia</title>" in body
+    if (_DIST_DIR / "index.html").is_file():
+        status, body = _http_get(f"{base_url}/")
+        assert status == 200
+        assert "<title>csauto by Simvia</title>" in body
 
     status, body = _http_get(f"{base_url}/api/status")
     assert status == 200

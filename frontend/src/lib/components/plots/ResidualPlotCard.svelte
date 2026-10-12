@@ -6,14 +6,17 @@
 -->
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import CardShell from "$lib/components/shared/CardShell.svelte";
-  import AutoRefreshToggle from "$lib/components/shared/AutoRefreshToggle.svelte";
-  import Icon from "$lib/components/shared/Icon.svelte";
+  import CardShell from "#lib/components/shared/CardShell.svelte";
+  import AutoRefreshToggle from "#lib/components/shared/AutoRefreshToggle.svelte";
+  import Icon from "#lib/components/shared/Icon.svelte";
   import PlotControls from "./PlotControls.svelte";
   import SvgHolder from "./SvgHolder.svelte";
-  import Button from "$lib/components/shared/Button.svelte";
+  import Button from "#lib/components/shared/Button.svelte";
   import { RefreshCw, Download } from "@lucide/svelte";
-  import { savePngFromContainer, buildPlotFilename } from "$lib/actions/export";
+  import {
+    savePngFromContainer,
+    buildPlotFilename,
+  } from "#lib/actions/export.ts";
   import {
     getPlotState,
     setPlotCases,
@@ -23,13 +26,13 @@
     setPlotIterMin,
     setPlotSvg,
     setPlotAutoRefresh,
-  } from "$lib/stores/plots.svelte";
+  } from "#lib/stores/plots.svelte.ts";
   import {
     fetchResidualColumns,
     fetchResidualsSvg,
     fetchRestartOrigin,
-  } from "$lib/api/endpoints";
-  import { getAppConfig } from "$lib/stores/appConfig.svelte";
+  } from "#lib/api/endpoints.ts";
+  import { getAppConfig } from "#lib/stores/appConfig.svelte.ts";
   import {
     startTimer,
     stopTimer,
@@ -37,7 +40,7 @@
     getAutoRefreshEnabled,
     setAutoRefreshEnabled,
     onGlobalRefresh,
-  } from "$lib/stores/refresh.svelte";
+  } from "#lib/stores/refresh.svelte.ts";
 
   interface Props {
     allCases: string[];

@@ -6,10 +6,10 @@
   Tabs are disabled when they have no data, and auto-switch to the one that does.
 -->
 <script lang="ts">
-  import CardShell from "$lib/components/shared/CardShell.svelte";
-  import AutoRefreshToggle from "$lib/components/shared/AutoRefreshToggle.svelte";
-  import Button from "$lib/components/shared/Button.svelte";
-  import Icon from "$lib/components/shared/Icon.svelte";
+  import CardShell from "#lib/components/shared/CardShell.svelte";
+  import AutoRefreshToggle from "#lib/components/shared/AutoRefreshToggle.svelte";
+  import Button from "#lib/components/shared/Button.svelte";
+  import Icon from "#lib/components/shared/Icon.svelte";
   import { RefreshCw } from "@lucide/svelte";
   import TimeProbePanel from "./TimeProbePanel.svelte";
   import ProfileProbePanel from "./ProfileProbePanel.svelte";
@@ -24,14 +24,14 @@
     getProfileHasData,
     setProfileHasData,
     autoSelectTab,
-  } from "$lib/stores/probes.svelte";
+  } from "#lib/stores/probes.svelte.ts";
   import {
     getProbeRefreshMs,
     getAutoRefreshEnabled,
     setAutoRefreshEnabled,
     onGlobalRefresh,
-  } from "$lib/stores/refresh.svelte";
-  import { fetchProbeFiles } from "$lib/api/endpoints";
+  } from "#lib/stores/refresh.svelte.ts";
+  import { fetchProbeFiles } from "#lib/api/endpoints.ts";
 
   interface Props {
     allCases: string[];

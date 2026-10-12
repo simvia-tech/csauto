@@ -4,13 +4,17 @@
   Pre-fills from localStorage settings. Validates inputs before resolving.
 -->
 <script lang="ts">
-  import { closeDialog } from "$lib/actions/dialog.svelte";
-  import { appAlert } from "$lib/actions/dialog.svelte";
+  import { untrack } from "svelte";
+  import { closeDialog } from "#lib/actions/dialog.svelte.ts";
+  import { appAlert } from "#lib/actions/dialog.svelte.ts";
   import DialogShell from "./DialogShell.svelte";
-  import Button from "$lib/components/shared/Button.svelte";
-  import FormLabel from "$lib/components/shared/FormLabel.svelte";
-  import { getRunSettings, setRunSettings } from "$lib/stores/settings.svelte";
-  import type { RunParams } from "$lib/api/types";
+  import Button from "#lib/components/shared/Button.svelte";
+  import FormLabel from "#lib/components/shared/FormLabel.svelte";
+  import {
+    getRunSettings,
+    setRunSettings,
+  } from "#lib/stores/settings.svelte.ts";
+  import type { RunParams } from "#lib/api/types.ts";
 
   interface Props {
     cases: string[];
@@ -19,8 +23,10 @@
   let { cases }: Props = $props();
 
   const saved = getRunSettings();
-  const defaultParallel =
-    saved.maxParallel ?? (cases.length > 1 ? cases.length : 0);
+  // Settled when the dialog opens.
+  const defaultParallel = untrack(
+    () => saved.maxParallel ?? (cases.length > 1 ? cases.length : 0),
+  );
   let n = $state(saved.n);
   let nt = $state(saved.nt);
   let maxParallel = $state(defaultParallel);

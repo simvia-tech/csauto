@@ -56,7 +56,7 @@ After cloning, install the git hooks:
 sh scripts/setup-hooks.sh
 ```
 
-This installs a pre-commit hook that automatically rebuilds `frontend/dist/` when frontend source files are staged. The build requires `pnpm` and `node_modules` to be installed (`cd frontend && pnpm install`).
+This installs a pre-commit hook that formats staged Python (ruff) and frontend (prettier) files and syncs `VERSION` into both `package.json` files. The built dashboard (`csauto/_frontend/`) is not committed: run `cd frontend && pnpm install && pnpm build` once after cloning, and again after frontend changes when you test without `npm run watch`.
 
 ### Pull Request Guidelines
 

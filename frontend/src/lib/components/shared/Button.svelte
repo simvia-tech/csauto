@@ -33,9 +33,9 @@
   };
 
   const variants = {
-    primary:
-      "bg-edf-bleu-moyen text-white border-none hover:bg-[rgb(12,72,170)]",
-    secondary: "bg-white text-ink border border-border hover:bg-edf-gris-clair",
+    primary: "bg-accent text-accent-fg border-none hover:bg-accent-hover",
+    secondary:
+      "bg-control text-ink border border-border hover:bg-control-hover",
     run: "bg-edf-vert-fonce text-white border-none hover:bg-[rgb(38,98,12)]",
     warning:
       "bg-edf-orange-moyen text-white border-none hover:bg-[rgb(230,118,20)]",

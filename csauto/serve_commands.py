@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
@@ -16,7 +17,7 @@ def add_serve_subcommands(subparsers: Any, config: Config) -> None:
         "--token",
         dest="api_token",
         default=None,
-        help="API token (otherwise read from csauto.toml -> [api].token).",
+        help="API token (otherwise read from $CSAUTO_API_TOKEN, then csauto.toml -> [api].token).",
     )
     serve_parser.add_argument(
         "--no-doctor",
@@ -52,7 +53,7 @@ def _serve_common_prechecks(
         )
         if print_doctor(items):
             raise ValueError("Pre-check failed.")
-    api_token = args.api_token or config.api_token
+    api_token = args.api_token or os.environ.get("CSAUTO_API_TOKEN") or config.api_token
     host_value = args.host
     if host_value not in {"127.0.0.1", "localhost"} and not api_token:
         raise ValueError("Public host requires api.token (csauto.toml) or --token.")
@@ -79,9 +80,10 @@ def dispatch_serve_command(
 
     try:
         from .solvers import get_solver_adapter
-        from .telemetry import EVENT_SERVE, is_enabled, send_event
+        from .telemetry import EVENT_SERVE, extension_client, is_enabled, send_event
 
-        if is_enabled():
+        # Servers the extension starts report their runs instead.
+        if is_enabled() and not extension_client():
             context = f"{get_solver_adapter(config.solver).name}:{config.runtime}"
             print(f"[telemetry] Sending serve ping (type={EVENT_SERVE}, context={context})")
             send_event(EVENT_SERVE, valid_result=True, id_docker=context)

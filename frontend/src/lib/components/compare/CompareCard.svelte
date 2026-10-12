@@ -5,16 +5,16 @@
   Comparison runs automatically when selections change.
 -->
 <script lang="ts">
-  import CardShell from "$lib/components/shared/CardShell.svelte";
-  import Dropdown from "$lib/components/shared/Dropdown.svelte";
-  import FieldRow from "$lib/components/shared/FieldRow.svelte";
-  import FormLabel from "$lib/components/shared/FormLabel.svelte";
+  import CardShell from "#lib/components/shared/CardShell.svelte";
+  import Dropdown from "#lib/components/shared/Dropdown.svelte";
+  import FieldRow from "#lib/components/shared/FieldRow.svelte";
+  import FormLabel from "#lib/components/shared/FormLabel.svelte";
   import DiffViewer from "./DiffViewer.svelte";
-  import { fetchCompareDiff } from "$lib/api/endpoints";
-  import { getAppConfig } from "$lib/stores/appConfig.svelte";
-  import { getRows, getDoeColumns } from "$lib/stores/status.svelte";
-  import Icon from "$lib/components/shared/Icon.svelte";
-  import Button from "$lib/components/shared/Button.svelte";
+  import { fetchCompareDiff } from "#lib/api/endpoints.ts";
+  import { getAppConfig } from "#lib/stores/appConfig.svelte.ts";
+  import { getRows, getDoeColumns } from "#lib/stores/status.svelte.ts";
+  import Icon from "#lib/components/shared/Icon.svelte";
+  import Button from "#lib/components/shared/Button.svelte";
   import { ArrowLeftRight } from "@lucide/svelte";
 
   interface Props {
@@ -175,7 +175,7 @@
           parameters</span
         >
         <button
-          class="text-xs text-edf-bleu-moyen cursor-pointer hover:underline"
+          class="text-xs text-accent cursor-pointer hover:underline"
           onclick={() => (showAllParams = !showAllParams)}
         >
           {showAllParams ? "Show differences only" : "Show all parameters"}

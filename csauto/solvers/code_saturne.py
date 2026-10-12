@@ -21,7 +21,7 @@ from ..pathutil import is_within_root
 from ..probes import list_run_csv_files, locate_run_csv_files
 from ..registry import STATUS_FAILED
 from ..svg_utils import as_float
-from .base import CompareKind, ControlAction, PerfColumn, RestartMode, SolverAdapter
+from .base import CaseInput, CompareKind, ControlAction, PerfColumn, RestartMode, SolverAdapter
 
 if TYPE_CHECKING:
     from ..execution import RuntimeSelection
@@ -339,6 +339,45 @@ def _require_positive_restart_value(
 
 class CodeSaturneAdapter(SolverAdapter):
     name: ClassVar[str] = "code_saturne"
+    description: ClassVar[str] = "CFD: setup.xml cases, run with code_saturne"
+    example_dir: ClassVar[str] = "single-case"
+    case_inputs: ClassVar[tuple[CaseInput, ...]] = (
+        CaseInput(
+            "setup",
+            "Setup file",
+            (".xml",),
+            "TEMPLATE/DATA",
+            rename_to="setup.xml",
+            hint="The case file saved by the code_saturne GUI; it becomes DATA/setup.xml.",
+        ),
+        CaseInput(
+            "mesh",
+            "Meshes",
+            (".med", ".unv", ".msh", ".cgns", ".des", ".neu", ".ccm"),
+            "MESH",
+            required=False,
+            multiple=True,
+            hint="The meshes the setup file lists; code_saturne reads them from MESH/.",
+        ),
+        CaseInput(
+            "run_cfg",
+            "Run configuration",
+            (".cfg",),
+            "TEMPLATE/DATA",
+            required=False,
+            rename_to="run.cfg",
+            hint="Optional: run.cfg, with the run's resources and stages.",
+        ),
+        CaseInput(
+            "sources",
+            "User sources",
+            (".c", ".cpp", ".cxx", ".f90", ".h", ".hxx"),
+            "TEMPLATE/SRC",
+            required=False,
+            multiple=True,
+            hint="Optional: user subroutines, compiled with the case.",
+        ),
+    )
     native_bin_name: ClassVar[str] = "code_saturne"
     container_bin_name: ClassVar[str] = "code_saturne"
     default_docker_image: ClassVar[str] = "simvia/code_saturne"

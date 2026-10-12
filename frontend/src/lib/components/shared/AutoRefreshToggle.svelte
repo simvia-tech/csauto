@@ -6,7 +6,7 @@
 -->
 <script lang="ts">
   import { onDestroy } from "svelte";
-  import { startTimer, stopTimer } from "$lib/stores/refresh.svelte";
+  import { startTimer, stopTimer } from "#lib/stores/refresh.svelte.ts";
   import Checkbox from "./Checkbox.svelte";
 
   interface Props {

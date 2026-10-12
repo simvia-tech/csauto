@@ -140,8 +140,7 @@ def _copy_shared_dir(parent_dir: Path, name: str, source_dir: Path, mesh_mode: s
     """Copy or symlink a shared folder into the runs directory."""
     dest_dir = parent_dir / name
     if not source_dir.is_dir():
-        warn(f"source directory missing for copy {name}: {source_dir}")
-        return
+        return  # Shared folders are optional: a case may keep its mesh in its own folder.
     resolved_source = source_dir.resolve()
     if dest_dir.exists() or dest_dir.is_symlink():
         if dest_dir.is_symlink():

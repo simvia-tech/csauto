@@ -3,8 +3,8 @@
 -->
 <script lang="ts">
   import { tick } from "svelte";
-  import { escapeHtml } from "$lib/utils/escapeHtml";
-  import type { LogSeverity, TailLine } from "$lib/api/types";
+  import { escapeHtml } from "#lib/utils/escapeHtml.ts";
+  import type { LogSeverity, TailLine } from "#lib/api/types.ts";
 
   interface Line extends TailLine {
     index: number;

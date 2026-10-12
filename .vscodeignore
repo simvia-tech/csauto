@@ -1,0 +1,17 @@
+# Allowlist: everything stays out of the .vsix except what is listed below.
+**
+!README.md
+!CHANGELOG.md
+!LICENSE
+!dist/extension.js
+!webviews/*/dist/**
+!assets/icon.png
+!assets/csauto-logo.png
+!assets/csauto-activity.svg
+!assets/csauto-mark-*.svg
+!assets/walkthrough/**
+!csauto/solvers/logos/code_aster.svg
+!csauto/solvers/logos/code_saturne.svg
+# The csauto wheel, and the dependency wheels of a per-platform package.
+!bundled/*.whl
+!bundled/wheels/**

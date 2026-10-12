@@ -586,6 +586,34 @@ def test_refresh_status_marks_done_when_pid_dead(monkeypatch, runs_dir: Path, ca
     assert registry["case0001"]["end_time"]
 
 
+def test_refresh_status_reports_a_finished_run_once(
+    monkeypatch, runs_dir: Path, case_factory, registry_factory
+) -> None:
+    from csauto import telemetry
+
+    sent: list[tuple[int, list[dict]]] = []
+    monkeypatch.setenv("CSAUTO_CLIENT", "wsl")
+    monkeypatch.setattr(telemetry, "send_events", lambda event_type, events: sent.append((event_type, events)))
+    case_dir = case_factory(runs_dir, "case0001")
+    (case_dir / "run_solver.log").write_text("END OF CALCULATION\n", encoding="utf-8")
+    registry_factory(runs_dir, "case0001", case_dir, status=STATUS_RUNNING)
+    registry = load_registry(runs_dir)
+    registry["case0001"]["pid"] = 999
+    registry["case0001"]["start_time"] = (datetime.now() - timedelta(seconds=5)).isoformat(timespec="seconds")
+    save_registry(runs_dir, registry)
+    monkeypatch.setattr("csauto.runner.is_process_alive", lambda _pid, **_kw: False)
+
+    refresh_status(runs_dir)
+    refresh_status(runs_dir)
+
+    assert len(sent) == 1
+    event_type, events = sent[0]
+    assert event_type == telemetry.EVENT_EXT_RUN_FINISHED
+    assert len(events) == 1 and events[0]["valid_result"] is True
+    assert events[0]["id_docker"].endswith(":wsl")
+    assert events[0]["time_execution"] >= 0
+
+
 def test_refresh_status_leaves_a_queued_case_queued(runs_dir: Path, case_factory, registry_factory) -> None:
     case_dir = case_factory(runs_dir, "case0001")
     (case_dir / "run_solver.log").write_text("END OF CALCULATION\n", encoding="utf-8")  # the previous run's

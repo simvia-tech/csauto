@@ -11,17 +11,87 @@ saves in ``csauto.stdout``.
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import ClassVar
 
 from ..logs import scan_outcome
-from .base import CompareKind, SolverAdapter
+from .base import CaseInput, CompareKind, SolverAdapter
 
 EXPORT_GLOB = "*.export"
 # The export actually run: the case's export with csauto's n and nt, written at
 # each launch so the export that came from the template is never modified.
 RUN_EXPORT_NAME = ".csauto.export"
+# Export file types of the meshes LIRE_MAILLAGE reads, by extension.
+MESH_TYPES = {".med": "mmed", ".mail": "mail", ".msh": "msh", ".msup": "msup"}
+FIRST_MESH_UNIT = 20
+# IMPR_RESU writes MED results to this unit when the command file names none.
+DEFAULT_RESULT_UNIT = 80
+
+
+def _command_blocks(text: str, command: str) -> list[str]:
+    """The argument text of each `command(...)` call, parentheses balanced."""
+    blocks = []
+    for match in re.finditer(rf"\b{command}\s*\(", text):
+        depth, start = 1, match.end()
+        for index in range(start, len(text)):
+            depth += {"(": 1, ")": -1}.get(text[index], 0)
+            if depth == 0:
+                blocks.append(text[start:index])
+                break
+    return blocks
+
+
+def _result_units(comm_text: str) -> list[int]:
+    """Units the command file writes MED results to (IMPR_RESU without another FORMAT)."""
+    units = []
+    for block in _command_blocks(comm_text, "IMPR_RESU"):
+        fmt = re.search(r"FORMAT\s*=\s*['\"](\w+)['\"]", block)
+        if fmt and fmt.group(1).upper() != "MED":
+            continue
+        unit = re.search(r"UNITE\s*=\s*(\d+)", block)
+        units.append(int(unit.group(1)) if unit else DEFAULT_RESULT_UNIT)
+    return sorted(set(units))
+
+
+def _generated_export(comm: Path, meshes: Sequence[Path]) -> str:
+    lines = [
+        "# Written by csauto from the files picked when the campaign was created.",
+        f"# Meshes are read with UNITE={FIRST_MESH_UNIT}, {FIRST_MESH_UNIT + 1}... in the order they were picked.",
+        "P time_limit 3600",
+        "P memory_limit 4096",
+        "P ncpus 1",
+        "P mpi_nbcpu 1",
+        "P mpi_nbnoeud 1",
+        "",
+        f"F comm {comm.name} D 1",
+    ]
+    for unit, mesh in enumerate(meshes, start=FIRST_MESH_UNIT):
+        lines.append(f"F {MESH_TYPES.get(mesh.suffix.lower(), 'mmed')} ../MESH/{mesh.name} D {unit}")
+    lines.append("")
+    for unit in _result_units(comm.read_text(encoding="utf-8", errors="replace")):
+        lines.append(f"F rmed RESU/results_{unit}.rmed R {unit}")
+    lines.append("F mess output.mess R 6")
+    return "\n".join(lines) + "\n"
+
+
+def _relinked_export(text: str, comm: Path, meshes: Sequence[Path]) -> str:
+    """The user's export, its command file and meshes pointed to where the campaign keeps them."""
+    mesh_names = {mesh.name for mesh in meshes}
+    lines = []
+    for line in text.splitlines():
+        parts = line.split()
+        if len(parts) >= 4 and parts[0] == "F" and parts[-2] == "D":
+            name = Path(parts[-3]).name
+            if name == comm.name:
+                parts[-3] = comm.name
+            elif name in mesh_names:
+                parts[-3] = f"../MESH/{name}"
+            line = " ".join(parts)
+        lines.append(line)
+    return "\n".join(lines) + "\n"
+
+
 OUTCOME_SUCCESS_PATTERNS = (re.compile(r"DIAGNOSTIC JOB : (OK|<A>_ALARM)\b"),)
 # Any other verdict (<F>_..., <S>_..., <E>_..., NOOK_TEST_RESU, "?") is a failure.
 OUTCOME_FAILURE_PATTERNS = (re.compile(r"DIAGNOSTIC JOB : \S"),)
@@ -30,6 +100,28 @@ LOGOS = Path(__file__).with_name("logos")
 
 class CodeAsterAdapter(SolverAdapter):
     name: ClassVar[str] = "code_aster"
+    description: ClassVar[str] = "Structural mechanics: .export + .comm studies, run with run_aster"
+    example_dir: ClassVar[str] = "codeaster-cube"
+    case_inputs: ClassVar[tuple[CaseInput, ...]] = (
+        CaseInput("comm", "Command file", (".comm",), "TEMPLATE", hint="The study's commands."),
+        CaseInput(
+            "mesh",
+            "Meshes",
+            tuple(MESH_TYPES),
+            "MESH",
+            required=False,
+            multiple=True,
+            hint=f"Read by LIRE_MAILLAGE with UNITE={FIRST_MESH_UNIT}, {FIRST_MESH_UNIT + 1}... in the order picked.",
+        ),
+        CaseInput(
+            "export",
+            "Export file",
+            (".export",),
+            "TEMPLATE",
+            required=False,
+            hint="Optional: csauto writes one for the files above, or points yours to them.",
+        ),
+    )
     native_bin_name: ClassVar[str] = "run_aster"
     container_bin_name: ClassVar[str] = "run_aster"
     default_docker_image: ClassVar[str] = "simvia/code_aster:17.4.0"
@@ -71,6 +163,19 @@ class CodeAsterAdapter(SolverAdapter):
         lines += [f"P mpi_nbcpu {nprocs}", f"P ncpus {nt}"]
         (case_dir / RUN_EXPORT_NAME).write_text("\n".join(lines) + "\n", encoding="utf-8", errors="surrogateescape")
         self.results_root(case_dir).mkdir(exist_ok=True)
+
+    def assemble_case(self, campaign_dir: Path, files: Mapping[str, Sequence[Path]]) -> None:
+        super().assemble_case(campaign_dir, files)
+        comm = Path(files["comm"][0])
+        meshes = [Path(mesh) for mesh in files.get("mesh", ())]
+        template = campaign_dir / "TEMPLATE"
+        exports = [Path(export) for export in files.get("export", ())]
+        if exports:
+            export = template / exports[0].name
+            text = export.read_text(encoding="utf-8", errors="surrogateescape")
+            export.write_text(_relinked_export(text, comm, meshes), encoding="utf-8", errors="surrogateescape")
+        else:
+            (template / f"{comm.stem}.export").write_text(_generated_export(comm, meshes), encoding="utf-8")
 
     def find_setup_file(self, template_dir: Path) -> Path:
         exports = sorted(p for p in Path(template_dir).glob(EXPORT_GLOB) if p.is_file() and not p.name.startswith("."))

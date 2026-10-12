@@ -5,19 +5,19 @@
   Pre-fills from localStorage settings.
 -->
 <script lang="ts">
-  import { onMount } from "svelte";
-  import { closeDialog, appAlert } from "$lib/actions/dialog.svelte";
+  import { onMount, untrack } from "svelte";
+  import { closeDialog, appAlert } from "#lib/actions/dialog.svelte.ts";
   import DialogShell from "./DialogShell.svelte";
-  import Button from "$lib/components/shared/Button.svelte";
-  import FormLabel from "$lib/components/shared/FormLabel.svelte";
+  import Button from "#lib/components/shared/Button.svelte";
+  import FormLabel from "#lib/components/shared/FormLabel.svelte";
   import {
     getRestartSettings,
     setRestartSettings,
-  } from "$lib/stores/settings.svelte";
-  import { getAppConfig } from "$lib/stores/appConfig.svelte";
-  import { fetchResuDirs } from "$lib/api/endpoints";
-  import { optionValueError } from "$lib/utils/options";
-  import type { RestartParams } from "$lib/api/types";
+  } from "#lib/stores/settings.svelte.ts";
+  import { getAppConfig } from "#lib/stores/appConfig.svelte.ts";
+  import { fetchResuDirs } from "#lib/api/endpoints.ts";
+  import { optionValueError } from "#lib/utils/options.ts";
+  import type { RestartParams } from "#lib/api/types.ts";
 
   interface Props {
     cases: string[];
@@ -27,8 +27,10 @@
 
   const modes = getAppConfig()?.restart_modes ?? [];
   const saved = getRestartSettings();
-  const defaultParallel =
-    saved.maxParallel ?? (cases.length > 1 ? cases.length : 0);
+  // Settled when the dialog opens.
+  const defaultParallel = untrack(
+    () => saved.maxParallel ?? (cases.length > 1 ? cases.length : 0),
+  );
   let n = $state(saved.n);
   let nt = $state(saved.nt);
   let maxParallel = $state(defaultParallel);

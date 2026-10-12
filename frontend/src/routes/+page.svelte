@@ -8,32 +8,33 @@
   import { onMount, untrack } from "svelte";
   import "../app.css";
 
-  import DialogManager from "$lib/components/dialogs/DialogManager.svelte";
-  import ToastManager from "$lib/components/shared/ToastManager.svelte";
-  import HeroBanner from "$lib/components/hero/HeroBanner.svelte";
+  import DialogManager from "#lib/components/dialogs/DialogManager.svelte";
+  import ToastManager from "#lib/components/shared/ToastManager.svelte";
+  import HeroBanner from "#lib/components/hero/HeroBanner.svelte";
   import simviaLogo from "../assets/simvia-logo.svg";
-  import StatusCard from "$lib/components/status/StatusCard.svelte";
-  import ResidualPlotCard from "$lib/components/plots/ResidualPlotCard.svelte";
-  import ProbesCard from "$lib/components/probes/ProbesCard.svelte";
-  import PerformanceCard from "$lib/components/performance/PerformanceCard.svelte";
-  import LogTailCard from "$lib/components/tail/LogTailCard.svelte";
-  import CompareCard from "$lib/components/compare/CompareCard.svelte";
-  import RecentErrorsCard from "$lib/components/errors/RecentErrorsCard.svelte";
+  import StatusCard from "#lib/components/status/StatusCard.svelte";
+  import ResidualPlotCard from "#lib/components/plots/ResidualPlotCard.svelte";
+  import ProbesCard from "#lib/components/probes/ProbesCard.svelte";
+  import PerformanceCard from "#lib/components/performance/PerformanceCard.svelte";
+  import LogTailCard from "#lib/components/tail/LogTailCard.svelte";
+  import CompareCard from "#lib/components/compare/CompareCard.svelte";
+  import RecentErrorsCard from "#lib/components/errors/RecentErrorsCard.svelte";
+  import SectionNav from "#lib/components/shared/SectionNav.svelte";
 
-  import { fetchStatus, solverIconUrl } from "$lib/api/endpoints";
+  import { fetchStatus, solverIconUrl } from "#lib/api/endpoints.ts";
   import {
     setRows,
     setDoeColumns,
     getRows,
     getFilteredRows,
     getHeroCounts,
-  } from "$lib/stores/status.svelte";
+  } from "#lib/stores/status.svelte.ts";
   import {
     getAppConfig,
     hasPanel,
     loadAppConfig,
-  } from "$lib/stores/appConfig.svelte";
-  import { getToken } from "$lib/stores/auth.svelte";
+  } from "#lib/stores/appConfig.svelte.ts";
+  import { getToken } from "#lib/stores/auth.svelte.ts";
 
   /* Hero counts, updated on every status load */
   let heroCounts = $state({
@@ -62,6 +63,23 @@
     if (link && config?.icon) link.href = solverIconUrl(config.solver);
   });
 
+  // The dashboard's panels in page order, for the jump bar under the header.
+  const PANEL_LABELS: [string, string][] = [
+    ["status", "Status"],
+    ["residuals", "Residuals"],
+    ["probes", "Probes"],
+    ["performance", "Timing"],
+    ["compare", "Compare"],
+    ["tail", "Log Tail"],
+    ["errors", "Recent Errors"],
+  ];
+  let sections = $derived(
+    PANEL_LABELS.filter(([name]) => hasPanel(name)).map(([name, label]) => ({
+      id: `panel-${name}`,
+      label,
+    })),
+  );
+
   async function loadStatus() {
     try {
       const data = await fetchStatus();
@@ -82,36 +100,55 @@
 <DialogManager />
 <ToastManager />
 
-<HeroBanner
-  totalCases={heroCounts.totalCases}
-  shownCases={heroCounts.shownCases}
-  totalRunning={heroCounts.totalRunning}
-  shownRunning={heroCounts.shownRunning}
-  totalConverged={heroCounts.totalConverged}
-  shownConverged={heroCounts.shownConverged}
-/>
+<div class="sticky top-0 z-40">
+  <HeroBanner
+    totalCases={heroCounts.totalCases}
+    shownCases={heroCounts.shownCases}
+    totalRunning={heroCounts.totalRunning}
+    shownRunning={heroCounts.shownRunning}
+    totalConverged={heroCounts.totalConverged}
+    shownConverged={heroCounts.shownConverged}
+  />
+  {#key sections.map((section) => section.id).join()}<SectionNav
+      {sections}
+    />{/key}
+</div>
 
 <main class="grid grid-cols-12 gap-4 w-[min(1200px,94vw)] mx-auto pt-5 pb-12">
   {#if hasPanel("status")}
-    <StatusCard onRefresh={loadStatus} />
+    <div id="panel-status" class="col-span-12 scroll-mt-28">
+      <StatusCard onRefresh={loadStatus} />
+    </div>
   {/if}
   {#if hasPanel("residuals")}
-    <ResidualPlotCard allCases={allCaseIds} />
+    <div id="panel-residuals" class="col-span-12 scroll-mt-28">
+      <ResidualPlotCard allCases={allCaseIds} />
+    </div>
   {/if}
   {#if hasPanel("probes")}
-    <ProbesCard allCases={allCaseIds} />
+    <div id="panel-probes" class="col-span-12 scroll-mt-28">
+      <ProbesCard allCases={allCaseIds} />
+    </div>
   {/if}
   {#if hasPanel("performance")}
-    <PerformanceCard allCases={allCaseIds} />
+    <div id="panel-performance" class="col-span-12 scroll-mt-28">
+      <PerformanceCard allCases={allCaseIds} />
+    </div>
   {/if}
   {#if hasPanel("compare")}
-    <CompareCard allCases={allCaseIds} />
+    <div id="panel-compare" class="col-span-12 scroll-mt-28">
+      <CompareCard allCases={allCaseIds} />
+    </div>
   {/if}
   {#if hasPanel("tail")}
-    <LogTailCard allCases={allCaseIds} />
+    <div id="panel-tail" class="col-span-12 scroll-mt-28">
+      <LogTailCard allCases={allCaseIds} />
+    </div>
   {/if}
   {#if hasPanel("errors")}
-    <RecentErrorsCard allCases={allCaseIds} />
+    <div id="panel-errors" class="col-span-12 scroll-mt-28">
+      <RecentErrorsCard allCases={allCaseIds} />
+    </div>
   {/if}
 </main>
 

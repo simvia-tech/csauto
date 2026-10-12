@@ -5,11 +5,11 @@
   different labels and column sources.
 -->
 <script lang="ts">
-  import FieldRow from "$lib/components/shared/FieldRow.svelte";
-  import FormLabel from "$lib/components/shared/FormLabel.svelte";
-  import MultiDropdown from "$lib/components/shared/MultiDropdown.svelte";
-  import Dropdown from "$lib/components/shared/Dropdown.svelte";
-  import { toCaseOptions } from "$lib/utils/options";
+  import FieldRow from "#lib/components/shared/FieldRow.svelte";
+  import FormLabel from "#lib/components/shared/FormLabel.svelte";
+  import MultiDropdown from "#lib/components/shared/MultiDropdown.svelte";
+  import Dropdown from "#lib/components/shared/Dropdown.svelte";
+  import { toCaseOptions } from "#lib/utils/options.ts";
 
   interface Props {
     /** ID prefix for form elements */

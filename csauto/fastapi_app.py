@@ -1,6 +1,5 @@
 import asyncio
 import contextlib
-import re
 import threading
 import time as _time
 from collections.abc import AsyncIterator
@@ -17,14 +16,11 @@ from .fastapi_routes import (
 )
 from .fastapi_routes.common import FastAPIContext, build_shared_models
 from .solvers import get_solver_adapter
+from .web_support import DEFAULT_JOB_ID_PATTERNS as JOB_ID_PATTERNS
 
-_DIST_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
-
-JOB_ID_PATTERNS = (
-    re.compile(r"submitted\s+batch\s+job\s+(?P<id>[A-Za-z0-9_.:\-\[\]]+)", re.IGNORECASE),
-    re.compile(r"your\s+job(?:-array)?\s+(?P<id>[A-Za-z0-9_.:\-\[\]]+)\s+", re.IGNORECASE),
-    re.compile(r"job\s*<(?P<id>[A-Za-z0-9_.:\-\[\]]+)>\s+is\s+submitted", re.IGNORECASE),
-    re.compile(r"\bjob[_\s-]*id\b\s*[:=]\s*(?P<id>[A-Za-z0-9_.:\-\[\]]+)", re.IGNORECASE),
+_DIST_DIR = Path(__file__).resolve().parent / "_frontend"
+DASHBOARD_NOT_BUILT = (
+    "The csauto dashboard is not built in this checkout. Build it with: cd frontend && pnpm install && pnpm build"
 )
 
 
@@ -70,6 +66,7 @@ def create_fastapi_app(
     FastAPI = components["FastAPI"]
     FileResponse = components["FileResponse"]
     HTTPException = components["HTTPException"]
+    PlainTextResponse = components["PlainTextResponse"]
     Response = components["Response"]
 
     runs_dir = resolve_runs_dir(runs_dir)
@@ -101,12 +98,12 @@ def create_fastapi_app(
     build_shared_models(components)
 
     async def _heartbeat_loop() -> None:
-        from .telemetry import EVENT_SERVE, is_enabled, send_event_async
+        from .telemetry import EVENT_SERVE, extension_client, is_enabled, send_event_async
 
         start = _time.monotonic()
         while True:
             await asyncio.sleep(86400)
-            if not is_enabled():
+            if not is_enabled() or extension_client():
                 continue
             try:
                 uptime = int(_time.monotonic() - start)
@@ -132,20 +129,26 @@ def create_fastapi_app(
 
     from starlette.staticfiles import StaticFiles
 
-    app.mount("/_app", StaticFiles(directory=str(_DIST_DIR / "_app")), name="spa-assets")
+    app.mount("/_app", StaticFiles(directory=str(_DIST_DIR / "_app"), check_dir=False), name="spa-assets")
 
-    _index_html = str(_DIST_DIR / "index.html")
+    _index_html = _DIST_DIR / "index.html"
+
+    def _index() -> Response:
+        if _index_html.is_file():
+            return FileResponse(str(_index_html))
+        # Wheels and the extension ship the built dashboard; a source checkout has to build it.
+        return PlainTextResponse(DASHBOARD_NOT_BUILT, status_code=503)
 
     @app.get("/", response_model=None)
     async def index() -> Response:
-        return FileResponse(_index_html)
+        return _index()
 
     @app.get("/{full_path:path}", response_model=None)
     async def spa_fallback(full_path: str) -> Response:
         file_path = (_DIST_DIR / full_path).resolve()
         if file_path.is_file() and str(file_path).startswith(str(_DIST_DIR)):
             return FileResponse(str(file_path))
-        return FileResponse(_index_html)
+        return _index()
 
     return app
 

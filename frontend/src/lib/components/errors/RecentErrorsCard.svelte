@@ -13,18 +13,18 @@
 -->
 <script lang="ts">
   import { onDestroy } from "svelte";
-  import Button from "$lib/components/shared/Button.svelte";
-  import CardShell from "$lib/components/shared/CardShell.svelte";
-  import AutoRefreshToggle from "$lib/components/shared/AutoRefreshToggle.svelte";
-  import MultiDropdown from "$lib/components/shared/MultiDropdown.svelte";
-  import Dropdown from "$lib/components/shared/Dropdown.svelte";
-  import FieldRow from "$lib/components/shared/FieldRow.svelte";
-  import FormLabel from "$lib/components/shared/FormLabel.svelte";
-  import Icon from "$lib/components/shared/Icon.svelte";
-  import { fetchRecentErrors } from "$lib/api/endpoints";
-  import { getAppConfig } from "$lib/stores/appConfig.svelte";
-  import { toCaseOptions } from "$lib/utils/options";
-  import { saveCsvBlob, buildPlotFilename } from "$lib/actions/export";
+  import Button from "#lib/components/shared/Button.svelte";
+  import CardShell from "#lib/components/shared/CardShell.svelte";
+  import AutoRefreshToggle from "#lib/components/shared/AutoRefreshToggle.svelte";
+  import MultiDropdown from "#lib/components/shared/MultiDropdown.svelte";
+  import Dropdown from "#lib/components/shared/Dropdown.svelte";
+  import FieldRow from "#lib/components/shared/FieldRow.svelte";
+  import FormLabel from "#lib/components/shared/FormLabel.svelte";
+  import Icon from "#lib/components/shared/Icon.svelte";
+  import { fetchRecentErrors } from "#lib/api/endpoints.ts";
+  import { getAppConfig } from "#lib/stores/appConfig.svelte.ts";
+  import { toCaseOptions } from "#lib/utils/options.ts";
+  import { saveCsvBlob, buildPlotFilename } from "#lib/actions/export.ts";
   import {
     RefreshCw,
     Download,
@@ -40,8 +40,8 @@
     getAutoRefreshEnabled,
     setAutoRefreshEnabled,
     onGlobalRefresh,
-  } from "$lib/stores/refresh.svelte";
-  import type { ErrorItem } from "$lib/api/types";
+  } from "#lib/stores/refresh.svelte.ts";
+  import type { ErrorItem } from "#lib/api/types.ts";
 
   interface Props {
     allCases: string[];
