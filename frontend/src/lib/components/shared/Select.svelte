@@ -31,9 +31,9 @@
 
 <div class="relative inline-flex {className}">
   <select
-    class="appearance-none cursor-pointer bg-white border border-border rounded-md text-[13px] text-ink font-normal
+    class="appearance-none cursor-pointer bg-control border border-border rounded-md text-[13px] text-ink font-normal
 			{multiple ? 'py-1.5 px-2.5' : 'py-1.5 pl-2.5 pr-7'}
-			transition-colors duration-150 focus:outline-none focus:border-edf-bleu-moyen
+			transition-colors duration-150 focus:outline-none focus:border-accent
 			!min-w-0"
     {value}
     {onchange}

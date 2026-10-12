@@ -65,13 +65,13 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  class="fixed inset-0 bg-[rgba(0,26,112,0.3)] backdrop-blur-sm flex items-center justify-center p-4 z-50"
+  class="fixed inset-0 bg-scrim backdrop-blur-sm flex items-center justify-center p-4 z-50"
   data-backdrop
   onkeydown={onKeydown}
   onclick={onBackdropClick}
 >
   <div
-    class="w-[min(420px,96vw)] bg-white border border-border rounded-[10px] p-5"
+    class="w-[min(420px,96vw)] bg-control border border-border rounded-(--radius-card) p-5"
     role="dialog"
     aria-modal="true"
   >
@@ -150,9 +150,7 @@
       </div>
     </div>
 
-    <div
-      class="flex justify-end gap-2 pt-3 border-t border-[rgba(51,51,51,0.08)]"
-    >
+    <div class="flex justify-end gap-2 pt-3 border-t border-separator">
       <Button variant="secondary" onclick={onCancel}>Cancel</Button>
       <Button variant="primary" onclick={handleSave} disabled={!name.trim()}
         >Save</Button

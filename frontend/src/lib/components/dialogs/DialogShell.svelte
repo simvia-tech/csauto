@@ -64,14 +64,14 @@
 {#snippet dialogContent()}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
-    class="fixed inset-0 bg-[rgba(0,26,112,0.3)] backdrop-blur-sm flex items-center justify-center p-4 z-50"
+    class="fixed inset-0 bg-scrim backdrop-blur-sm flex items-center justify-center p-4 z-50"
     data-backdrop
     onkeydown={onKeydown}
     onmousedown={onBackdropMouseDown}
     onclick={onBackdropClick}
   >
     <div
-      class="w-[min({maxWidth},96vw)] bg-white border border-border rounded-[10px] p-4.5"
+      class="w-[min({maxWidth},96vw)] bg-control border border-border rounded-(--radius-card) p-4.5"
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}

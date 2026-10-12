@@ -77,8 +77,7 @@
           bind:value={inputValue}
           {placeholder}
           class="w-full !min-h-[80px]"
-          rows="3"
-        ></textarea>
+          rows="3"></textarea>
       {:else}
         <input
           bind:this={inputEl}

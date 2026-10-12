@@ -99,7 +99,7 @@
     bind:this={buttonEl}
     type="button"
     class={buttonClass ||
-      "flex items-center justify-between gap-1.5 w-full h-[30px] cursor-pointer bg-white border border-border rounded-md text-[13px] text-ink font-normal pl-2.5 pr-2 transition-colors duration-150 hover:bg-edf-gris-clair focus:outline-none focus:border-edf-bleu-moyen"}
+      "flex items-center justify-between gap-1.5 w-full h-[30px] cursor-pointer bg-control border border-border rounded-md text-[13px] text-ink font-normal pl-2.5 pr-2 transition-colors duration-150 hover:bg-control-hover focus:outline-none focus:border-accent"}
     onmousedown={(e) => {
       e.stopPropagation();
       toggleOpen();
@@ -123,7 +123,7 @@
     <ul
       bind:this={listEl}
       role="listbox"
-      class="bg-white border border-border rounded-md max-h-[240px] overflow-y-auto py-1"
+      class="bg-control border border-border rounded-md max-h-[240px] overflow-y-auto py-1"
       style={listStyle}
     >
       {#each options as opt (opt.value)}
@@ -134,8 +134,8 @@
           tabindex={0}
           class="px-2.5 py-1.5 text-[13px] cursor-pointer transition-colors duration-100
 						{opt.value === value
-            ? 'text-edf-bleu-fonce font-bold bg-[rgba(16,87,200,0.06)]'
-            : 'text-ink hover:bg-edf-gris-clair'}"
+            ? 'option-selected font-bold'
+            : 'text-ink hover:bg-control-hover'}"
           onmousedown={(e) => {
             e.stopPropagation();
             select(opt.value);

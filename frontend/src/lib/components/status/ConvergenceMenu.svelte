@@ -45,11 +45,11 @@
 />
 
 <div
-  class="fixed z-80 min-w-[170px] bg-white border border-border rounded-lg p-1 grid gap-0.5"
+  class="fixed z-80 min-w-[170px] bg-control border border-border rounded-lg p-1 grid gap-0.5"
   style={menuStyle}
 >
   <button
-    class="w-full text-left py-[7px] px-[10px] bg-transparent border border-transparent rounded-md text-[12.5px] cursor-pointer transition-[background] duration-[120ms] ease-in-out hover:bg-edf-gris-clair hover:border-border {currentValue ===
+    class="w-full text-left py-[7px] px-[10px] bg-transparent border border-transparent rounded-md text-[12.5px] cursor-pointer transition-[background] duration-[120ms] ease-in-out hover:bg-control-hover hover:border-border {currentValue ===
     'converged'
       ? 'is-active'
       : ''}"
@@ -58,7 +58,7 @@
     Mark Converged{suffix}
   </button>
   <button
-    class="w-full text-left py-[7px] px-[10px] bg-transparent border border-transparent rounded-md text-[12.5px] cursor-pointer transition-[background] duration-[120ms] ease-in-out hover:bg-edf-gris-clair hover:border-border {currentValue ===
+    class="w-full text-left py-[7px] px-[10px] bg-transparent border border-transparent rounded-md text-[12.5px] cursor-pointer transition-[background] duration-[120ms] ease-in-out hover:bg-control-hover hover:border-border {currentValue ===
     'not_converged'
       ? 'is-active'
       : ''}"
@@ -67,7 +67,7 @@
     Mark Not Converged{suffix}
   </button>
   <button
-    class="w-full text-left py-[7px] px-[10px] bg-transparent border border-transparent rounded-md text-[12.5px] cursor-pointer transition-[background] duration-[120ms] ease-in-out hover:bg-edf-gris-clair hover:border-border {currentValue ===
+    class="w-full text-left py-[7px] px-[10px] bg-transparent border border-transparent rounded-md text-[12.5px] cursor-pointer transition-[background] duration-[120ms] ease-in-out hover:bg-control-hover hover:border-border {currentValue ===
     ''
       ? 'is-active'
       : ''}"

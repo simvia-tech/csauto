@@ -34,13 +34,15 @@
 <section
   class="{wide
     ? 'col-span-12'
-    : 'col-span-6'} bg-card border border-border rounded-[10px] p-[16px_18px_18px] relative overflow-clip animate-rise"
+    : 'col-span-6'} bg-card border border-border rounded-(--radius-card) p-[16px_18px_18px] relative overflow-clip animate-rise"
   {id}
 >
-  <div class="absolute top-0 left-0 right-0 h-[3px] bg-edf-orange-moyen"></div>
+  <div
+    class="card-accent-stripe absolute top-0 left-0 right-0 h-[3px] bg-edf-orange-moyen"
+  ></div>
   {#if eyebrow || title || titleSlot || actions}
     <div
-      class="flex justify-between items-center gap-3 pb-3 border-b border-[rgba(51,51,51,0.08)] mb-3.5"
+      class="flex justify-between items-center gap-3 pb-3 border-b border-separator mb-3.5"
     >
       {#if titleSlot}
         {@render titleSlot()}

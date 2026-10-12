@@ -78,14 +78,14 @@
     onchange={handleViewChange}
   />
   <button
-    class="flex items-center justify-center w-[30px] h-[30px] bg-white text-ink border border-border rounded-md cursor-pointer transition-colors duration-150 hover:bg-edf-gris-clair"
+    class="flex items-center justify-center w-[30px] h-[30px] bg-control text-ink border border-border rounded-md cursor-pointer transition-colors duration-150 hover:bg-control-hover"
     onclick={openEdit}
     title="Edit current view"
   >
     <Icon icon={Pencil} size={14} />
   </button>
   <button
-    class="flex items-center justify-center w-[30px] h-[30px] bg-white text-ink border border-border rounded-md cursor-pointer transition-colors duration-150 hover:bg-edf-gris-clair"
+    class="flex items-center justify-center w-[30px] h-[30px] bg-control text-ink border border-border rounded-md cursor-pointer transition-colors duration-150 hover:bg-control-hover"
     onclick={openCreate}
     title="Create new view"
   >
