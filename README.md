@@ -1,15 +1,13 @@
-<p align="center"><img src="assets/simvia.png" alt="Simvia Logo" width="50%" /></p>
+<p align="center"><img src="assets/csauto-logo.png" alt="csauto logo" width="140" /></p>
 
 <p align="center">
   <a href="https://simvia-tech.github.io/csauto/"><img src="https://img.shields.io/badge/website-landing%20page-1057C8" alt="Website" /></a>
-  <a href="/"><img src="https://img.shields.io/badge/version-0.6.0-blue" alt="Version" /></a>
+  <a href="/"><img src="https://img.shields.io/badge/version-1.0.0--rc.1-blue" alt="Version" /></a>
   <a href="https://github.com/simvia-tech/csauto/actions/workflows/pr.yml"><img src="https://github.com/simvia-tech/csauto/actions/workflows/pr.yml/badge.svg" alt="CI-CD" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-GPL%203.0-green" alt="License" /></a>
 </p>
 
 # csauto
-
-This project is in early development. Expect breaking changes until v1.0.
 
 ## Description
 
@@ -27,17 +25,33 @@ No manual case duplication. No directory juggling. Just simulations.
 
 ## Installation
 
-csauto requires **Python 3.11+** and has **no external dependencies** for core features (pure standard library). The web dashboard requires a few extra packages.
+### VS Code extension (recommended)
+
+csauto ships as a VS Code extension that embeds the dashboard directly in the editor, including over [Remote-SSH](https://code.visualstudio.com/docs/remote/ssh) sessions on HPC clusters. It manages its own Python environment: no manual csauto install needed (Python 3.11+ must be available on the machine).
+
+1. Download the `.vsix` for your platform from the [releases page](https://github.com/simvia-tech/csauto/releases) and install it via **Extensions: Install from VSIX** (marketplace publication is planned): `linux-x64` for most Linux machines and WSL, `linux-arm64`, `darwin-arm64` for Apple silicon Macs, `darwin-x64` for Intel Macs. These carry csauto's Python dependencies and set up offline; the generic `csauto-<version>.vsix` downloads them from PyPI instead. With Remote-SSH or WSL, pick the platform of the remote side. Windows is supported through WSL.
+2. Open a folder, click the **csauto** icon in the activity bar, and create a campaign with **New Campaign…** (the + button), or open the dashboard of a campaign the folder already holds. The first use sets up the private runtime.
+3. Optional: use **Install csauto CLI** in the sidebar to also get the `csauto` command in your terminal.
+
+### Headless / HPC without VS Code (CLI + browser)
+
+For machines where VS Code isn't an option, install the CLI directly; the same dashboard is then available in your browser via `csauto serve`. Requires **Python 3.11+**; core features have **no external dependencies** (pure standard library), the web dashboard needs a few extra packages (installed by the script).
 
 ```bash
-# One-line install (clones to ~/.local/share/csauto, creates venv, adds alias)
+# One-line install (latest release into ~/.local/share/csauto, with a venv and a shell alias)
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/simvia-tech/csauto/main/install.sh)"
 
 # Reload your shell
 source ~/.bashrc   # or: source ~/.zshrc
 ```
 
-To update an existing installation, re-run the same command: the script detects the existing install, pulls the latest changes, and reinstalls.
+To update an existing installation, re-run the same command: it installs the latest release over the existing one. Neither git nor Node.js is needed.
+
+Alternatively, each [release](https://github.com/simvia-tech/csauto/releases) ships a self-contained wheel (dashboard included) for scripted or CI installs:
+
+```bash
+pip install "csauto-<version>-py3-none-any.whl[web]"
+```
 
 <details>
 <summary>Manual installation (for contributors or custom locations)</summary>
@@ -52,6 +66,9 @@ cd ~/tools/csauto
 # Option B: manual setup
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[web]"
+
+# Build the dashboard once (a clone does not include it; needs Node.js and pnpm)
+cd frontend && pnpm install && pnpm build
 ```
 
 The `csauto` command is available inside the venv. To use it globally, add an alias:
@@ -134,11 +151,53 @@ The web UI (`csauto serve`) is the primary interface for runtime monitoring and 
 | `status`    | Show case status in the terminal                  | Status panel               |
 | `tail`      | Stream a case log file (like `tail -f`)           | Log Tail panel             |
 | `control`   | Send a live control action to a running case (code_saturne: stop, extend, checkpoint, flush) | Status → Control menu |
+| `kill`      | Kill running cases immediately                    | Status → Kill |
+| `note`      | Set or clear a case note                          | Status → Note column         |
+| `convergence` | Mark a finished case converged / not converged  | Status → Convergence menu |
 | `residuals` | Export residuals data and/or SVG plot             | Residuals Plot panel       |
 | `perf`      | Export the solver's timing metrics                | Timing Snapshot panel      |
 | `cleanup`   | Remove old run folders, truncate logs (`--prune-resu`, etc.) | Status → Clean  |
 
-The web UI also provides features beyond the CLI: kill running cases, edit case files, add notes, mark convergence, compare runs side-by-side, plot probes/profiles, and scan logs for recent errors.
+Utility commands: `csauto completion bash|zsh` (shell completion) and `csauto enable-telemetry` / `disable-telemetry`.
+
+The web UI also provides features beyond the CLI: edit case files, compare runs side-by-side, plot probes/profiles, and scan logs for recent errors.
+
+## VS Code extension
+
+The extension is the primary way to use csauto. It runs the csauto server in the background on a free port and embeds the dashboard in an editor panel. Over Remote-SSH sessions, VS Code forwards the port automatically.
+
+A **campaign** is a folder holding a template case (`TEMPLATE/`), a DOE table (`doe.csv`, one row per case, one column per `{placeholder}` of the template) and a `csauto.toml` naming its solver and runtime. csauto generates one case per row into `RUNS/`, runs them, and follows them in the dashboard.
+
+**New Campaign…** (the + button of the Campaigns view) opens a page in the editor that fills top to bottom:
+
+1. **Solver**: every installed solver adapter is offered.
+2. **Start from**: the solver's example (ready to run), **my files**, a case folder you already have, or nothing (an empty `TEMPLATE/` to fill yourself).
+3. **Your files**: one picker per input the solver needs. code_aster asks for the command file (`.comm`), the meshes, and optionally an `.export`: csauto writes one for the picked files (meshes read with `UNITE=20, 21...` in the order picked, MED results of `IMPR_RESU` saved under `RESU/`) or points yours to them. code_saturne asks for the setup file (it becomes `DATA/setup.xml`), the meshes, and optionally `run.cfg` and user sources. Meshes go to the campaign's shared `MESH/` folder.
+4. **Parameters**: the `{placeholders}` found in your files, and a table with one row per case (paste rows from a spreadsheet or a CSV file into any cell). A case without placeholders gets one `baseline` case that runs it as is: to vary a value across cases, replace it with `{name}` in your files and add a `name` column to `doe.csv`.
+5. **Campaign**: the folder name (a free one is suggested), the runtime (those found on your machine are marked) and the solver version (a docker image tag: the installed ones, then every tag on Docker Hub with its size and date, downloaded when the campaign is created; the native executable; or a `.sif` image), and whether to generate the cases right away.
+
+The **Campaigns** view shows one row per campaign, with its solver and version, and a Dashboard button once its cases exist. Expanding a campaign shows its steps:
+
+- **DOE table** (its row count) and **Template case**: open them to edit the study.
+- **Solver**: the version and runtime; click to change them (the dashboard server restarts to apply it). A warning appears here when the environment check finds a problem.
+- **Cases**: what is left to generate ("2 new rows"); click to run `csauto prepare`, which keeps the cases already generated.
+- **Open Dashboard**, and **About this campaign** when the folder has a README.
+
+Right-click a campaign for the rest: Check Environment, Edit csauto.toml, Reveal in Explorer, Stop Dashboard Server (while it runs), Restart Dashboard Server, Show Server Logs, **Delete Generated Cases…** (moves `RUNS/` to the trash) and **Delete Campaign…** (moves the whole folder to the trash). Both refuse while cases are running or queued. Dashboard servers start when a dashboard opens (a campaign's row shows an open folder icon while its server runs), and **csauto: Stop All Servers** in the command palette stops them all.
+
+Multiple campaigns (even different solvers) can have their dashboards open side by side, each backed by its own server and `csauto.toml`, with panels titled by solver and campaign. Palette commands ask which campaign to act on when the workspace has more than one.
+
+The **Setup** view (collapsed, with a badge when something needs attention) holds:
+
+- the **Setup Guide**, the extension version, the managed runtime state (click to set it up), **Install csauto CLI** (a `csauto` shim in `~/.local/bin` backed by the extension's managed runtime), the extension logs, and the `csauto.*` settings.
+
+**Run notifications**: a notification fires when a running case finishes (DONE or FAILED) in any campaign, with a shortcut back to its dashboard (disable via `csauto.notifyOnRunCompletion`).
+
+On first use the extension creates a private Python environment (in extension storage) and installs its bundled csauto into it, so extension and engine versions never drift. Its dependencies come from the wheels bundled in the platform's `.vsix` (offline), or from PyPI with the generic package or a Python newer than those bundled.
+
+**Setup Guide** (a VS Code walkthrough, opened on install and from the Setup view or **csauto: Open Setup Guide**) checks what csauto needs on the machine, one step each with a fix: Python 3.11 or newer, Python's `venv` module (a separate `python3.X-venv` package on Debian and Ubuntu), csauto's environment (a **Set up csauto** button), then the solvers, ticked once code_aster or code_saturne can run (Docker running, the solver on the PATH, or Apptainer/Singularity), then a first campaign. On Windows, csauto runs in WSL: the guide starts with opening a WSL window. Settings under `csauto.*`: `pythonPath` (bring your own interpreter instead of the managed runtime), `port` (0 = auto), `serveArgs`, `notifyOnRunCompletion` (a notification when cases finish or fail) and `enableTelemetry`.
+
+To develop the extension: `npm install`, `npm run watch` (esbuild + tsc + frontend rebuild in parallel), then press F5 to launch an Extension Development Host. In dev mode the managed runtime uses an **editable install** of the checkout, so Python changes are live after "Restart Server" and dashboard changes after "Reload Dashboard" (the watch task rebuilds `csauto/_frontend` automatically). `npm run package` produces the production bundle; `npm run bundle` builds the wheel shipped in the `.vsix`; `npx @vscode/vsce package` builds the `.vsix` itself; `scripts/package-all.sh` builds every per-platform `.vsix`, and `scripts/publish.sh` builds and publishes them all to the Marketplace.
 
 ## Troubleshooting
 
@@ -152,20 +211,20 @@ csauto collects anonymous usage statistics to help us understand how the tool is
 
 **What is collected:**
 
-- A random anonymous identifier (persistent across sessions)
-- csauto version
+- A random anonymous identifier (persistent across sessions, shared by the CLI and the extension)
+- csauto version (the extension's version for extension events)
 - Timezone offset
-- Runtime type (docker, singularity, or native)
-- Solver of the served campaign (code_saturne or code_aster)
-- Event type (install or serve session)
+- The event type, whether it succeeded, and a short context: the solver (code_saturne or code_aster), and the runtime (docker, singularity, or native) for the CLI or where VS Code runs (local, WSL, SSH remote...) for the extension
+- For a finished simulation run, its duration
 
 **When it is sent:**
 
-- Once during first install
-- Once when `csauto serve` starts
-- A daily heartbeat while the web server is running
+- From the VS Code extension: when it activates in a window, when a campaign is created, and when a simulation run finishes (DONE or FAILED)
+- From the CLI without VS Code: once during install or update (`install.sh`), and once when `csauto serve` starts, then a daily heartbeat while it runs
 
 **How to opt out:**
+
+In VS Code, turn off `csauto.enableTelemetry`, or VS Code's own telemetry (`telemetry.telemetryLevel`): either one also silences the servers the extension starts. Elsewhere:
 
 ```bash
 # Via the CLI
@@ -228,7 +287,7 @@ CSAUTO_DOCKER_TESTS=1 pytest tests/integration/test_docker_solvers.py -q
 
 ### Frontend development
 
-The web dashboard is a SvelteKit app in `frontend/`. The pre-built output (`frontend/dist/`) is committed, so end users don't need Node.js.
+The web dashboard is a SvelteKit app in `frontend/`. It builds into `csauto/_frontend/`, which git ignores: CI builds it for the wheel and the `.vsix`, so users never need Node.js. In a clone, build it once before running `csauto serve`.
 
 To work on the frontend:
 
@@ -242,7 +301,7 @@ pnpm dev
 # In another terminal, start the backend
 csauto serve RUNS
 
-# Build for production (updates frontend/dist/)
+# Build for production (into csauto/_frontend/)
 pnpm build
 ```
 

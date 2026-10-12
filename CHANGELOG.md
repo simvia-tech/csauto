@@ -4,6 +4,53 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.0-rc.1] - 2026-10-08
+
+csauto becomes extension-first: the repository now ships a VS Code extension that is the primary interface, with the CLI as a companion for headless/HPC use.
+
+### Added
+- A jump bar under the dashboard's header: one link per panel the solver shows, the panel in view highlighted, Alt+1 to Alt+9 from the keyboard; the header and the bar stay on top while scrolling
+- Campaigns view in the extension: one row per campaign with its solver version and a Dashboard button; its steps (DOE table, Template case, Solver, Cases with what is left to generate, Open Dashboard); a context menu with Check Environment, Edit csauto.toml, Reveal in Explorer, Restart Dashboard Server, Show Server Logs, Delete Generated Cases and Delete Campaign (to the trash, refused while cases run). The environment check runs by itself and flags problems on the Solver row. Setup and settings moved to their own collapsed view
+- Solver version per campaign, from the Solver row or the New Campaign wizard: the docker image tags installed for the solver or any other tag (downloaded on the spot), the native executable, or a `.sif` image; saved in `csauto.toml`
+- Solver versions come from Docker Hub too: the New Campaign page and the Solver row list the installed images first, then every tag of the solver's repository on Docker Hub with its size and date (downloaded when chosen), and fall back to the installed ones offline
+- New Campaign is a page in the editor (a Svelte webview, `webviews/new-campaign`): solver, starting point (the example, your files, a case folder, or nothing), one file picker per solver input, a parameter table written to `doe.csv`, then the folder, runtime and version, and whether to generate the cases. Adapters declare their inputs (`case_inputs`) and place them (`assemble_case`): code_aster takes its command file, meshes and optional export, which csauto writes for the picked files or relinks to them; code_saturne takes its setup file, meshes, run.cfg and user sources
+- New Campaign checks a case folder as soon as it is picked (`csauto _case-info` names its input file and placeholders, or says why it is not a case), suggests a free folder name, and can start from an empty campaign. A case without placeholders gets one `baseline` case that runs it as is
+- New Campaign in the extension: choose the solver among the installed adapters, start from its example or from one of your cases, name the folder and pick a runtime (those found on the machine first). csauto writes `csauto.toml`, `TEMPLATE/`, the shared folders (linked) and a `doe.csv` with one column per template placeholder; an example is generated right away. Backed by two internal commands, `csauto _solvers` and `csauto _new-campaign`, and by two adapter attributes, `description` and `example_dir`. The examples ship in the wheel
+- VS Code extension (TypeScript, repo root): an activity-bar sidebar (New Campaign, the Campaigns view, Setup with the version, Python runtime state and CLI install, and Settings with live values and click-through), a status bar item, and the dashboard embedded in a webview (works over Remote-SSH via automatic port forwarding)
+- Native VS Code theming for the embedded dashboard: the webview forwards `--vscode-*` theme variables into the dashboard iframe (postMessage handshake, live theme switching), and the dashboard remaps its design tokens onto them: colors, fonts, radii, scrollbars, selection and input colors all follow the editor theme, with dark-theme readability fixes; the browser look is unchanged
+- Run-completion notifications: the extension polls the server and notifies when cases finish or fail (`csauto.notifyOnRunCompletion`)
+- Multiple campaign dashboards side by side: each campaign (runs directory) gets its own server: started from its own folder so its `csauto.toml`/solver applies: and its own webview panel titled with the solver and campaign name (the sidebar shows one section per campaign with its own dashboard, environment check, per-campaign server logs, and server actions); run notifications, sidebar server list, and per-server stop/restart cover all of them
+- Managed extension runtime: on first use the extension creates a private venv in extension storage and installs its bundled, version-matched csauto wheel; `csauto.pythonPath` overrides it; dev checkouts (F5) use an editable install so repo changes are live
+- "Install csauto CLI" writes a `csauto` shim to `~/.local/bin` backed by the managed runtime, and warns when a shell alias would shadow it; **csauto: Disable the csauto Shell Alias** (also the Setup view's warning row) comments that alias out after asking
+- "Reload Dashboard" command and a dev watch pipeline (`npm run watch`: esbuild + tsc + frontend rebuild)
+- New CLI verbs for web-UI action parity: `csauto kill`, `csauto note`, `csauto convergence`
+- `CSAUTO_API_TOKEN` environment variable as a token source for `csauto serve` (flag > env > csauto.toml)
+- The dashboard accepts a `?token=` query parameter (stored, then stripped from the URL) so the extension can authenticate the embedded dashboard automatically
+- Extension telemetry, three events carrying the extension's version: extension activated (5), campaign created with its solver and starting point (6), and simulation run finished with its solver, duration and outcome (7). The first two go through `csauto _telemetry-ping` (`--version`), the last is sent by the servers the extension starts (`CSAUTO_CLIENT`, `CSAUTO_CLIENT_VERSION`), which send no serve ping or heartbeat of their own. They share the CLI's anonymous user id and opt-out, and are gated on VS Code's telemetry setting and `csauto.enableTelemetry`, which also silence the servers and commands the extension starts
+- `_telemetry-ping --failed` flag to mark unsuccessful events
+- CI packages the `.vsix` on every pull request. Releases build the dashboard, attach the `.vsix` and the wheel, and publish versions with a suffix (`1.0.0-rc.1`) as GitHub pre-releases
+- csauto has its own logo (#35): Marketplace icon, activity bar, dashboard tab, favicon, README and landing page. A dashboard tab switches to its solver's icon, served by the adapter, once the server answers
+- Setup Guide, a VS Code walkthrough opened on install: it checks Python 3.11+, Python's `venv` module (with the `apt` package to install on Debian and Ubuntu), csauto's environment (set up from a button), and a Solvers step with one section per solver, code_aster and code_saturne, each with its logo (ticked once one of them can run: Docker running, or the solver installed natively or for Apptainer/Singularity; **Check again** says which), then leads to a first campaign. On Windows outside WSL it opens with an "Open a WSL window" step, and setting up csauto there says it runs in WSL. Also in the Setup view and as **csauto: Open Setup Guide**. A failed environment setup now says why and links to it
+- `scripts/publish.sh` builds every `.vsix` (`scripts/package-all.sh`, also used by the release workflow) and publishes them all to the Marketplace, which serves each platform its own; `--pre-release` publishes to the pre-release channel
+- One `.vsix` per platform (`linux-x64`, `linux-arm64`, `darwin-x64`, `darwin-arm64`, about 10 MB each) carrying the dependency wheels for Python 3.11 to 3.14 (`scripts/bundle-deps.sh`), so the environment sets up offline, on clusters without internet access too. The generic `.vsix`, and a Python newer than those bundled, still download them from PyPI
+- Open GUI scales the solver GUI to the client's display (`QT_SCALE_FACTOR` from the dashboard's device pixel ratio)
+- One-time suggestion to install VS Code Aster for 3D MED mesh visualization when the workspace contains `.med` files
+
+### Changed
+- The built dashboard is no longer committed. It builds into the Python package (`csauto/_frontend/`, ignored by git), CI builds it for every wheel and `.vsix`, and a clone builds it once with `pnpm build`. Without a build, `csauto serve` answers with the command to build it. The pre-commit hook no longer rebuilds it
+- `install.sh` installs the wheel of the latest release instead of cloning the repository, so CLI users need neither git nor Node.js. Run from a clone, it still makes an editable install
+- The extension starts its server with a random per-session API token, so the local port is no longer open to other local users
+- The `.vsix` ships only the bundled wheel, extension bundle, and assets (the Python source tree is no longer duplicated inside it)
+- `csauto/__init__.py` version detection works in wheel installs (falls back to package metadata)
+- README restructured extension-first; the CLI and the browser dashboard remain the headless/HPC path
+- Frontend and extension toolchains upgraded (Vite 8, Svelte 5.57, TypeScript 7 for the extension)
+- Dialog backdrops use a neutral scrim instead of the EDF blue tint
+
+### Fixed
+- `csauto prepare` no longer warns about a missing shared folder (`MESH`, `POST`): they are optional, a case may keep its mesh in its own folder
+- Open GUI works on WSL with Docker Desktop (the X socket is mounted from `/mnt/wslg`, `DISPLAY` is passed unprefixed), and a GUI that exits at once is reported with its output (kept in `.csauto.gui.log`) instead of failing silently
+- Sticky status-table columns no longer let scrolled content bleed through on hover with translucent theme colors
+
 ## [0.6.0] - 2026-10-08
 
 Make csauto ready for solvers other than code_saturne: one adapter class describes a solver, the CLI and the dashboard read everything from it, and code_aster now runs on the same launch path as code_saturne. Panels and action buttons follow what each solver can actually do.
