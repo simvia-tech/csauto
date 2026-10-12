@@ -882,7 +882,7 @@ def refresh_status(
                 seen_doe_columns.add(col)
                 doe_columns.append(col)
 
-    _merge_refresh_results(runs_dir, results)
+    _report_finished_runs(adapter.name, _merge_refresh_results(runs_dir, results))
     updated_rows = [result.row for result in results]
     if include_doe:
         return updated_rows, doe_columns
@@ -996,9 +996,11 @@ def _build_refresh_updates(
     return updates
 
 
-def _merge_refresh_results(runs_dir: Path, results: Sequence[RefreshResult]) -> None:
+def _merge_refresh_results(runs_dir: Path, results: Sequence[RefreshResult]) -> list[RefreshResult]:
+    """Write the refreshed state to the registry; returns the results whose run just ended."""
+    finished: list[RefreshResult] = []
     if not results:
-        return
+        return finished
 
     def apply_mutation(registry: dict[str, dict[str, Any]]) -> bool:
         changed = False
@@ -1010,12 +1012,43 @@ def _merge_refresh_results(runs_dir: Path, results: Sequence[RefreshResult]) -> 
                 continue
             if not _same_refresh_identity(current, result.snapshot):
                 continue
+            ended = str(current.get("status") or "").upper() == STATUS_RUNNING and result.updates.get("status") in (
+                STATUS_DONE,
+                STATUS_FAILED,
+            )
             if _apply_refresh_updates(current, result.updates):
                 current["last_update"] = timestamp_now()
                 changed = True
+                if ended:
+                    finished.append(result)
         return changed
 
     mutate_registry(runs_dir, apply_mutation)
+    return finished
+
+
+def _report_finished_runs(solver: str, finished: Sequence[RefreshResult]) -> None:
+    """One telemetry event per run that just ended, with its duration and outcome (extension servers only)."""
+    try:
+        from .telemetry import EVENT_EXT_RUN_FINISHED, extension_client, extension_payload, send_events
+
+        client = extension_client()
+        if not finished or not client:
+            return
+        send_events(
+            EVENT_EXT_RUN_FINISHED,
+            [
+                {
+                    "time_execution": result.row.get("duration_s") or 0,
+                    "valid_result": result.updates["status"] == STATUS_DONE,
+                    "id_docker": f"{solver}:{client}",
+                    **extension_payload(),
+                }
+                for result in finished
+            ],
+        )
+    except Exception:
+        pass
 
 
 def _same_refresh_identity(current: Mapping[str, Any], snapshot: Mapping[str, Any]) -> bool:

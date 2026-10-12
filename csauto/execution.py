@@ -317,8 +317,13 @@ def build_runtime_gui_command(
     case_dir: Path,
     selection: RuntimeSelection,
     adapter: SolverAdapter | None = None,
+    gui_env: Mapping[str, str] | None = None,
 ) -> list[str]:
-    """Build the command list to open the solver GUI, started inside the case folder."""
+    """Build the command list to open the solver GUI, started inside the case folder.
+
+    `gui_env` entries reach the docker container through `-e` flags; the other
+    runtimes inherit them from the spawned process environment.
+    """
     adapter = adapter or _default_adapter()
     setup_path = adapter.find_setup_file(case_dir)
     try:
@@ -327,7 +332,7 @@ def build_runtime_gui_command(
         setup_rel = setup_path.name
     args = adapter.gui_argv(setup_rel)
     if selection.runtime == RUNTIME_DOCKER:
-        return build_gui_command(case_dir, selection.docker_image, args, adapter=adapter)
+        return build_gui_command(case_dir, selection.docker_image, args, adapter=adapter, extra_env=gui_env)
     if selection.runtime == RUNTIME_NATIVE:
         if not selection.saturne_bin:
             raise ValueError("saturne_bin required for native runtime.")

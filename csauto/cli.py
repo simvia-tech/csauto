@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -307,6 +308,20 @@ def parse_arguments(
     control_parser.add_argument("action", help="Action name (csauto doctor lists the solver's actions)")
     control_parser.add_argument("value", nargs="?", type=float, help="Value, for actions that take one")
 
+    kill_parser = subparsers.add_parser("kill", help="Kill running cases immediately.")
+    kill_parser.add_argument("runs_dir", type=Path, help="Directory containing generated cases")
+    kill_parser.add_argument("cases", nargs="+", help="Case IDs to kill")
+
+    note_parser = subparsers.add_parser("note", help="Set or clear a case note.")
+    note_parser.add_argument("runs_dir", type=Path, help="Directory containing generated cases")
+    note_parser.add_argument("case", help="Case ID")
+    note_parser.add_argument("note", help="Note text (empty string clears the note)")
+
+    convergence_parser = subparsers.add_parser("convergence", help="Mark a finished case as converged or not.")
+    convergence_parser.add_argument("runs_dir", type=Path, help="Directory containing generated cases")
+    convergence_parser.add_argument("case", help="Case ID")
+    convergence_parser.add_argument("value", choices=["converged", "not_converged", "clear"])
+
     add_serve_subcommands(subparsers, config)
 
     doctor_parser = subparsers.add_parser("doctor", help="Check configuration and cases.")
@@ -359,6 +374,23 @@ def parse_arguments(
     ping_parser = subparsers.add_parser("_telemetry-ping")
     ping_parser.add_argument("event_type", type=int)
     ping_parser.add_argument("id_docker")
+    ping_parser.add_argument("--failed", action="store_true", help="Mark the event as unsuccessful.")
+    ping_parser.add_argument("--version", dest="client_version", help="Version of the client sending the event.")
+    # Used by the VS Code extension's New Campaign flow.
+    subparsers.add_parser("_solvers")
+    new_campaign_parser = subparsers.add_parser("_new-campaign")
+    new_campaign_parser.add_argument("target", type=Path)
+    new_campaign_parser.add_argument("--solver", required=True)
+    new_campaign_parser.add_argument("--runtime", required=True)
+    new_campaign_parser.add_argument("--template", type=Path, default=None)
+    new_campaign_parser.add_argument("--empty", action="store_true")
+    new_campaign_parser.add_argument("--input", action="append", default=[], metavar="KEY=PATH")
+    inspect_parser = subparsers.add_parser("_inspect-inputs")
+    inspect_parser.add_argument("--solver", required=True)
+    inspect_parser.add_argument("--input", action="append", default=[], metavar="KEY=PATH")
+    case_info_parser = subparsers.add_parser("_case-info")
+    case_info_parser.add_argument("template", type=Path)
+    case_info_parser.add_argument("--solver", required=True)
 
     # Backward compatibility: allow legacy call without subcommand.
     commands = {
@@ -370,6 +402,9 @@ def parse_arguments(
         "perf",
         "tail",
         "control",
+        "kill",
+        "note",
+        "convergence",
         "serve",
         "doctor",
         "cleanup",
@@ -377,6 +412,10 @@ def parse_arguments(
         "enable-telemetry",
         "disable-telemetry",
         "_telemetry-ping",
+        "_solvers",
+        "_new-campaign",
+        "_case-info",
+        "_inspect-inputs",
     }
     argv_list = list(argv)
     if argv_list and argv_list[0] not in commands and len(argv_list) == 3:
@@ -423,6 +462,17 @@ def _use_campaign_solver(runs_dir: Path | None, config: Config) -> bool:
     config.solver = recorded
     config.docker_image = config.saturne_bin = config.singularity_image = None
     return True
+
+
+def _parse_inputs(pairs: Sequence[str]) -> dict[str, list[Path]]:
+    """`KEY=PATH` arguments grouped by key, in the order given."""
+    files: dict[str, list[Path]] = {}
+    for pair in pairs:
+        key, sep, path = pair.partition("=")
+        if not sep or not key or not path:
+            raise ValueError(f"Expected KEY=PATH, got {pair!r}.")
+        files.setdefault(key, []).append(Path(path))
+    return files
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -537,6 +587,46 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.runs_dir, args.case, args.action, value=args.value, source="cli", adapter=adapter
             )
             print(f"control: {args.action} -> {details}")
+        elif args.command == "kill":
+            from .web_support import DEFAULT_JOB_ID_PATTERNS, kill_case
+
+            kill_errors: list[str] = []
+            for case_id in args.cases:
+                try:
+                    kill_case(
+                        args.runs_dir, case_id, actor="cli", job_id_patterns=DEFAULT_JOB_ID_PATTERNS, adapter=adapter
+                    )
+                    print(f"Killed {case_id}.")
+                except Exception as exc:
+                    kill_errors.append(f"{case_id}: {exc}")
+            if kill_errors:
+                raise ValueError("; ".join(kill_errors))
+        elif args.command == "note":
+            from .registry import registry_transaction, update_case
+            from .web_support import log_case_action
+
+            note = " ".join(args.note.splitlines()).strip()
+            with registry_transaction(args.runs_dir) as registry:
+                if args.case not in registry:
+                    raise ValueError(f"Case not found: {args.case}")
+                update_case(registry, args.case, note=note)
+            log_case_action(args.runs_dir, args.case, "note", {"note": note}, actor="cli")
+            print(f"Note {'cleared' if not note else 'set'} for {args.case}.")
+        elif args.command == "convergence":
+            from .registry import STATUS_DONE, STATUS_FAILED, registry_transaction, update_case
+            from .web_support import log_case_action
+
+            convergence = "" if args.value == "clear" else args.value
+            with registry_transaction(args.runs_dir) as registry:
+                record = registry.get(args.case)
+                if record is None:
+                    raise ValueError(f"Case not found: {args.case}")
+                status = str(record.get("status") or "").upper()
+                if status not in {STATUS_DONE, STATUS_FAILED}:
+                    raise ValueError("Convergence can only be set for finished cases (DONE or FAILED).")
+                update_case(registry, args.case, convergence=convergence)
+            log_case_action(args.runs_dir, args.case, "convergence", {"value": convergence}, actor="cli")
+            print(f"Convergence {'cleared' if not convergence else f'set to {convergence}'} for {args.case}.")
         elif dispatch_serve_command(
             args,
             config,
@@ -605,7 +695,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "_telemetry-ping":
             from .telemetry import send_event
 
-            send_event(args.event_type, block=True, id_docker=args.id_docker)
+            extra = {"version": args.client_version} if args.client_version else {}
+            send_event(args.event_type, block=True, id_docker=args.id_docker, valid_result=not args.failed, **extra)
+        elif args.command == "_solvers":
+            from .new_campaign import list_solvers
+
+            print(json.dumps(list_solvers()))
+        elif args.command == "_new-campaign":
+            from .new_campaign import create_campaign
+
+            files = _parse_inputs(args.input)
+            print(create_campaign(args.target, args.solver, args.runtime, args.template, empty=args.empty, files=files))
+        elif args.command == "_inspect-inputs":
+            from .new_campaign import inspect_inputs
+
+            print(json.dumps(inspect_inputs(args.solver, _parse_inputs(args.input))))
+        elif args.command == "_case-info":
+            from .new_campaign import case_info
+
+            print(json.dumps(case_info(args.template, args.solver)))
         else:
             raise ValueError("Unknown command.")
     except Exception as exc:

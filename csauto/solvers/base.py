@@ -11,6 +11,7 @@ walks through it with `stub.py` as the example.
 from __future__ import annotations
 
 import re
+import shutil
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -56,6 +57,19 @@ class RestartMode(NamedTuple):
     value_kind: str = "int"  # "int" | "float"
 
 
+class CaseInput(NamedTuple):
+    """One kind of file the New Campaign wizard asks for to build a case from scratch."""
+
+    key: str
+    label: str
+    extensions: tuple[str, ...]  # offered by the file picker, e.g. (".comm",)
+    destination: str  # folder relative to the campaign: "TEMPLATE", "TEMPLATE/DATA", "MESH", ...
+    required: bool = True
+    multiple: bool = False
+    rename_to: str = ""  # name a single file must have in the case (e.g. "setup.xml")
+    hint: str = ""  # one line shown under the picker
+
+
 ALL_DASHBOARD_PANELS = ("status", "residuals", "probes", "performance", "compare", "tail", "errors")
 ALL_RUNTIMES = (RUNTIME_NATIVE, RUNTIME_DOCKER, RUNTIME_SINGULARITY)
 ANOMALY_LABELS = ("error", "warn")
@@ -88,6 +102,11 @@ class SolverAdapter(ABC):
     default_docker_image: ClassVar[str]  # docker image used when csauto.toml sets none
     results_dirname: ClassVar[str]  # results folder inside each case, e.g. "RESU"
     dashboard_panels: ClassVar[tuple[str, ...]]  # dashboard tabs, in ALL_DASHBOARD_PANELS order
+
+    # How the VS Code extension offers the solver when creating a campaign.
+    description: ClassVar[str] = ""  # one line; an adapter without one is not offered (test solvers)
+    example_dir: ClassVar[str] = ""  # folder under examples/ a new campaign can start from
+    case_inputs: ClassVar[tuple[CaseInput, ...]] = ()  # the files a case is built from, by assemble_case
 
     # Launch.
     supported_runtimes: ClassVar[frozenset[str]] = frozenset(ALL_RUNTIMES)
@@ -235,11 +254,13 @@ class SolverAdapter(ABC):
             adapter=self,
         )
 
-    def build_gui_command(self, case_dir: Path, selection: RuntimeSelection) -> list[str]:
+    def build_gui_command(
+        self, case_dir: Path, selection: RuntimeSelection, gui_env: Mapping[str, str] | None = None
+    ) -> list[str]:
         """Wrap `gui_argv` for the selected runtime."""
         from ..execution import build_runtime_gui_command
 
-        return build_runtime_gui_command(case_dir, selection, adapter=self)
+        return build_runtime_gui_command(case_dir, selection, adapter=self, gui_env=gui_env)
 
     def build_slurm_script(
         self,
@@ -312,6 +333,32 @@ class SolverAdapter(ABC):
         raise ValueError(f"Control actions not supported for solver {self.name!r}")
 
     # Files and results layout.
+
+    def assemble_case(self, campaign_dir: Path, files: Mapping[str, Sequence[Path]]) -> None:
+        """Build a campaign's case from the files picked for each of `case_inputs`.
+
+        Each file is copied to its input's destination (TEMPLATE/ holds the case
+        every DOE row copies; shared folders such as MESH/ sit next to it).
+        Adapters whose input files reference each other override this to fix
+        those references after calling it.
+        """
+        declared = {spec.key: spec for spec in self.case_inputs}
+        unknown = sorted(set(files) - set(declared))
+        if unknown:
+            raise ValueError(f"{self.name} takes no {', '.join(unknown)} input.")
+        (campaign_dir / "TEMPLATE").mkdir(parents=True, exist_ok=True)
+        for spec in self.case_inputs:
+            picked = [Path(path) for path in files.get(spec.key, ())]
+            if spec.required and not picked:
+                raise ValueError(f"{spec.label}: pick a file.")
+            if len(picked) > 1 and not spec.multiple:
+                raise ValueError(f"{spec.label}: pick a single file.")
+            destination = campaign_dir / spec.destination
+            destination.mkdir(parents=True, exist_ok=True)
+            for source in picked:
+                if not source.is_file():
+                    raise ValueError(f"{spec.label}: {source} is not a file.")
+                shutil.copy2(source, destination / (spec.rename_to or source.name))
 
     @abstractmethod
     def find_setup_file(self, template_dir: Path) -> Path:
