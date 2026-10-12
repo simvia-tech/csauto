@@ -6,8 +6,8 @@ const config = {
   preprocess: vitePreprocess(),
   kit: {
     adapter: adapter({
-      pages: "dist",
-      assets: "dist",
+      pages: "../csauto/_frontend",
+      assets: "../csauto/_frontend",
       fallback: "index.html",
       strict: false,
     }),

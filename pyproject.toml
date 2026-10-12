@@ -23,6 +23,23 @@ pattern = "(?P<version>.+)"
 
 [tool.hatch.build.targets.wheel]
 packages = ["csauto"]
+# The built dashboard is ignored by git but shipped in the wheel (cd frontend && pnpm build first).
+artifacts = ["csauto/_frontend/"]
+
+# Each solver's example, which the extension's New Campaign copies. Listed part by part so a
+# local RUNS/ left over from trying an example never lands in the wheel.
+[tool.hatch.build.targets.wheel.force-include]
+"examples/codeaster-cube/MESH" = "csauto/_examples/codeaster-cube/MESH"
+"examples/codeaster-cube/README.md" = "csauto/_examples/codeaster-cube/README.md"
+"examples/codeaster-cube/TEMPLATE" = "csauto/_examples/codeaster-cube/TEMPLATE"
+"examples/codeaster-cube/csauto.toml" = "csauto/_examples/codeaster-cube/csauto.toml"
+"examples/codeaster-cube/doe.csv" = "csauto/_examples/codeaster-cube/doe.csv"
+"examples/single-case/MESH" = "csauto/_examples/single-case/MESH"
+"examples/single-case/POST/.gitkeep" = "csauto/_examples/single-case/POST/.gitkeep"
+"examples/single-case/README.md" = "csauto/_examples/single-case/README.md"
+"examples/single-case/TEMPLATE" = "csauto/_examples/single-case/TEMPLATE"
+"examples/single-case/csauto.toml" = "csauto/_examples/single-case/csauto.toml"
+"examples/single-case/doe.csv" = "csauto/_examples/single-case/doe.csv"
 
 [tool.hatch.build.targets.sdist]
 exclude = ["frontend/node_modules", "tests", "examples", ".github"]

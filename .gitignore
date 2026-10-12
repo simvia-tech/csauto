@@ -7,6 +7,7 @@ __pycache__/
 *.pyd
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
 .coverage
 htmlcov/
 
@@ -17,6 +18,7 @@ RUNS/
 **/.csauto.cid
 **/.csauto.jobid
 **/.csauto.history.jsonl
+**/.csauto.gui.log
 **/csauto.stdout
 **/csauto.stderr
 
@@ -39,3 +41,9 @@ CLAUDE.md
 .CLAUDE
 .claude/
 .superpowers/
+
+# Built dashboard: shipped in the wheel and the .vsix, never committed
+csauto/_frontend/
+
+# Built webviews: shipped in the .vsix, never committed
+webviews/*/dist/

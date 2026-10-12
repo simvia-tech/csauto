@@ -4,10 +4,12 @@
 # Fresh install (curl):
 #   bash -c "$(curl -fsSL https://raw.githubusercontent.com/simvia-tech/csauto/main/install.sh)"
 #
-# Fresh install (from a local clone):
+# Installs the latest GitHub release into ~/.local/share/csauto/.venv.
+#
+# Contributor install (editable, from a local clone):
 #   ./install.sh
 #
-# Update (re-run the same command — the script detects the existing install):
+# Update (re-run the same command; the script detects the existing install):
 #   bash -c "$(curl -fsSL https://raw.githubusercontent.com/simvia-tech/csauto/main/install.sh)"
 #
 # Options:
@@ -16,7 +18,7 @@
 
 set -euo pipefail
 
-REPO_URL="https://github.com/simvia-tech/csauto.git"
+REPO_SLUG="simvia-tech/csauto"
 DEFAULT_INSTALL_DIR="$HOME/.local/share/csauto"
 USE_VENV=true
 NO_TELEMETRY=false
@@ -47,32 +49,21 @@ for arg in "$@"; do
 done
 
 # -- Determine install mode --
-# If we're inside an existing clone (contributor), use that directory.
-# Otherwise, use the default install location (end-user curl install).
+# Run from inside a clone (contributor): editable install of that clone.
+# Otherwise (curl): install the wheel of the latest GitHub release.
 
-detect_repo_dir() {
-    # Check if this script is being run from inside a git clone of csauto
-    SCRIPT_DIR=""
-    if [ -n "${BASH_SOURCE[0]+x}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
-        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    fi
-
-    if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/pyproject.toml" ] && grep -q "csauto" "$SCRIPT_DIR/pyproject.toml" 2>/dev/null; then
-        # Running from inside an existing clone (./install.sh)
-        REPO_DIR="$SCRIPT_DIR"
-        MODE="local"
-    elif [ -d "$DEFAULT_INSTALL_DIR/.git" ] && [ -f "$DEFAULT_INSTALL_DIR/pyproject.toml" ]; then
-        # Existing curl install found — update mode
-        REPO_DIR="$DEFAULT_INSTALL_DIR"
-        MODE="update"
-    else
-        # Fresh curl install
-        REPO_DIR="$DEFAULT_INSTALL_DIR"
-        MODE="fresh"
-    fi
-}
-
-detect_repo_dir
+MODE="release"
+SCRIPT_DIR=""
+if [ -n "${BASH_SOURCE[0]+x}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/pyproject.toml" ] && grep -q "csauto" "$SCRIPT_DIR/pyproject.toml" 2>/dev/null; then
+    MODE="local"
+    INSTALL_DIR="$SCRIPT_DIR"
+else
+    INSTALL_DIR="$DEFAULT_INSTALL_DIR"
+    [ -d "$INSTALL_DIR/.venv" ] && MODE="update"
+fi
 
 printf "\n"
 printf "  csauto installer\n"
@@ -97,53 +88,46 @@ fi
 
 info "Found Python $PY_VERSION"
 
-# -- Clone or update the repository --
-case "$MODE" in
-    fresh)
-        if ! command -v git &>/dev/null; then
-            error "git is required but was not found."
-            exit 1
-        fi
-        info "Cloning csauto to $REPO_DIR ..."
-        mkdir -p "$(dirname "$REPO_DIR")"
-        if [ -d "$REPO_DIR" ] && [ "$(ls -A "$REPO_DIR" 2>/dev/null)" ]; then
-            # Directory exists and is non-empty but not a git clone
-            # (e.g., leftover telemetry.json from a previous failed install).
-            # Clone in place so existing files are preserved.
-            info "Existing non-repo directory found; initializing csauto in place ..."
-            git -C "$REPO_DIR" init -q
-            git -C "$REPO_DIR" remote add origin "$REPO_URL" 2>/dev/null \
-                || git -C "$REPO_DIR" remote set-url origin "$REPO_URL"
-            git -C "$REPO_DIR" fetch -q --depth=1 origin main
-            git -C "$REPO_DIR" checkout -q -f -B main FETCH_HEAD
-        else
-            git clone "$REPO_URL" "$REPO_DIR"
-        fi
-        success "Repository cloned"
-        ;;
-    update)
-        info "Existing installation found at $REPO_DIR"
-        info "Pulling latest changes ..."
-        git -C "$REPO_DIR" pull --ff-only origin main
-        success "Repository updated"
-        ;;
-    local)
-        info "Running from local clone at $REPO_DIR"
-        ;;
-esac
+# -- Find what to install --
+if [ "$MODE" = "local" ]; then
+    info "Running from local clone at $INSTALL_DIR"
+    PACKAGE_SPEC=("-e" "$INSTALL_DIR[web]")
+    if [ ! -f "$INSTALL_DIR/csauto/_frontend/index.html" ]; then
+        warn "The dashboard is not built in this clone: run 'cd frontend && pnpm install && pnpm build'."
+    fi
+else
+    # The wheel attached to a release carries the built dashboard. Take the
+    # newest stable release that has one, else the newest pre-release.
+    info "Looking up the latest csauto release ..."
+    RELEASE_INFO=$(curl -fsSL "https://api.github.com/repos/$REPO_SLUG/releases?per_page=50" | "$PYTHON" -c "
+import json, sys
+releases = [r for r in json.load(sys.stdin) if not r.get('draft')]
+with_wheel = [(r, a) for r in releases for a in r.get('assets', []) if a['name'].endswith('.whl')]
+stable = [x for x in with_wheel if not x[0].get('prerelease')]
+release, asset = (stable or with_wheel or [(None, None)])[0]
+if release:
+    print(release['tag_name'], asset['browser_download_url'])
+") || { error "Could not reach the GitHub releases of $REPO_SLUG."; exit 1; }
+    if [ -z "$RELEASE_INFO" ]; then
+        error "No csauto release ships a wheel yet. Install from a clone instead: git clone https://github.com/$REPO_SLUG && ./csauto/install.sh"
+        exit 1
+    fi
+    read -r RELEASE_TAG WHEEL_URL <<< "$RELEASE_INFO"
+    PACKAGE_SPEC=("csauto[web] @ $WHEEL_URL")
+    info "Installing csauto $RELEASE_TAG"
+fi
 
-VENV_DIR="$REPO_DIR/.venv"
+VENV_DIR="$INSTALL_DIR/.venv"
 
 # -- Create venv if requested --
 if $USE_VENV; then
     if [ ! -d "$VENV_DIR" ]; then
         info "Creating virtual environment in $VENV_DIR ..."
+        mkdir -p "$INSTALL_DIR"
         "$PYTHON" -m venv "$VENV_DIR"
     else
         info "Virtual environment already exists at $VENV_DIR"
     fi
-    # shellcheck disable=SC1091
-    source "$VENV_DIR/bin/activate"
     PIP="$VENV_DIR/bin/pip"
 else
     PIP=pip
@@ -151,7 +135,7 @@ fi
 
 # -- Install csauto with web dependencies --
 info "Installing csauto with web dashboard dependencies ..."
-"$PIP" install --quiet -e "$REPO_DIR[web]"
+"$PIP" install --quiet --upgrade "${PACKAGE_SPEC[@]}"
 
 # -- Verify installation --
 CSAUTO_BIN=""
@@ -171,7 +155,7 @@ success "Installed: $VERSION"
 
 # -- Telemetry --
 case "$MODE" in
-    fresh|update)
+    release|update)
         if $NO_TELEMETRY; then
             info "Telemetry disabled by --no-telemetry flag"
             "$PYTHON" -c "
@@ -222,7 +206,7 @@ fi
 # -- Done --
 printf "\n"
 case "$MODE" in
-    fresh)   success "Installation complete!" ;;
+    release) success "Installation complete!" ;;
     update)  success "Update complete!" ;;
     local)   success "Installation complete!" ;;
 esac
