@@ -35,7 +35,7 @@
     onClose();
   }
 
-  const suffix = cases.length > 1 ? ` (${cases.length})` : "";
+  const suffix = $derived(cases.length > 1 ? ` (${cases.length})` : "");
 </script>
 
 <svelte:window

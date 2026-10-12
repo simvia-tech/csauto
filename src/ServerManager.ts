@@ -159,7 +159,7 @@ export class ServerManager implements vscode.Disposable {
           });
       } else if (fails.length > 0) {
         void vscode.window.showInformationMessage(
-          `No cases in ${runsDir} yet: the dashboard will be empty until you generate cases (csauto prepare).`,
+          `No cases in ${runsDir} yet: the dashboard stays empty until you generate them (Cases row in the Campaigns view).`,
         );
       }
     });

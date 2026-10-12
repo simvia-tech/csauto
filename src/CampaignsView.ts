@@ -33,13 +33,21 @@ function countGeneratedCases(runsDir: string): number {
  * the description and its dashboard as an inline button; the row expands to
  * the campaign's steps, and its context menu holds the other actions.
  */
-export class CampaignsViewProvider implements vscode.TreeDataProvider<Item> {
+export class CampaignsViewProvider implements vscode.TreeDataProvider<Item>, vscode.Disposable {
   private readonly changeEmitter = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.changeEmitter.event;
+  private readonly subscriptions: vscode.Disposable[];
 
   constructor(private readonly server: ServerManager) {
-    server.onDidChangeState(() => this.changeEmitter.fire());
-    onDidRunDoctor(() => this.changeEmitter.fire());
+    this.subscriptions = [
+      this.changeEmitter,
+      server.onDidChangeState(() => this.changeEmitter.fire()),
+      onDidRunDoctor(() => this.changeEmitter.fire()),
+    ];
+  }
+
+  dispose(): void {
+    this.subscriptions.forEach((subscription) => subscription.dispose());
   }
 
   refresh(): void {
@@ -107,7 +115,7 @@ export class CampaignsViewProvider implements vscode.TreeDataProvider<Item> {
     } else {
       casesItem.description = `${countGeneratedCases(runsDir)} generated`;
     }
-    casesItem.tooltip = "Generate one case per DOE row in RUNS/ (csauto prepare). Cases already generated are kept.";
+    casesItem.tooltip = "Generate one case per DOE row in RUNS/. Cases already generated are kept.";
 
     item.children = [doeItem, templateItem, solverItem, casesItem];
     if (generated) {

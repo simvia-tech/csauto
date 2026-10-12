@@ -1,4 +1,5 @@
 import contextlib
+import inspect
 import math
 import os
 import shlex
@@ -14,6 +15,19 @@ from ..registry import STATUS_DONE, STATUS_FAILED, STATUS_PREPARED, STATUS_RUNNI
 from ..runner import run_cases
 from ..web_support import default_web_max_parallel, kill_case, log_case_action, normalize_convergence
 from .common import shared_models
+
+
+def gui_command(adapter: Any, case_dir: Any, selection: Any, gui_env: dict[str, str]) -> list[str]:
+    """The adapter's GUI command, with the display settings when its override accepts them.
+
+    Adapters written before `gui_env` existed override `build_gui_command`
+    without it; they still open, at the default scaling.
+    """
+    build = adapter.build_gui_command
+    params = inspect.signature(build).parameters.values()
+    if any(p.name == "gui_env" or p.kind is p.VAR_KEYWORD for p in params):
+        return build(case_dir, selection, gui_env=gui_env)
+    return build(case_dir, selection)
 
 
 def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> None:
@@ -416,7 +430,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         if payload.scale is not None and 1.0 < payload.scale <= 4.0:
             gui_env["QT_SCALE_FACTOR"] = f"{payload.scale:.2f}"
         try:
-            cmd = ctx.adapter.build_gui_command(case_dir, runtime_selection, gui_env=gui_env)
+            cmd = gui_command(ctx.adapter, case_dir, runtime_selection, gui_env)
         except FileNotFoundError as exc:
             raise ctx.http_exception_cls(status_code=404, detail="Solver setup file not found for case") from exc
         except ValueError as exc:

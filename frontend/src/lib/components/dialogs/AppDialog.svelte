@@ -5,6 +5,7 @@
   Enter confirms, Escape cancels, backdrop click cancels.
 -->
 <script lang="ts">
+  import { untrack } from "svelte";
   import { closeDialog } from "#lib/actions/dialog.svelte.ts";
   import DialogShell from "./DialogShell.svelte";
   import Button from "#lib/components/shared/Button.svelte";
@@ -31,7 +32,8 @@
     multiline = false,
   }: Props = $props();
 
-  const initialValue = value;
+  // The dialog edits a copy of the value it opened with.
+  const initialValue = untrack(() => value);
   let inputValue = $state(initialValue);
   let inputEl: HTMLInputElement | HTMLTextAreaElement | undefined = $state();
   let confirmBtnWrap: HTMLSpanElement | undefined = $state();

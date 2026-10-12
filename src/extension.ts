@@ -66,6 +66,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const runsDirOf = (arg: string | Item): string => (typeof arg === "string" ? arg : (arg.runsDir ?? ""));
   const registryWatcher = vscode.workspace.createFileSystemWatcher("**/{registry.json,csauto.toml,doe.csv}");
   context.subscriptions.push(
+    campaignsView,
     vscode.window.registerTreeDataProvider("csauto.campaigns", campaignsView),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration("csauto")) {

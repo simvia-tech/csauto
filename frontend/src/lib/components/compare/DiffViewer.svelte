@@ -357,6 +357,8 @@
           >
         </div>
       {:else if item.row}
+        <!-- Focusable only when its role is button (a change or a search match). -->
+        <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
         <div
           class="flex w-full {lineClass(item.row.type, side)} {item.row.type !==
             'equal' || searchMatches.includes(idx)

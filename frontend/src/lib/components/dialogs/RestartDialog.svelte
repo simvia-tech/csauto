@@ -5,7 +5,7 @@
   Pre-fills from localStorage settings.
 -->
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { closeDialog, appAlert } from "#lib/actions/dialog.svelte.ts";
   import DialogShell from "./DialogShell.svelte";
   import Button from "#lib/components/shared/Button.svelte";
@@ -27,8 +27,10 @@
 
   const modes = getAppConfig()?.restart_modes ?? [];
   const saved = getRestartSettings();
-  const defaultParallel =
-    saved.maxParallel ?? (cases.length > 1 ? cases.length : 0);
+  // Settled when the dialog opens.
+  const defaultParallel = untrack(
+    () => saved.maxParallel ?? (cases.length > 1 ? cases.length : 0),
+  );
   let n = $state(saved.n);
   let nt = $state(saved.nt);
   let maxParallel = $state(defaultParallel);

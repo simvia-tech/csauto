@@ -2,6 +2,7 @@
   ViewEditorDialog — popup to create or edit a view (name + column selection).
 -->
 <script lang="ts">
+  import { untrack } from "svelte";
   import Checkbox from "#lib/components/shared/Checkbox.svelte";
   import Button from "#lib/components/shared/Button.svelte";
   import { getDoeColumns, BASE_COLUMNS } from "#lib/stores/status.svelte.ts";
@@ -23,10 +24,16 @@
   }: Props = $props();
 
   let allDoe = $derived(getDoeColumns());
-  let name = $state(initialName);
+  // The dialog edits a copy of the view it opened with.
+  let name = $state(untrack(() => initialName));
 
   let selected = $state<Set<string>>(
-    new Set(initialColumns ?? [...allDoe, ...BASE_COLUMNS.map((c) => c.key)]),
+    untrack(
+      () =>
+        new Set(
+          initialColumns ?? [...allDoe, ...BASE_COLUMNS.map((c) => c.key)],
+        ),
+    ),
   );
 
   function toggle(key: string) {
