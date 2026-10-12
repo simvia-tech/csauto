@@ -64,12 +64,41 @@ jobs:
             exit 1
           fi
 
+      - name: Set up Node
+        if: steps.version_changed.outputs.changed == 'true' && steps.check_tag.outputs.exists == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up Python
+        if: steps.version_changed.outputs.changed == 'true' && steps.check_tag.outputs.exists == 'false'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install pnpm
+        if: steps.version_changed.outputs.changed == 'true' && steps.check_tag.outputs.exists == 'false'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Build the .vsix packages and the wheel
+        if: steps.version_changed.outputs.changed == 'true' && steps.check_tag.outputs.exists == 'false'
+        run: bash scripts/package-all.sh
+
       - name: Create GitHub release
         if: steps.version_changed.outputs.changed == 'true' && steps.check_tag.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v${{ steps.version.outputs.version }}" \
-            --title "v${{ steps.version.outputs.version }}" \
+          VERSION="${{ steps.version.outputs.version }}"
+          # A version like 1.0.0-rc.1 is published as a GitHub pre-release.
+          PRERELEASE=""
+          case "$VERSION" in *-*) PRERELEASE="--prerelease" ;; esac
+          gh release create "v${VERSION}" \
+            --title "v${VERSION}" \
             --notes-file release_notes.md \
-            --target "${{ github.event.workflow_run.head_sha }}"
+            --target "${{ github.event.workflow_run.head_sha }}" \
+            $PRERELEASE \
+            csauto-*.vsix \
+            bundled/*.whl

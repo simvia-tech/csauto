@@ -75,3 +75,49 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: pnpm build
+
+  extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Package the linux-x64 .vsix (dashboard, wheel, extension, dependency wheels)
+        run: |
+          npm run package
+          npm run bundle
+          bash scripts/bundle-deps.sh linux-x64
+          CSAUTO_SKIP_PREPUBLISH=1 npx --yes @vscode/vsce package --target linux-x64
+
+      - name: Install csauto offline from the bundled wheels, as the extension does
+        run: |
+          python -m venv "$RUNNER_TEMP/offline"
+          "$RUNNER_TEMP/offline/bin/pip" install --no-index --find-links bundled/wheels "$(ls bundled/csauto-*.whl)[web]"
+          "$RUNNER_TEMP/offline/bin/python" -c "import csauto, fastapi, uvicorn"
+
+      - name: Type-check the webviews (svelte-check from the frontend, installed by the packaging)
+        run: npm run check:webview
+
+      - name: Upload .vsix
+        uses: actions/upload-artifact@v4
+        with:
+          name: csauto-vsix
+          path: "*.vsix"
+          if-no-files-found: error
