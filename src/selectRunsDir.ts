@@ -7,7 +7,7 @@ const IGNORED = "**/{node_modules,.git,.venv,RUNS,_examples}/**";
 /**
  * Campaign runs directories in the workspace. A campaign is a folder holding a
  * csauto.toml (its runs directory is RUNS/ next to it, generated or not yet), or
- * a runs directory found through its registry.json (campaigns from older csauto).
+ * a runs directory whose registry.json looks like csauto's (campaigns from older csauto).
  */
 export async function findCampaignRunsDirs(): Promise<string[]> {
   const [configs, registries] = await Promise.all([
@@ -16,9 +16,24 @@ export async function findCampaignRunsDirs(): Promise<string[]> {
   ]);
   const runsDirs = [
     ...configs.map((uri) => path.join(path.dirname(uri.fsPath), "RUNS")),
-    ...registries.map((uri) => path.dirname(uri.fsPath)),
+    ...registries.filter((uri) => isCsautoRegistry(uri.fsPath)).map((uri) => path.dirname(uri.fsPath)),
   ];
   return Array.from(new Set(runsDirs.map((dir) => path.resolve(dir)))).sort();
+}
+
+const STATUSES = ["PREPARED", "PENDING", "RUNNING", "DONE", "FAILED"];
+
+/** A registry.json written by csauto: next to a campaign.json, or a non-empty map of cases carrying a status. */
+function isCsautoRegistry(file: string): boolean {
+  if (fs.existsSync(path.join(path.dirname(file), "campaign.json"))) {
+    return true;
+  }
+  try {
+    const cases = Object.values(JSON.parse(fs.readFileSync(file, "utf-8")) as Record<string, { status?: string }>);
+    return cases.length > 0 && cases.every((c) => STATUSES.includes(c?.status ?? ""));
+  } catch {
+    return false;
+  }
 }
 
 /** True once `csauto prepare` generated the campaign's cases. */
