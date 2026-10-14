@@ -6,9 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [1.0.0-rc.2] - 2026-10-14
 
-Second release candidate for 1.0.0: the embedded dashboard follows the editor theme with dark-theme logos, code_aster's compare shows the export that ran, and the extension's campaign detection is stricter.
+Second release candidate for 1.0.0: the embedded dashboard follows the editor theme with dark-theme logos, code_aster's compare shows the export that ran, the dashboard no longer overloads the machine when many cases are run, and the extension's campaign detection is stricter.
 
 ### Added
+- `DEVELOPMENT.md`: setting up, running and debugging the extension, the dashboard and the backend
 - Dark-theme logo variants for code_aster, code_saturne and Simvia: adapters declare `logo_dark_file`, `/api/solver_logo?dark=1` serves it, and the dashboard shows it on dark themes
 - code_aster Compare offers the command file next to the export, and shows the export last run (`.csauto.export`), so `mpi_nbcpu` and `ncpus` read the **n** and **nt** picked at launch
 
@@ -19,7 +20,9 @@ Second release candidate for 1.0.0: the embedded dashboard follows the editor th
 - Dependencies and CI actions updated to their latest versions
 
 ### Fixed
+- A code_aster export that sets `mpi_nbcpu` or `ncpus` now logs a warning at launch that they are ignored: the run's export, `.csauto.export`, takes them from **n** and **nt**
 - The extension counts a folder as a campaign through its `registry.json` only when that registry looks like csauto's (next to a `campaign.json`, or every entry a case with a known status), so unrelated folders no longer fill the csauto tab
+- Running many cases from the dashboard no longer starts them all at once when Max Parallel is empty: local runs are capped to `cpu_count // (n * nt)` at once (a scheduler still receives every selected case), which could exhaust the RAM and crash the editor; a queued case also waits while less than 10% of the RAM is available and another case is running (`CSAUTO_MIN_FREE_MEMORY_PERCENT`, `0` disables, Linux only)
 - Older solver adapters keep their GUI working, and the dashboard's svelte-check warnings are cleared
 
 ## [1.0.0-rc.1] - 2026-10-08

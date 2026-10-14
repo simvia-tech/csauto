@@ -48,7 +48,7 @@ Merge requests adding support for new solvers are gladly welcome! csauto knows a
 
 ### Development setup
 
-Please refer to the [README](README.md) to setup your development environment.
+See [DEVELOPMENT.md](DEVELOPMENT.md) to set up your environment, run the extension and debug each layer (the [README](README.md#development) has the short version).
 
 After cloning, install the git hooks:
 
