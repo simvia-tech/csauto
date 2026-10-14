@@ -723,7 +723,7 @@ Rules:
 
 - `cases`, `n`, `nt` are required
 - `n`, `nt`, `max_parallel` must be integers `> 0`
-- without `max_parallel`, every selected case starts at once (`max_parallel` in
+- without `max_parallel`, local runs are capped to `cpu_count // (n * nt)` at once (a scheduler receives every selected case) (`max_parallel` in
   `csauto.toml` only applies to `csauto run`)
 - a restart needs the `restart` capability (code_saturne only)
 - `restart_mode` must be one of the solver's `restart_modes` (see

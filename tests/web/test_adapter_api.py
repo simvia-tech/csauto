@@ -79,6 +79,10 @@ def test_solver_images(client_for, stub_case) -> None:
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("image/svg+xml")
     assert response.headers["cache-control"] == "no-cache"
+    dark = client_for(get_solver_adapter("code_saturne")).get("/api/solver_logo?dark=1")
+    assert dark.status_code == 200
+    assert dark.content != response.content
+    assert client_for(ProbeAdapter()).get("/api/solver_logo?dark=1").status_code == 404
 
 
 def test_control_values_follow_the_declared_kind(client_for, stub_case, monkeypatch) -> None:

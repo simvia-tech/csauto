@@ -21,8 +21,8 @@
         title="Dismiss"
         class="pointer-events-auto max-w-[320px] px-4 py-2.5 rounded-md shadow-lg text-sm font-semibold text-left text-white cursor-pointer {toast.variant ===
         'success'
-          ? 'bg-edf-vert-fonce'
-          : 'bg-edf-orange-fonce'}"
+          ? 'toast-ok bg-ok'
+          : 'toast-err bg-err'}"
         onclick={() => dismissToast(toast.id)}
       >
         {toast.message}

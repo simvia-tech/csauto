@@ -296,7 +296,7 @@
 
     <div class="flex items-center gap-3 mt-2">
       <span
-        class="inline-flex items-center h-[30px] min-w-[72px] text-center font-bold tracking-wide text-edf-noir bg-[rgba(255,178,16,0.3)] rounded-md px-2.5 text-[13px]"
+        class="inline-flex items-center h-[30px] min-w-[72px] text-center font-bold tracking-wide text-ink bg-warn/30 rounded-md px-2.5 text-[13px]"
       >
         {#if paused}
           <svg class="shrink-0 mr-2" width="8" height="10" viewBox="0 0 8 10"
@@ -322,11 +322,11 @@
             width="8"
             height="8"
             viewBox="0 0 8 8"
-            ><circle cx="4" cy="4" r="4" fill="rgb(220,38,38)" /></svg
+            ><circle cx="4" cy="4" r="4" class="fill-err" /></svg
           >
         {:else}
           <svg class="shrink-0 mr-2" width="8" height="8" viewBox="0 0 8 8"
-            ><circle cx="4" cy="4" r="4" fill="rgb(180,180,180)" /></svg
+            ><circle cx="4" cy="4" r="4" class="fill-muted" /></svg
           >
         {/if}
         {filteredLines.length} / {rawLines.length}
@@ -359,6 +359,6 @@
   {/if}
 
   {#if fetchError}
-    <p class="text-xs text-edf-orange-fonce text-center mt-1">{fetchError}</p>
+    <p class="text-xs text-err text-center mt-1">{fetchError}</p>
   {/if}
 </CardShell>

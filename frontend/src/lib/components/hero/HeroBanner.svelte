@@ -43,8 +43,15 @@
       <img
         src={solverLogoUrl(config.solver)}
         alt={config.solver}
-        class="h-7 w-auto"
+        class="h-7 w-auto {config.logo_dark ? 'logo-for-light' : ''}"
       />
+      {#if config.logo_dark}
+        <img
+          src={solverLogoUrl(config.solver, true)}
+          alt={config.solver}
+          class="logo-for-dark h-7 w-auto"
+        />
+      {/if}
     {:else if config}
       <span class="text-lg font-bold text-ink tracking-tight"
         >{config.solver}</span
@@ -72,7 +79,7 @@
       >
     </div>
     <div class="flex items-baseline gap-1.5">
-      <span class="text-lg font-bold text-edf-vert-fonce tracking-tight"
+      <span class="text-lg font-bold text-ok tracking-tight"
         >{#if isFiltered}{shownConverged}/{/if}{totalConverged}</span
       >
       <span class="text-sm font-[edf-2020-soft] italic text-edf-noir"

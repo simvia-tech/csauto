@@ -150,7 +150,7 @@ token = "your-secret-token"
 | `singularity_bin` | (auto-detected) | Path to `apptainer` or `singularity` binary |
 | `use_slurm` | (auto-detected) | `true` to force Slurm submission, `false` to force local |
 | `mpi_exec_options` | (none) | MPI options for Slurm jobs, passed to code_saturne as `CS_MPIEXEC_OPTIONS` (code_aster ignores it) |
-| `max_parallel` | `1` | Default of `csauto run --max-parallel`. The web UI does not read it: set Max Parallel in the Run or Restart dialog (left empty, every selected case starts at once) |
+| `max_parallel` | `1` | Default of `csauto run --max-parallel`. The web UI does not read it: set Max Parallel in the Run or Restart dialog (left empty, local runs are capped to `cpu_count // (n * nt)` at once, a scheduler receives every selected case) |
 | `mesh_mode` | `symlink` | How `prepare` places the solver's shared dirs (`MESH`, plus `POST` for code_saturne) into `RUNS/`: `symlink` or `copy` (see [concepts.md](./concepts.md#shared-meshpost-directories)) |
 | `host` | `127.0.0.1` | Bind address for `serve` |
 | `port` | `8000` | Bind port for `serve` |
@@ -163,6 +163,7 @@ token = "your-secret-token"
 | Variable | Description |
 |---|---|
 | `CSAUTO_CONFIG` | Explicit path to `csauto.toml` |
+| `CSAUTO_MIN_FREE_MEMORY_PERCENT` | Local runs only: a queued case waits for a launch slot while less than this share of the RAM is available and another case is running (default `10`, `0` disables; Linux only) |
 | `CSAUTO_USE_SLURM` | Override Slurm mode: `1`/`true`/`yes`/`on` or `0`/`false`/`no`/`off` |
 | `DISPLAY` | Required for GUI launch (`Open GUI` from the web UI) |
 

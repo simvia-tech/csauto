@@ -47,7 +47,7 @@
 			{disabled ? 'opacity-40 cursor-not-allowed' : ''}
 			{checked || indeterminate
       ? 'bg-accent border-accent text-accent-fg'
-      : 'bg-control border-border hover:border-accent'}"
+      : 'bg-control border-border hover:border-focus'}"
     style="width: {size}px; height: {size}px;"
     role="checkbox"
     aria-checked={indeterminate ? "mixed" : checked}

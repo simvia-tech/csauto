@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -262,9 +263,25 @@ def count_running_cases(runs_dir: Path, status_running: str) -> int:
     return running
 
 
-def default_web_max_parallel(requested_cases: int, runs_dir: Path, status_running: str) -> int:
+def default_web_max_parallel(
+    requested_cases: int,
+    runs_dir: Path,
+    status_running: str,
+    cores_per_case: int = 1,
+    scheduler: bool = False,
+) -> int:
+    """Cases allowed to run at once when the web UI sets no limit.
+
+    A scheduler queues the excess itself, so every selected case is submitted. Local runs are capped to what
+    the machine's cores can hold (each case takes n * nt of them): starting dozens of solvers at once exhausts
+    the RAM, and can take the editor hosting the dashboard down with it.
+    """
     requested = max(1, int(requested_cases))
-    return max(1, count_running_cases(runs_dir, status_running) + requested)
+    running = count_running_cases(runs_dir, status_running)
+    if scheduler:
+        return max(1, running + requested)
+    slots = max(1, (os.cpu_count() or 1) // max(1, int(cores_per_case)))
+    return max(1, min(running + requested, slots))
 
 
 def log_case_action(

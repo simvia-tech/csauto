@@ -272,7 +272,7 @@ In the **Status** panel, all your `PREPARED` cases appear in the table.
    - **n**: MPI ranks per case (e.g. `4`)
    - **nt**: OpenMP threads per rank (e.g. `2`)
    - **Max Parallel**: how many cases run at the same time (e.g. `2`; left empty,
-     every selected case starts at once)
+     local runs are capped to `cpu_count // (n * nt)` at once, a scheduler receives every selected case)
 4. Click **Run** in the popup
 
 Cases move to `RUNNING`. The case next in line shows `PENDING` while it waits for

@@ -197,7 +197,7 @@ On first use the extension creates a private Python environment (in extension st
 
 **Setup Guide** (a VS Code walkthrough, opened on install and from the Setup view or **csauto: Open Setup Guide**) checks what csauto needs on the machine, one step each with a fix: Python 3.11 or newer, Python's `venv` module (a separate `python3.X-venv` package on Debian and Ubuntu), csauto's environment (a **Set up csauto** button), then the solvers, ticked once code_aster or code_saturne can run (Docker running, the solver on the PATH, or Apptainer/Singularity), then a first campaign. On Windows, csauto runs in WSL: the guide starts with opening a WSL window. Settings under `csauto.*`: `pythonPath` (bring your own interpreter instead of the managed runtime), `port` (0 = auto), `serveArgs`, `notifyOnRunCompletion` (a notification when cases finish or fail) and `enableTelemetry`.
 
-To develop the extension: `npm install`, `npm run watch` (esbuild + tsc + frontend rebuild in parallel), then press F5 to launch an Extension Development Host. In dev mode the managed runtime uses an **editable install** of the checkout, so Python changes are live after "Restart Server" and dashboard changes after "Reload Dashboard" (the watch task rebuilds `csauto/_frontend` automatically). `npm run package` produces the production bundle; `npm run bundle` builds the wheel shipped in the `.vsix`; `npx @vscode/vsce package` builds the `.vsix` itself; `scripts/package-all.sh` builds every per-platform `.vsix`, and `scripts/publish.sh` builds and publishes them all to the Marketplace.
+To develop the extension (full guide: [DEVELOPMENT.md](./DEVELOPMENT.md)): `npm install`, `npm run watch` (esbuild + tsc + frontend rebuild in parallel), then press F5 to launch an Extension Development Host. In dev mode the managed runtime uses an **editable install** of the checkout, so Python changes are live after "Restart Server" and dashboard changes after "Reload Dashboard" (the watch task rebuilds `csauto/_frontend` automatically). `npm run package` produces the production bundle; `npm run bundle` builds the wheel shipped in the `.vsix`; `npx @vscode/vsce package` builds the `.vsix` itself; `scripts/package-all.sh` builds every per-platform `.vsix`, and `scripts/publish.sh` builds and publishes them all to the Marketplace.
 
 ## Troubleshooting
 
@@ -265,6 +265,8 @@ Thank you to all our contributors :
 - Florian Hermet - [Email](mailto:florian.hermet@simvia.tech)
 
 ## Development
+
+Setting up the extension, running it with F5 and debugging each layer is covered in [DEVELOPMENT.md](./DEVELOPMENT.md).
 
 ```bash
 # Install with dev + web dependencies

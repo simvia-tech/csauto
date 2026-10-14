@@ -153,7 +153,7 @@ From the web UI:
   `DIAGNOSTIC JOB` verdict), the `output.mess` message file, and `csauto.stderr`
 - **Recent Errors**: code_aster alarms (`<A>`) and errors (`<F>`, `<E>`, `<S>`)
   from `csauto.stdout` and `csauto.stderr`
-- **Compare**: the export file or `doe_row.csv`, side by side across cases
+- **Compare**: the export last run, the command file or `doe_row.csv`, side by side across cases
 
 Residuals, probes and timings are not available for code_aster. The results
 themselves are in `RUNS/caseXXXX/RESU/myresults.rmed`.

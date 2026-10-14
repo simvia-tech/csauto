@@ -137,3 +137,15 @@ def test_fastapi_case_file_update_writes_content(tmp_path: Path) -> None:
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
     assert setup_path.read_text(encoding="utf-8") == "<new/>"
+
+
+def test_default_web_max_parallel_caps_local_runs_to_the_cores(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from csauto import web_support
+
+    monkeypatch.setattr(web_support.os, "cpu_count", lambda: 8)
+    monkeypatch.setattr(web_support, "count_running_cases", lambda *_args: 0)
+
+    assert web_support.default_web_max_parallel(50, tmp_path, "RUNNING", cores_per_case=2) == 4
+    assert web_support.default_web_max_parallel(2, tmp_path, "RUNNING", cores_per_case=2) == 2
+    assert web_support.default_web_max_parallel(5, tmp_path, "RUNNING", cores_per_case=64) == 1
+    assert web_support.default_web_max_parallel(50, tmp_path, "RUNNING", cores_per_case=2, scheduler=True) == 50

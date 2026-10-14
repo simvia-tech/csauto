@@ -36,11 +36,11 @@
     primary: "bg-accent text-accent-fg border-none hover:bg-accent-hover",
     secondary:
       "bg-control text-ink border border-border hover:bg-control-hover",
-    run: "bg-edf-vert-fonce text-white border-none hover:bg-[rgb(38,98,12)]",
+    // btn-* hooks let the VS Code embedded mode restyle them (app.css).
+    run: "btn-run bg-ok text-white border-none hover:brightness-90",
     warning:
-      "bg-edf-orange-moyen text-white border-none hover:bg-[rgb(230,118,20)]",
-    danger:
-      "bg-edf-orange-fonce text-white border-none hover:bg-[rgb(180,56,8)]",
+      "btn-warning bg-edf-orange-moyen text-white border-none hover:brightness-90",
+    danger: "btn-danger bg-err text-white border-none hover:brightness-90",
   };
 </script>
 

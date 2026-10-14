@@ -11,6 +11,7 @@ saves in ``csauto.stdout``.
 from __future__ import annotations
 
 import re
+import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import ClassVar
@@ -22,6 +23,7 @@ EXPORT_GLOB = "*.export"
 # The export actually run: the case's export with csauto's n and nt, written at
 # each launch so the export that came from the template is never modified.
 RUN_EXPORT_NAME = ".csauto.export"
+CPU_PARAMS = (["P", "mpi_nbcpu"], ["P", "ncpus"])
 # Export file types of the meshes LIRE_MAILLAGE reads, by extension.
 MESH_TYPES = {".med": "mmed", ".mail": "mail", ".msh": "msh", ".msup": "msup"}
 FIRST_MESH_UNIT = 20
@@ -60,8 +62,6 @@ def _generated_export(comm: Path, meshes: Sequence[Path]) -> str:
         f"# Meshes are read with UNITE={FIRST_MESH_UNIT}, {FIRST_MESH_UNIT + 1}... in the order they were picked.",
         "P time_limit 3600",
         "P memory_limit 4096",
-        "P ncpus 1",
-        "P mpi_nbcpu 1",
         "P mpi_nbnoeud 1",
         "",
         f"F comm {comm.name} D 1",
@@ -76,11 +76,16 @@ def _generated_export(comm: Path, meshes: Sequence[Path]) -> str:
 
 
 def _relinked_export(text: str, comm: Path, meshes: Sequence[Path]) -> str:
-    """The user's export, its command file and meshes pointed to where the campaign keeps them."""
+    """The user's export, its command file and meshes pointed to where the campaign keeps them.
+
+    Its CPU counts are dropped: n and nt, picked at each launch, set them.
+    """
     mesh_names = {mesh.name for mesh in meshes}
     lines = []
     for line in text.splitlines():
         parts = line.split()
+        if parts[:2] in CPU_PARAMS:
+            continue
         if len(parts) >= 4 and parts[0] == "F" and parts[-2] == "D":
             name = Path(parts[-3]).name
             if name == comm.name:
@@ -144,9 +149,11 @@ class CodeAsterAdapter(SolverAdapter):
     )
     compare_kinds: ClassVar[tuple[CompareKind, ...]] = (
         CompareKind("export", "Export file"),
+        CompareKind("comm", "Command file"),
         CompareKind("doe_row.csv", "doe_row.csv"),
     )
     logo_file: ClassVar[Path | None] = LOGOS / "code_aster.svg"
+    logo_dark_file: ClassVar[Path | None] = LOGOS / "code_aster_dark.svg"
     icon_file: ClassVar[Path | None] = LOGOS / "code_aster_icon.svg"
 
     def run_argv(self, case_dir: Path, nprocs: int, nt: int, run_args: Sequence[str] | None = None) -> list[str]:
@@ -155,11 +162,14 @@ class CodeAsterAdapter(SolverAdapter):
     def prepare_launch(self, case_dir: Path, nprocs: int, nt: int) -> None:
         """Write the export to run, with n MPI processes and nt threads, and create RESU."""
         export = self.find_setup_file(case_dir)
-        lines = [
-            line
-            for line in export.read_text(encoding="utf-8", errors="surrogateescape").splitlines()
-            if line.split()[:2] not in (["P", "mpi_nbcpu"], ["P", "ncpus"])
-        ]
+        text = export.read_text(encoding="utf-8", errors="surrogateescape")
+        lines = [line for line in text.splitlines() if line.split()[:2] not in CPU_PARAMS]
+        if len(lines) < len(text.splitlines()):
+            print(
+                f"Warning: {export.name} sets mpi_nbcpu or ncpus: ignored, the launch sets them from n and nt "
+                "(the run's export is .csauto.export).",
+                file=sys.stderr,
+            )
         lines += [f"P mpi_nbcpu {nprocs}", f"P ncpus {nt}"]
         (case_dir / RUN_EXPORT_NAME).write_text("\n".join(lines) + "\n", encoding="utf-8", errors="surrogateescape")
         self.results_root(case_dir).mkdir(exist_ok=True)
@@ -196,9 +206,17 @@ class CodeAsterAdapter(SolverAdapter):
         return [results_root] if results_root.is_dir() else []
 
     def locate_case_file(self, case_dir: Path, name: str) -> Path | None:
-        if name == "export":
+        if name in ("export", "comm"):
+            run_export = case_dir / RUN_EXPORT_NAME  # the export last run, with its n and nt
             try:
-                return self.find_setup_file(case_dir)
+                export = run_export if run_export.is_file() else self.find_setup_file(case_dir)
             except (FileNotFoundError, ValueError):
                 return None
+            if name == "export":
+                return export
+            for line in export.read_text(encoding="utf-8", errors="replace").splitlines():
+                parts = line.split()
+                if len(parts) >= 4 and parts[:2] == ["F", "comm"]:
+                    return super().locate_case_file(case_dir, parts[2])
+            return None
         return super().locate_case_file(case_dir, name)

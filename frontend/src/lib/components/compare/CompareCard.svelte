@@ -175,7 +175,7 @@
           parameters</span
         >
         <button
-          class="text-xs text-accent cursor-pointer hover:underline"
+          class="text-xs text-link cursor-pointer hover:underline"
           onclick={() => (showAllParams = !showAllParams)}
         >
           {showAllParams ? "Show differences only" : "Show all parameters"}
@@ -198,18 +198,15 @@
                 <tr>
                   <td
                     style="text-align: center;"
-                    class={row.differs
-                      ? "text-edf-orange-fonce bg-[rgba(214,67,10,0.04)]"
-                      : ""}>{row.left}</td
+                    class={row.differs ? "text-err bg-err/4" : ""}
+                    >{row.left}</td
                   >
                   <td style="text-align: center;" class="font-bold"
                     >{row.param}</td
                   >
                   <td
                     style="text-align: center;"
-                    class={row.differs
-                      ? "text-edf-vert-fonce bg-[rgba(48,122,16,0.04)]"
-                      : ""}>{row.right}</td
+                    class={row.differs ? "text-ok bg-ok/4" : ""}>{row.right}</td
                   >
                 </tr>
               {/each}
@@ -235,7 +232,7 @@
     </FieldRow>
 
     {#if error}
-      <p class="text-sm text-red-600 text-center py-8">{error}</p>
+      <p class="text-sm text-err text-center py-8">{error}</p>
     {:else if compared}
       <DiffViewer
         {diffText}

@@ -444,6 +444,7 @@ class CodeSaturneAdapter(SolverAdapter):
     )
     default_residual_columns: ClassVar[tuple[str, ...]] = ("velocity", "pressure")
     logo_file: ClassVar[Path | None] = LOGOS / "code_saturne.svg"
+    logo_dark_file: ClassVar[Path | None] = LOGOS / "code_saturne_dark.svg"
     icon_file: ClassVar[Path | None] = LOGOS / "code_saturne_icon.svg"
 
     def run_argv(self, case_dir: Path, nprocs: int, nt: int, run_args: Sequence[str] | None = None) -> list[str]:

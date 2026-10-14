@@ -44,8 +44,8 @@ export function fetchAppConfig(): Promise<AppConfig> {
    true. The server ignores ?solver=, it only gives each solver its own cache
    entry, so a campaign never shows the cached logo of another solver served
    earlier on the same host and port. */
-export function solverLogoUrl(solver: string): string {
-  return `/api/solver_logo?solver=${encodeURIComponent(solver)}`;
+export function solverLogoUrl(solver: string, dark = false): string {
+  return `/api/solver_logo?solver=${encodeURIComponent(solver)}${dark ? "&dark=1" : ""}`;
 }
 
 export function solverIconUrl(solver: string): string {

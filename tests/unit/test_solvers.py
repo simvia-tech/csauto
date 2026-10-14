@@ -147,6 +147,17 @@ class TestCodeAsterAdapter:
     def adapter(self):
         return get_solver_adapter("code_aster")
 
+    def test_launch_warns_when_the_export_sets_cpu_counts(self, adapter, tmp_path, capsys):
+        case_dir = tmp_path / "case1"
+        case_dir.mkdir()
+        (case_dir / "cube.export").write_text("P ncpus 1\nF comm study.comm D 1\n", encoding="utf-8")
+        adapter.prepare_launch(case_dir, 2, 1)
+        assert "ignored" in capsys.readouterr().err
+
+        (case_dir / "cube.export").write_text("F comm study.comm D 1\n", encoding="utf-8")
+        adapter.prepare_launch(case_dir, 2, 1)
+        assert capsys.readouterr().err == ""
+
     def test_launch_runs_a_copy_of_the_export_with_n_and_nt(self, adapter, tmp_path):
         case_dir = tmp_path / "RUNS" / "case1"
         case_dir.mkdir(parents=True)
@@ -223,9 +234,26 @@ class TestCodeAsterAdapter:
         (case_dir / "RESU").mkdir()
         assert adapter.list_run_dirs(case_dir) == [case_dir / "RESU"]
 
-    def test_export_compare_kind_resolves_to_the_case_export(self, adapter, tmp_path):
-        (tmp_path / "study.export").write_text("", encoding="utf-8")
+    def test_compare_kinds_resolve_to_the_export_run_and_its_command_file(self, adapter, tmp_path):
+        (tmp_path / "study.export").write_text("F comm study.comm D 1\n", encoding="utf-8")
+        (tmp_path / "study.comm").write_text("", encoding="utf-8")
         assert adapter.locate_case_file(tmp_path, "export") == tmp_path / "study.export"
+        assert adapter.locate_case_file(tmp_path, "comm") == tmp_path / "study.comm"
+        adapter.prepare_launch(tmp_path, 4, 1)
+        assert adapter.locate_case_file(tmp_path, "export") == tmp_path / ".csauto.export"
+        (tmp_path / "study.export").write_text("F comm ../../secret.comm D 1\n", encoding="utf-8")
+        (tmp_path / ".csauto.export").unlink()
+        assert adapter.locate_case_file(tmp_path, "comm") is None
+
+    def test_template_exports_leave_cpu_counts_to_the_launch(self, adapter, tmp_path):
+        from csauto.solvers.code_aster import _generated_export, _relinked_export
+
+        comm = tmp_path / "study.comm"
+        comm.write_text("", encoding="utf-8")
+        user_export = "P ncpus 2\nP mpi_nbcpu 8\nP mpi_nbnoeud 1\nF comm study.comm D 1\n"
+        for export in (_generated_export(comm, []), _relinked_export(user_export, comm, [])):
+            assert "ncpus" not in export and "mpi_nbcpu" not in export
+            assert "P mpi_nbnoeud 1" in export
 
 
 class TestStubAdapter:
@@ -305,11 +333,10 @@ def test_default_compare_kind_derives_from_first_compare_kind() -> None:
 
 
 def test_code_aster_declares_doe_row_compare_kind() -> None:
-    from csauto.solvers.base import CompareKind
     from csauto.solvers.code_aster import CodeAsterAdapter
 
     adapter = CodeAsterAdapter()
-    assert adapter.compare_kinds == (CompareKind("export", "Export file"), CompareKind("doe_row.csv", "doe_row.csv"))
+    assert [kind.value for kind in adapter.compare_kinds] == ["export", "comm", "doe_row.csv"]
     assert adapter.default_compare_kind == "export"
 
 
