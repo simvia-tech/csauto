@@ -88,7 +88,7 @@ With one or more cases selected, the action buttons activate:
 
 **Run**: launch the selected cases (`PREPARED`, `DONE`, or `FAILED`). A popup
 asks for **MPI Ranks (n)**, **OMP Threads (nt)** and **Max Parallel** (left
-empty, every selected case starts at once).
+empty, local runs are capped to `cpu_count // (n * nt)` at once, a scheduler receives every selected case).
 
 **Restart** (when the solver supports it): continue finished cases. A popup
 offers the solver's restart modes and asks for a value when the mode takes

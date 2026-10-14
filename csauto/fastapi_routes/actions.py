@@ -490,7 +490,9 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         if payload.n <= 0 or payload.nt <= 0:
             raise ctx.http_exception_cls(status_code=400, detail="n, nt, and max_parallel must be integers > 0")
         if payload.max_parallel is None:
-            max_parallel = default_web_max_parallel(len(case_ids), ctx.runs_dir, STATUS_RUNNING)
+            max_parallel = default_web_max_parallel(
+                len(case_ids), ctx.runs_dir, STATUS_RUNNING, payload.n * payload.nt, ctx.use_slurm
+            )
         elif payload.max_parallel <= 0:
             raise ctx.http_exception_cls(status_code=400, detail="n, nt, and max_parallel must be integers > 0")
         else:
