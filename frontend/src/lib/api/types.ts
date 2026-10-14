@@ -78,6 +78,8 @@ export interface AppConfig {
   default_residual_columns: string[];
   /** True when /api/solver_logo serves an SVG. */
   logo: boolean;
+  /** True when /api/solver_logo?dark=1 serves a dark-theme variant. */
+  logo_dark: boolean;
   /** True when /api/solver_icon serves an SVG. */
   icon: boolean;
 }

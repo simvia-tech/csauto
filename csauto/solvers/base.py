@@ -138,6 +138,7 @@ class SolverAdapter(ABC):
     restart_modes: ClassVar[tuple[RestartMode, ...]] = ()
     default_residual_columns: ClassVar[tuple[str, ...]] = ()  # plotted first, when present
     logo_file: ClassVar[Path | None] = None  # SVG shown in the dashboard header
+    logo_dark_file: ClassVar[Path | None] = None  # its variant for dark themes
     icon_file: ClassVar[Path | None] = None  # square SVG used as the dashboard's favicon
 
     def __init_subclass__(cls, **kwargs: Any) -> None:

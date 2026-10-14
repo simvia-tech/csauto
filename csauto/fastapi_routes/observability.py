@@ -97,6 +97,7 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
         restart_modes: list[OptionModel]
         default_residual_columns: list[str]
         logo: bool
+        logo_dark: bool
         icon: bool
 
     class RecentErrorItemModel(BaseModel):
@@ -165,6 +166,7 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
             "restart_modes": [mode._asdict() for mode in ctx.adapter.restart_modes],
             "default_residual_columns": list(ctx.adapter.default_residual_columns),
             "logo": bool(ctx.adapter.logo_file and ctx.adapter.logo_file.is_file()),
+            "logo_dark": bool(ctx.adapter.logo_dark_file and ctx.adapter.logo_dark_file.is_file()),
             "icon": bool(ctx.adapter.icon_file and ctx.adapter.icon_file.is_file()),
         }
 
@@ -176,8 +178,8 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
 
     # Branding images are public, like the dashboard's own assets.
     @app.get("/api/solver_logo", response_model=None)
-    def api_solver_logo() -> Any:
-        return _svg_or_404(ctx.adapter.logo_file)
+    def api_solver_logo(dark: bool = False) -> Any:
+        return _svg_or_404(ctx.adapter.logo_dark_file if dark else ctx.adapter.logo_file)
 
     @app.get("/api/solver_icon", response_model=None)
     def api_solver_icon() -> Any:
