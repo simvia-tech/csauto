@@ -147,6 +147,17 @@ class TestCodeAsterAdapter:
     def adapter(self):
         return get_solver_adapter("code_aster")
 
+    def test_launch_warns_when_the_export_sets_cpu_counts(self, adapter, tmp_path, capsys):
+        case_dir = tmp_path / "case1"
+        case_dir.mkdir()
+        (case_dir / "cube.export").write_text("P ncpus 1\nF comm study.comm D 1\n", encoding="utf-8")
+        adapter.prepare_launch(case_dir, 2, 1)
+        assert "ignored" in capsys.readouterr().err
+
+        (case_dir / "cube.export").write_text("F comm study.comm D 1\n", encoding="utf-8")
+        adapter.prepare_launch(case_dir, 2, 1)
+        assert capsys.readouterr().err == ""
+
     def test_launch_runs_a_copy_of_the_export_with_n_and_nt(self, adapter, tmp_path):
         case_dir = tmp_path / "RUNS" / "case1"
         case_dir.mkdir(parents=True)

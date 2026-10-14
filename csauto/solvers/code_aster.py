@@ -11,6 +11,7 @@ saves in ``csauto.stdout``.
 from __future__ import annotations
 
 import re
+import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import ClassVar
@@ -161,11 +162,14 @@ class CodeAsterAdapter(SolverAdapter):
     def prepare_launch(self, case_dir: Path, nprocs: int, nt: int) -> None:
         """Write the export to run, with n MPI processes and nt threads, and create RESU."""
         export = self.find_setup_file(case_dir)
-        lines = [
-            line
-            for line in export.read_text(encoding="utf-8", errors="surrogateescape").splitlines()
-            if line.split()[:2] not in CPU_PARAMS
-        ]
+        text = export.read_text(encoding="utf-8", errors="surrogateescape")
+        lines = [line for line in text.splitlines() if line.split()[:2] not in CPU_PARAMS]
+        if len(lines) < len(text.splitlines()):
+            print(
+                f"Warning: {export.name} sets mpi_nbcpu or ncpus: ignored, the launch sets them from n and nt "
+                "(the run's export is .csauto.export).",
+                file=sys.stderr,
+            )
         lines += [f"P mpi_nbcpu {nprocs}", f"P ncpus {nt}"]
         (case_dir / RUN_EXPORT_NAME).write_text("\n".join(lines) + "\n", encoding="utf-8", errors="surrogateescape")
         self.results_root(case_dir).mkdir(exist_ok=True)
