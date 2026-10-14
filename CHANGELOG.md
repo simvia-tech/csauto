@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.0-rc.2] - 2026-10-14
+
+Second release candidate for 1.0.0: the embedded dashboard follows the editor theme with dark-theme logos, code_aster's compare shows the export that ran, and the extension's campaign detection is stricter.
+
+### Added
+- Dark-theme logo variants for code_aster, code_saturne and Simvia: adapters declare `logo_dark_file`, `/api/solver_logo?dark=1` serves it, and the dashboard shows it on dark themes
+- code_aster Compare offers the command file next to the export, and shows the export last run (`.csauto.export`), so `mpi_nbcpu` and `ncpus` read the **n** and **nt** picked at launch
+
+### Changed
+- The embedded dashboard derives its colors from the editor's text and background (like vs-code-aster), so it reads the same on any theme: table headers, plots, diffs, toasts and buttons included. Theme border and list colors are no longer used
+- The exports csauto writes or relinks for a campaign's template no longer set `mpi_nbcpu` and `ncpus`, nor does the code_aster example: each launch sets them
+- The `.vsix` build lists what it ships instead of what it leaves out
+- Dependencies and CI actions updated to their latest versions
+
+### Fixed
+- The extension counts a folder as a campaign through its `registry.json` only when that registry looks like csauto's (next to a `campaign.json`, or every entry a case with a known status), so unrelated folders no longer fill the csauto tab
+- Older solver adapters keep their GUI working, and the dashboard's svelte-check warnings are cleared
+
 ## [1.0.0-rc.1] - 2026-10-08
 
 csauto becomes extension-first: the repository now ships a VS Code extension that is the primary interface, with the CLI as a companion for headless/HPC use.
