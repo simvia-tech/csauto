@@ -59,6 +59,11 @@ LAUNCH_LOCKFILE = ".csauto.launch.lock"
 EXIT_CODE_FILE = ".csauto.exitcode"
 LAUNCH_THREAD_LOCK = threading.RLock()
 RESULTS_SIZE_CACHE_LOCK = threading.RLock()
+# A queued case waits for a launch slot while less than this share of the RAM is available (0 disables).
+MIN_FREE_MEMORY_ENV = "CSAUTO_MIN_FREE_MEMORY_PERCENT"
+DEFAULT_MIN_FREE_MEMORY_PERCENT = 10.0
+# Memory use only shows once a solver has loaded its mesh: pause after a launch that left little headroom.
+MEMORY_SETTLE_SECONDS = 5.0
 RESULTS_SIZE_CACHE: dict[str, dict[str, float | None]] = {}
 
 try:
@@ -723,8 +728,34 @@ def _count_running_cases(runs_dir: Path, adapter: SolverAdapter) -> int:
     return len(still_running)
 
 
+def _available_memory_percent() -> float | None:
+    """Share of the RAM available for new processes, or None without procfs (non-Linux)."""
+    try:
+        fields = dict(line.split(":", 1) for line in Path("/proc/meminfo").read_text(encoding="ascii").splitlines())
+        return 100.0 * int(fields["MemAvailable"].split()[0]) / int(fields["MemTotal"].split()[0])
+    except (OSError, KeyError, ValueError, ZeroDivisionError):
+        return None
+
+
+def _min_free_memory_percent() -> float:
+    try:
+        return max(0.0, float(os.environ.get(MIN_FREE_MEMORY_ENV, DEFAULT_MIN_FREE_MEMORY_PERCENT)))
+    except ValueError:
+        return DEFAULT_MIN_FREE_MEMORY_PERCENT
+
+
+def _memory_is_low(factor: float = 1.0) -> bool:
+    threshold = _min_free_memory_percent() * factor
+    available = _available_memory_percent() if threshold else None
+    return available is not None and available < threshold
+
+
 def _wait_for_launch_slot(runs_dir: Path, max_parallel: int, adapter: SolverAdapter) -> None:
-    while _count_running_cases(runs_dir, adapter) >= max_parallel:
+    while True:
+        running = _count_running_cases(runs_dir, adapter)
+        # Never hold back the first case: low memory then comes from other programs, not from csauto's runs.
+        if running < max_parallel and not (running and _memory_is_low()):
+            return
         time.sleep(1.0)
 
 
@@ -741,6 +772,8 @@ def _start_case_with_launch_slot(
         # Re-check after acquiring the lock in case another thread took the slot.
         _wait_for_launch_slot(runs_dir, max_parallel, adapter)
         start_case()
+        if _memory_is_low(2.0):
+            time.sleep(MEMORY_SETTLE_SECONDS)
 
 
 def _is_zombie(pid: int) -> bool:

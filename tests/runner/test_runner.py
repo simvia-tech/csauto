@@ -1263,3 +1263,29 @@ def test_a_finished_child_is_dead_without_procfs(monkeypatch) -> None:
     time.sleep(0.5)  # exited, never reaped: a zombie
     monkeypatch.setattr(runner, "_is_zombie", lambda pid: False)  # what macOS reports
     assert runner.is_process_alive(proc.pid) is False
+
+
+def test_launch_slot_waits_for_memory_only_while_cases_run(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from csauto import runner
+
+    adapter = runner._default_adapter()
+    running = {"count": 1}
+    available = iter([5.0, 5.0, 50.0])
+    sleeps: list[float] = []
+    monkeypatch.setattr(runner, "_count_running_cases", lambda *_args: running["count"])
+    monkeypatch.setattr(runner, "_available_memory_percent", lambda: next(available))
+    monkeypatch.setattr(runner.time, "sleep", sleeps.append)
+    monkeypatch.delenv(runner.MIN_FREE_MEMORY_ENV, raising=False)
+
+    runner._wait_for_launch_slot(tmp_path, 4, adapter)
+    assert len(sleeps) == 2  # two checks under the 10% threshold, then enough memory
+
+    running["count"] = 0  # nothing of ours running: low memory is not ours to fix
+    monkeypatch.setattr(runner, "_available_memory_percent", lambda: 1.0)
+    runner._wait_for_launch_slot(tmp_path, 4, adapter)
+    assert len(sleeps) == 2
+
+    running["count"] = 1
+    monkeypatch.setenv(runner.MIN_FREE_MEMORY_ENV, "0")  # disabled
+    runner._wait_for_launch_slot(tmp_path, 4, adapter)
+    assert len(sleeps) == 2
