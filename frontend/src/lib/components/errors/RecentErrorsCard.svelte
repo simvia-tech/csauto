@@ -443,7 +443,7 @@
   {#if sortedItems.length > 0}
     <div class="flex items-center gap-3 mt-2">
       <span
-        class="inline-flex items-center h-[30px] min-w-[72px] text-center font-bold tracking-wide text-edf-noir bg-[rgba(214,67,10,0.12)] rounded-md px-2.5 text-[13px]"
+        class="inline-flex items-center h-[30px] min-w-[72px] text-center font-bold tracking-wide text-ink bg-err/12 rounded-md px-2.5 text-[13px]"
       >
         {dedupedItems.length} unique / {items.length} total
       </span>
@@ -456,6 +456,6 @@
   {/if}
 
   {#if fetchError}
-    <p class="text-xs text-edf-orange-fonce text-center mt-1">{fetchError}</p>
+    <p class="text-xs text-err text-center mt-1">{fetchError}</p>
   {/if}
 </CardShell>

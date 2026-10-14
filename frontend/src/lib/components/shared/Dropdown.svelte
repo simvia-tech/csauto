@@ -99,7 +99,7 @@
     bind:this={buttonEl}
     type="button"
     class={buttonClass ||
-      "flex items-center justify-between gap-1.5 w-full h-[30px] cursor-pointer bg-control border border-border rounded-md text-[13px] text-ink font-normal pl-2.5 pr-2 transition-colors duration-150 hover:bg-control-hover focus:outline-none focus:border-accent"}
+      "flex items-center justify-between gap-1.5 w-full h-[30px] cursor-pointer bg-control border border-border rounded-md text-[13px] text-ink font-normal pl-2.5 pr-2 transition-colors duration-150 hover:bg-control-hover focus:outline-none focus:border-focus"}
     onmousedown={(e) => {
       e.stopPropagation();
       toggleOpen();

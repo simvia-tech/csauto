@@ -82,6 +82,8 @@
   --color-accent-hover: rgb(12, 72, 170);
   --color-accent-fg: var(--color-edf-blanc);
   --color-accent-2: var(--color-edf-orange-moyen);
+  --color-link: var(--color-accent);
+  --color-focus: var(--color-accent);
   --color-card: var(--color-edf-blanc);
   --color-control: var(--color-edf-blanc);
   --color-control-hover: var(--color-edf-gris-clair);
@@ -93,6 +95,18 @@
   --color-table-hover: #f5f5f4;
   --color-table-selected: #e8eff8;
   --color-table-selected-hover: #dce7f4;
+
+  /* Meaning-carrying colors: tints mix them with transparency, so a theme
+     only has to swap these (see the VS Code embedded mode below). */
+  --color-ok: var(--color-edf-vert-fonce);
+  --color-err: var(--color-edf-orange-fonce);
+  --color-warn: var(--color-edf-orange-clair);
+  --color-warn-text: var(--color-edf-orange-fonce);
+  --color-info: var(--color-edf-bleu-clair);
+  --color-info-text: var(--color-edf-bleu-fonce);
+  --color-code-bg: rgb(30, 30, 45);
+  --color-code-fg: var(--color-edf-gris-clair);
+  --color-code-err: var(--color-edf-orange-clair);
 
   --radius-card: 10px;
 
@@ -124,7 +138,7 @@ textarea {
   border-radius: 6px;
   padding: 5px 10px;
   height: 30px;
-  background: #fff;
+  background: var(--color-control);
   font-family: inherit;
   color: var(--color-ink);
   font-size: 13px;
@@ -152,7 +166,7 @@ input:focus,
 select:focus,
 textarea:focus {
   outline: none;
-  border-color: var(--color-edf-bleu-moyen);
+  border-color: var(--color-focus);
 }
 
 select {
@@ -205,7 +219,7 @@ td {
   padding: 8px 10px;
   font-size: 13px;
   text-align: left;
-  border-bottom: 1px solid var(--color-edf-gris-clair);
+  border-bottom: 1px solid var(--color-table-head);
 }
 
 th {
@@ -257,7 +271,7 @@ th.status-sortable {
   user-select: none;
 }
 th.status-sortable:hover {
-  color: var(--color-accent);
+  color: var(--color-link);
 }
 
 #status-doe-select {
@@ -341,53 +355,49 @@ th.status-sortable:hover {
 }
 
 .status-running {
-  background: rgba(16, 137, 255, 0.1);
-  color: var(--color-edf-bleu-fonce);
-  border-color: rgba(16, 137, 255, 0.25);
+  background: color-mix(in srgb, var(--color-info) 10%, transparent);
+  color: var(--color-info-text);
+  border-color: color-mix(in srgb, var(--color-info) 25%, transparent);
 }
 .status-done {
-  background: rgba(48, 122, 16, 0.08);
-  color: var(--color-edf-vert-fonce);
-  border-color: rgba(48, 122, 16, 0.2);
+  background: color-mix(in srgb, var(--color-ok) 8%, transparent);
+  color: var(--color-ok);
+  border-color: color-mix(in srgb, var(--color-ok) 20%, transparent);
 }
 .status-failed {
-  background: rgba(214, 67, 10, 0.08);
-  color: var(--color-edf-orange-fonce);
-  border-color: rgba(214, 67, 10, 0.25);
+  background: color-mix(in srgb, var(--color-err) 8%, transparent);
+  color: var(--color-err);
+  border-color: color-mix(in srgb, var(--color-err) 25%, transparent);
 }
 .status-converged {
-  background: rgba(48, 122, 16, 0.12);
-  color: var(--color-edf-vert-fonce);
-  border-color: rgba(48, 122, 16, 0.3);
+  background: color-mix(in srgb, var(--color-ok) 12%, transparent);
+  color: var(--color-ok);
+  border-color: color-mix(in srgb, var(--color-ok) 30%, transparent);
 }
 .status-not-converged {
-  background: rgba(214, 67, 10, 0.1);
-  color: var(--color-edf-orange-fonce);
-  border-color: rgba(214, 67, 10, 0.25);
+  background: color-mix(in srgb, var(--color-err) 10%, transparent);
+  color: var(--color-err);
+  border-color: color-mix(in srgb, var(--color-err) 25%, transparent);
 }
-.status-prepared {
-  background: var(--color-edf-gris-clair);
-  color: var(--color-muted);
-  border-color: var(--color-border);
-}
+.status-prepared,
 .status-unknown {
-  background: var(--color-edf-gris-clair);
+  background: var(--color-table-head);
   color: var(--color-muted);
   border-color: var(--color-border);
 }
 
 /* Context menu active state */
 .is-active {
-  background: rgba(16, 87, 200, 0.08);
-  border-color: rgba(16, 87, 200, 0.2);
-  color: var(--color-edf-bleu-fonce);
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  border-color: color-mix(in srgb, var(--color-accent) 20%, transparent);
+  color: var(--color-info-text);
   font-weight: 700;
 }
 
 /* Selected item in custom dropdown lists */
 .option-selected {
-  color: var(--color-edf-bleu-fonce);
-  background: rgba(16, 87, 200, 0.06);
+  color: var(--color-info-text);
+  background: color-mix(in srgb, var(--color-accent) 6%, transparent);
 }
 
 #status-card:focus {
@@ -397,7 +407,7 @@ th.status-sortable:hover {
 /* Link-style action buttons (All/None toggles) */
 .link-btn {
   font-size: 12px;
-  color: var(--color-accent);
+  color: var(--color-link);
   cursor: pointer;
   background: transparent;
   border: none;
@@ -417,8 +427,8 @@ th.status-sortable:hover {
 /* Code boxes and tail */
 pre,
 .code-box {
-  background: rgb(30, 30, 45);
-  color: var(--color-edf-gris-clair);
+  background: var(--color-code-bg);
+  color: var(--color-code-fg);
   padding: 10px 12px;
   border-radius: 8px;
   max-height: 320px;
@@ -448,21 +458,21 @@ pre,
   margin: 0 -4px;
 }
 .tail-sev-error {
-  background: rgba(214, 67, 10, 0.2);
-  color: var(--color-edf-orange-clair);
+  background: color-mix(in srgb, var(--color-err) 20%, transparent);
+  color: var(--color-code-err);
 }
 .tail-sev-warn {
-  background: rgba(255, 178, 16, 0.15);
-  color: var(--color-edf-orange-clair);
+  background: color-mix(in srgb, var(--color-warn) 15%, transparent);
+  color: var(--color-warn);
 }
 .tail-query-hit {
-  background: rgba(255, 178, 16, 0.5);
+  background: color-mix(in srgb, var(--color-warn) 50%, transparent);
   color: var(--color-edf-noir);
   border-radius: 2px;
   padding: 0 2px;
 }
 .tail-filter-error {
-  color: var(--color-edf-orange-clair);
+  color: var(--color-err);
   font-weight: 600;
   margin-bottom: 6px;
 }
@@ -472,7 +482,7 @@ pre,
 
 @keyframes tailFlash {
   0% {
-    background-color: rgba(16, 137, 255, 0.2);
+    background-color: color-mix(in srgb, var(--color-info) 20%, transparent);
   }
   100% {
     background-color: transparent;
@@ -480,7 +490,7 @@ pre,
 }
 
 code {
-  background: rgba(255, 134, 29, 0.08);
+  background: color-mix(in srgb, var(--color-accent-2) 8%, transparent);
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 12px;
@@ -497,13 +507,13 @@ code {
 }
 .error-item {
   border-radius: 8px;
-  border: 1px solid rgba(214, 67, 10, 0.2);
-  background: rgba(214, 67, 10, 0.04);
+  border: 1px solid color-mix(in srgb, var(--color-err) 20%, transparent);
+  background: color-mix(in srgb, var(--color-err) 4%, transparent);
   padding: 10px 12px;
 }
 .error-meta {
   font-size: 11px;
-  color: var(--color-edf-orange-fonce);
+  color: var(--color-err);
   margin-bottom: 0;
   font-weight: 700;
 }
@@ -536,19 +546,19 @@ code {
   font-weight: 700;
   padding: 2px 7px;
   border: 1px solid transparent;
-  background: rgba(214, 67, 10, 0.08);
-  color: var(--color-edf-orange-fonce);
+  background: color-mix(in srgb, var(--color-err) 8%, transparent);
+  color: var(--color-err);
 }
 .error-badge-new {
-  background: rgba(16, 87, 200, 0.08);
-  color: var(--color-edf-bleu-fonce);
-  border-color: rgba(16, 87, 200, 0.2);
+  background: color-mix(in srgb, var(--color-info) 8%, transparent);
+  color: var(--color-info-text);
+  border-color: color-mix(in srgb, var(--color-info) 20%, transparent);
 }
 .error-line {
   font-family: var(--font-mono);
   font-size: 12px;
   white-space: pre-wrap;
-  color: var(--color-edf-noir);
+  color: var(--color-ink);
 }
 .error-empty {
   font-size: 12px;
@@ -556,35 +566,31 @@ code {
   padding: 6px 0;
 }
 .error-sev-warn {
-  border-color: rgba(255, 178, 16, 0.3);
-  background: rgba(255, 178, 16, 0.04);
+  border-color: color-mix(in srgb, var(--color-warn) 30%, transparent);
+  background: color-mix(in srgb, var(--color-warn) 4%, transparent);
 }
-.error-sev-warn .error-meta {
-  color: var(--color-edf-orange-fonce);
-}
+.error-sev-warn .error-meta,
 .error-sev-warn .error-line {
-  color: var(--color-edf-orange-fonce);
+  color: var(--color-warn-text);
 }
 .error-sev-info {
-  border-color: rgba(16, 137, 255, 0.2);
-  background: rgba(16, 137, 255, 0.03);
+  border-color: color-mix(in srgb, var(--color-info) 20%, transparent);
+  background: color-mix(in srgb, var(--color-info) 3%, transparent);
 }
-.error-sev-info .error-meta {
-  color: var(--color-edf-bleu-fonce);
-}
+.error-sev-info .error-meta,
 .error-sev-info .error-line {
-  color: var(--color-edf-bleu-fonce);
+  color: var(--color-info-text);
 }
 .err-hit {
-  background: rgba(214, 67, 10, 0.25);
+  background: color-mix(in srgb, var(--color-err) 25%, transparent);
   padding: 0 2px;
   border-radius: 2px;
 }
 .error-sev-warn .err-hit {
-  background: rgba(255, 178, 16, 0.35);
+  background: color-mix(in srgb, var(--color-warn) 35%, transparent);
 }
 .error-sev-info .err-hit {
-  background: rgba(16, 137, 255, 0.2);
+  background: color-mix(in srgb, var(--color-info) 20%, transparent);
 }
 .error-item-toggle {
   cursor: pointer;
@@ -633,64 +639,81 @@ code {
   }
 }
 
-/* ------------------------------------------------------------------ */
-/* VS Code embedded mode                                               */
-/*                                                                     */
-/* When the dashboard runs inside the VS Code extension's webview, the */
-/* wrapper page forwards the --vscode-* theme variables into this      */
-/* document (see src/lib/vscode-embed.ts) and adds .vscode-embedded    */
-/* (plus .vs-dark for dark/high-contrast themes) on <html>. These      */
-/* overrides remap the dashboard's semantic tokens onto the VS Code    */
-/* theme; without the variables the EDF fallbacks keep working.        */
-/* ------------------------------------------------------------------ */
+/* VS Code embedded mode.
 
+   Inside the extension's webview, the wrapper page forwards the --vscode-*
+   theme variables into this document (src/lib/vscode-embed.ts) and adds
+   .vscode-embedded (plus .vs-dark on dark and high-contrast themes) on
+   <html>. Like VS Code Aster's webviews (and this extension's New Campaign
+   panel), every surface, border and text tier is derived from the editor's
+   own background and foreground; the theme's other colors are used only for
+   what they are designed for: buttons, focus, passed/warning/error, find
+   matches. Theme borders (often a loud accent, e.g. Dracula's purple panel
+   border) and list colors are deliberately not used. The EDF palette is
+   remapped onto these tokens so every utility class follows the theme. */
 html.vscode-embedded {
-  --color-bg: var(--vscode-editor-background, rgb(248, 247, 247));
-  --color-ink: var(--vscode-editor-foreground, rgb(51, 51, 51));
-  --color-muted: var(--vscode-descriptionForeground, rgb(120, 120, 120));
-  --color-accent: var(--vscode-button-background, rgb(16, 87, 200));
-  --color-accent-hover: var(--vscode-button-hoverBackground, rgb(12, 72, 170));
-  --color-accent-fg: var(--vscode-button-foreground, rgb(255, 255, 255));
-  --color-card: var(
-    --vscode-editorWidget-background,
-    var(--vscode-sideBar-background, rgb(255, 255, 255))
-  );
-  --color-control: var(
-    --vscode-dropdown-background,
-    var(--vscode-input-background, rgb(255, 255, 255))
-  );
-  --color-control-hover: var(
-    --vscode-list-hoverBackground,
-    color-mix(in srgb, var(--color-ink) 10%, var(--color-control))
-  );
-  --color-border: var(
-    --vscode-widget-border,
-    var(
-      --vscode-panel-border,
-      color-mix(in srgb, var(--color-ink) 22%, transparent)
-    )
-  );
-  --color-separator: color-mix(in srgb, var(--color-ink) 10%, transparent);
-  --color-table-head: color-mix(
+  --ui-bg: var(--vscode-editor-background, #ffffff);
+  --ui-fg: var(--vscode-editor-foreground, #333333);
+
+  --color-bg: var(--ui-bg);
+  --color-ink: var(--ui-fg);
+  --color-muted: color-mix(in srgb, var(--ui-fg) 60%, transparent);
+  --color-card: color-mix(in srgb, var(--ui-fg) 4%, var(--ui-bg));
+  --color-control: var(--vscode-input-background, var(--ui-bg));
+  --color-control-hover: color-mix(
     in srgb,
-    var(--color-ink) 6%,
+    var(--ui-fg) 12%,
     var(--color-card)
   );
+  --color-border: color-mix(in srgb, var(--ui-fg) 18%, transparent);
+  --color-separator: color-mix(in srgb, var(--ui-fg) 8%, transparent);
+  --color-scrim: color-mix(in srgb, var(--ui-bg) 60%, transparent);
+  --color-table-head: color-mix(in srgb, var(--ui-fg) 8%, var(--color-card));
   --color-table-row: var(--color-card);
-  --color-table-hover: var(
-    --vscode-list-hoverBackground,
-    color-mix(in srgb, var(--color-ink) 8%, var(--color-card))
-  );
+  --color-table-hover: color-mix(in srgb, var(--ui-fg) 6%, var(--color-card));
   --color-table-selected: color-mix(
     in srgb,
-    var(--color-accent) 18%,
+    var(--ui-fg) 13%,
     var(--color-card)
   );
   --color-table-selected-hover: color-mix(
     in srgb,
-    var(--color-accent) 26%,
+    var(--ui-fg) 17%,
     var(--color-card)
   );
+
+  --color-accent: var(--vscode-button-background, #0078d4);
+  --color-accent-hover: var(--vscode-button-hoverBackground, #026ec1);
+  --color-accent-fg: var(--vscode-button-foreground, #ffffff);
+  --color-accent-2: var(--color-warn);
+  --color-link: var(--vscode-textLink-foreground, var(--color-info));
+  --color-focus: var(--vscode-focusBorder, var(--color-accent));
+
+  --color-ok: var(--vscode-testing-iconPassed, #388a34);
+  --color-err: var(--vscode-editorError-foreground, #e51400);
+  --color-warn: var(--vscode-editorWarning-foreground, #bf8803);
+  --color-warn-text: var(--color-warn);
+  --color-info: var(--vscode-charts-blue, #1a85ff);
+  --color-info-text: var(--color-info);
+  --color-code-bg: color-mix(in srgb, var(--ui-fg) 6%, var(--ui-bg));
+  --color-code-fg: var(--ui-fg);
+  --color-code-err: var(--color-err);
+
+  --color-edf-orange-fonce: var(--color-err);
+  --color-edf-orange-moyen: var(--color-err);
+  --color-edf-orange-clair: var(--color-warn);
+  --color-edf-vert-fonce: var(--color-ok);
+  --color-edf-vert-moyen: var(--color-ok);
+  --color-edf-vert-clair: var(--color-ok);
+  --color-edf-bleu-fonce: var(--color-ink);
+  --color-edf-bleu-moyen: var(--color-accent);
+  --color-edf-bleu-clair: var(--color-info);
+  --color-edf-noir: var(--color-ink);
+  --color-edf-slate: var(--color-bg);
+  --color-edf-gris-moyen: color-mix(in srgb, var(--ui-fg) 35%, transparent);
+  --color-edf-gris-clair: var(--color-table-head);
+  --color-edf-blanc: var(--color-card);
+
   --default-font-family: var(--vscode-font-family, "edf-2020");
   --font-sans: var(
     --vscode-font-family,
@@ -707,59 +730,8 @@ html.vscode-embedded {
     "Courier New",
     monospace
   );
-  --radius-card: 6px;
-}
 
-html.vscode-embedded input,
-html.vscode-embedded select,
-html.vscode-embedded textarea {
-  background: var(--vscode-input-background, rgb(255, 255, 255));
-  color: var(--vscode-input-foreground, var(--color-ink));
-  border-color: var(
-    --vscode-input-border,
-    var(
-      --vscode-dropdown-border,
-      color-mix(in srgb, var(--color-ink) 30%, transparent)
-    )
-  );
-}
-
-/* Enabled fields must not read as disabled: reserve the washed-out look
-   for actually-disabled controls. */
-html.vscode-embedded input:disabled,
-html.vscode-embedded select:disabled,
-html.vscode-embedded textarea:disabled {
-  opacity: 0.5;
-}
-
-html.vscode-embedded input:focus,
-html.vscode-embedded select:focus,
-html.vscode-embedded textarea:focus {
-  border-color: var(--vscode-focusBorder, var(--color-accent));
-}
-
-html.vscode-embedded ::placeholder {
-  color: var(--vscode-input-placeholderForeground, var(--color-muted));
-}
-
-/* Dark themes: the pill/label text uses the dark EDF variants by default,
-   which are unreadable on dark backgrounds: switch to the bright ones. */
-html.vscode-embedded.vs-dark .status-running {
-  color: var(--color-edf-bleu-clair);
-}
-html.vscode-embedded.vs-dark .status-done,
-html.vscode-embedded.vs-dark .status-converged {
-  color: var(--color-edf-vert-moyen);
-}
-html.vscode-embedded.vs-dark .status-failed,
-html.vscode-embedded.vs-dark .status-not-converged {
-  color: var(--color-edf-orange-moyen);
-}
-
-/* Flatter, tighter chrome so the embedded dashboard reads as part of the
-   editor: smaller radii, subtle shadows, no entrance animation, VS Code
-   font size and scrollbars. */
-html.vscode-embedded {
+  /* Flatter, tighter chrome so the dashboard reads as part of the editor. */
   --radius-sm: 2px;
   --radius-md: 3px;
   --radius-lg: 4px;
@@ -773,6 +745,47 @@ html.vscode-embedded body {
   font-size: var(--vscode-font-size, 13px);
 }
 
+html.vscode-embedded input,
+html.vscode-embedded select,
+html.vscode-embedded textarea {
+  background: var(--color-control);
+  color: var(--vscode-input-foreground, var(--color-ink));
+  border-color: var(--vscode-input-border, var(--color-border));
+}
+
+/* Some light themes (e.g. Monokai Pro Filter Sun) give inputs the editor
+   background, darker than the card around them: nudge them toward white so
+   enabled fields never read as disabled. */
+html.vscode-embedded:not(.vs-dark) input,
+html.vscode-embedded:not(.vs-dark) select,
+html.vscode-embedded:not(.vs-dark) textarea {
+  background: color-mix(in srgb, white 75%, var(--color-control));
+}
+
+html.vscode-embedded input:disabled,
+html.vscode-embedded select:disabled,
+html.vscode-embedded textarea:disabled {
+  opacity: 0.5;
+}
+
+html.vscode-embedded input:focus,
+html.vscode-embedded select:focus,
+html.vscode-embedded textarea:focus {
+  border-color: var(--color-focus);
+}
+
+html.vscode-embedded ::placeholder {
+  color: var(
+    --vscode-input-placeholderForeground,
+    color-mix(in srgb, var(--ui-fg) 45%, transparent)
+  );
+}
+
+html.vscode-embedded :focus-visible {
+  outline: 1px solid var(--color-focus);
+  outline-offset: -1px;
+}
+
 html.vscode-embedded ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -780,13 +793,13 @@ html.vscode-embedded ::-webkit-scrollbar {
 html.vscode-embedded ::-webkit-scrollbar-thumb {
   background: var(
     --vscode-scrollbarSlider-background,
-    rgba(120, 120, 120, 0.4)
+    color-mix(in srgb, var(--ui-fg) 25%, transparent)
   );
 }
 html.vscode-embedded ::-webkit-scrollbar-thumb:hover {
   background: var(
     --vscode-scrollbarSlider-hoverBackground,
-    rgba(120, 120, 120, 0.7)
+    color-mix(in srgb, var(--ui-fg) 40%, transparent)
   );
 }
 html.vscode-embedded ::-webkit-scrollbar-track,
@@ -794,82 +807,93 @@ html.vscode-embedded ::-webkit-scrollbar-corner {
   background: transparent;
 }
 
-/* Dark themes: remap the dark EDF text utilities (unreadable on dark
-   backgrounds) to their bright counterparts. Scoped shim so components
-   keep their branded colors everywhere else. */
-html.vscode-embedded.vs-dark .text-edf-noir {
-  color: var(--color-ink);
+/* The header continues the active editor tab; cards have no brand stripe. */
+html.vscode-embedded .app-header {
+  background: var(--vscode-tab-activeBackground, var(--color-card));
 }
-html.vscode-embedded.vs-dark .text-edf-vert-fonce {
-  color: var(--color-edf-vert-moyen);
-}
-html.vscode-embedded.vs-dark .text-edf-orange-fonce {
-  color: var(--color-edf-orange-moyen);
-}
-
-/* Hide the brand accent stripe on cards; VS Code panels have flat tops. */
 html.vscode-embedded .card-accent-stripe {
   display: none;
 }
 
-/* Neutral pills keep a light-gray background by default: give them a
-   theme-aware surface on dark. */
-html.vscode-embedded.vs-dark .status-prepared,
-html.vscode-embedded.vs-dark .status-unknown {
-  background: color-mix(in srgb, var(--color-ink) 10%, transparent);
-  border-color: var(--color-border);
-}
-
-/* Dark themes: rules that set dark EDF colors via CSS variables directly
-   (out of reach of the utility-class shim above). */
-html.vscode-embedded.vs-dark .link-btn:hover {
-  color: var(--color-edf-orange-moyen);
-}
-html.vscode-embedded.vs-dark .error-line {
-  color: var(--color-ink);
-}
-html.vscode-embedded.vs-dark .error-badge-new,
-html.vscode-embedded.vs-dark .error-sev-info .error-meta,
-html.vscode-embedded.vs-dark .error-sev-info .error-line {
-  color: var(--color-edf-bleu-clair);
-}
-html.vscode-embedded.vs-dark .error-sev-warn .error-meta,
-html.vscode-embedded.vs-dark .error-sev-warn .error-line {
-  color: var(--color-edf-orange-moyen);
-}
-
-/* Embedded mode: brand-navy headings (card titles, hero stats) go neutral
-   so panels read as editor chrome, and selections use the theme's list
-   selection colors on any theme. */
-html.vscode-embedded .text-edf-bleu-fonce {
-  color: var(--color-ink);
-}
+/* Selection in menus and lists: a neutral tint, not the theme's list colors. */
 html.vscode-embedded .option-selected,
 html.vscode-embedded .is-active {
-  color: var(--vscode-list-activeSelectionForeground, var(--color-ink));
-  background: var(
-    --vscode-list-activeSelectionBackground,
-    color-mix(in srgb, var(--color-accent) 20%, var(--color-card))
-  );
+  color: var(--color-ink);
+  background: color-mix(in srgb, var(--ui-fg) 13%, transparent);
   border-color: transparent;
 }
 
-/* Light themes: some (e.g. Monokai Pro Filter Sun) resolve input.background
-   to the editor background: darker than our card surface, which makes
-   enabled fields read as disabled. Nudge fills toward white so inputs always
-   sit lighter than their card; a no-op for themes with white inputs. */
-html.vscode-embedded:not(.vs-dark) input,
-html.vscode-embedded:not(.vs-dark) select,
-html.vscode-embedded:not(.vs-dark) textarea {
-  background: color-mix(
-    in srgb,
-    white 75%,
-    var(--vscode-input-background, white)
-  );
+/* Run is the panel's main action: the theme's button. Warning and danger
+   keep their meaning as tinted outlines, readable on every theme. */
+html.vscode-embedded .btn-run {
+  background: var(--color-accent);
+  color: var(--color-accent-fg);
+}
+html.vscode-embedded .btn-run:hover {
+  background: var(--color-accent-hover);
+  filter: none;
+}
+html.vscode-embedded .btn-warning,
+html.vscode-embedded .btn-danger {
+  background: color-mix(in srgb, var(--color-err) 14%, transparent);
+  color: var(--color-err);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--color-err) 45%, transparent);
+}
+html.vscode-embedded .btn-warning {
+  background: color-mix(in srgb, var(--color-warn) 14%, transparent);
+  color: var(--color-warn);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--color-warn) 45%, transparent);
+}
+html.vscode-embedded .btn-warning:hover,
+html.vscode-embedded .btn-danger:hover {
+  filter: none;
+  background: color-mix(in srgb, currentColor 22%, transparent);
 }
 
-/* The top header follows the active editor tab color, so the panel reads as
-   a continuation of its tab. */
-html.vscode-embedded .app-header {
-  background: var(--vscode-tab-activeBackground, var(--color-card));
+/* Toasts look like VS Code notifications, with a colored edge. */
+html.vscode-embedded .toast-ok,
+html.vscode-embedded .toast-err {
+  background: var(--vscode-notifications-background, var(--color-card));
+  color: var(--vscode-notifications-foreground, var(--color-ink));
+  border-left: 3px solid var(--color-ok);
+}
+html.vscode-embedded .toast-err {
+  border-left-color: var(--color-err);
+}
+
+/* Log search hits use the editor's find-match highlight. */
+html.vscode-embedded .tail-query-hit {
+  background: var(
+    --vscode-editor-findMatchHighlightBackground,
+    color-mix(in srgb, var(--color-warn) 40%, transparent)
+  );
+  color: inherit;
+}
+
+/* Server-drawn plots (residuals, probes) are light SVGs: repaint their
+   frame and text with the theme, keeping the series colors. */
+html.vscode-embedded svg rect[fill="#f8f9fb"],
+html.vscode-embedded svg rect[fill="#ffffff"] {
+  fill: var(--color-card);
+}
+html.vscode-embedded svg [stroke="#e0e0e0"],
+html.vscode-embedded svg [stroke="#d9d9d9"] {
+  stroke: var(--color-border);
+}
+html.vscode-embedded svg [stroke="#000"] {
+  stroke: var(--color-muted);
+}
+html.vscode-embedded svg text[fill="#000"] {
+  fill: var(--color-ink);
+}
+
+/* Logos with a dark-theme variant: show the one that fits the theme. */
+.logo-for-dark,
+html.vs-dark .logo-for-light {
+  display: none;
+}
+html.vs-dark .logo-for-dark {
+  display: inline;
 }

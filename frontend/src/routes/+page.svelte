@@ -12,6 +12,7 @@
   import ToastManager from "#lib/components/shared/ToastManager.svelte";
   import HeroBanner from "#lib/components/hero/HeroBanner.svelte";
   import simviaLogo from "../assets/simvia-logo.svg";
+  import simviaLogoDark from "../assets/simvia-logo-dark.svg";
   import StatusCard from "#lib/components/status/StatusCard.svelte";
   import ResidualPlotCard from "#lib/components/plots/ResidualPlotCard.svelte";
   import ProbesCard from "#lib/components/probes/ProbesCard.svelte";
@@ -153,7 +154,7 @@
 </main>
 
 <footer
-  class="flex items-center justify-center gap-2 py-4 text-sm text-edf-gris-fonce font-[edf-2020-soft] italic"
+  class="flex items-center justify-center gap-2 py-4 text-sm text-muted font-[edf-2020-soft] italic"
 >
   <span>Developed by</span>
   <a
@@ -162,6 +163,7 @@
     rel="noopener noreferrer"
     class="flex items-center"
   >
-    <img src={simviaLogo} alt="Simvia" class="h-10 w-auto" />
+    <img src={simviaLogo} alt="Simvia" class="logo-for-light h-10 w-auto" />
+    <img src={simviaLogoDark} alt="Simvia" class="logo-for-dark h-10 w-auto" />
   </a>
 </footer>

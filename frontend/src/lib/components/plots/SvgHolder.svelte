@@ -14,7 +14,7 @@
 </script>
 
 <div
-  class="border border-border rounded-lg bg-white w-full max-w-[920px] p-2.5"
+  class="border border-border rounded-lg bg-card w-full max-w-[920px] p-2.5"
   {id}
 >
   {#if svgHtml}

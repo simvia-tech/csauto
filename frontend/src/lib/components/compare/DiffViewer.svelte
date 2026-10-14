@@ -143,8 +143,8 @@
     try {
       const re = new RegExp(`(${search})`, "gi");
       const cls = isActiveMatch
-        ? "bg-[rgba(255,178,16,0.6)] rounded-sm px-[1px]"
-        : "bg-[rgba(255,178,16,0.1)] rounded-sm px-[1px]";
+        ? "bg-warn/60 rounded-sm px-[1px]"
+        : "bg-warn/10 rounded-sm px-[1px]";
       return escaped.replace(re, `<span class="${cls}">$1</span>`);
     } catch {
       return escaped;
@@ -153,22 +153,22 @@
 
   function lineClass(type: string, side: "left" | "right"): string {
     if (type === "equal") return "";
-    if (type === "del" && side === "left")
-      return "bg-[rgba(214,67,10,0.08)] text-edf-orange-fonce";
-    if (type === "del" && side === "right")
-      return "bg-[rgba(48,122,16,0.08)] text-edf-vert-fonce";
-    if (type === "add" && side === "left") return "bg-edf-gris-clair";
-    if (type === "add" && side === "right")
-      return "bg-[rgba(48,122,16,0.08)] text-edf-vert-fonce";
+    if (type === "del" && side === "left") return "bg-err/8 text-err";
+    if (type === "del" && side === "right") return "bg-ok/8 text-ok";
+    if (type === "add" && side === "left") return "bg-table-head";
+    if (type === "add" && side === "right") return "bg-ok/8 text-ok";
     return "";
   }
 
   function gutterBg(type: string, side: "left" | "right"): string {
-    if (type === "del" && side === "left") return "rgb(251,237,233)";
-    if (type === "del" && side === "right") return "rgb(238,247,236)";
-    if (type === "add" && side === "left") return "var(--color-edf-gris-clair)";
-    if (type === "add" && side === "right") return "rgb(238,247,236)";
-    return "white";
+    if (type === "del" && side === "left")
+      return "color-mix(in srgb, var(--color-err) 8%, var(--color-card))";
+    if (type === "del" && side === "right")
+      return "color-mix(in srgb, var(--color-ok) 8%, var(--color-card))";
+    if (type === "add" && side === "left") return "var(--color-table-head)";
+    if (type === "add" && side === "right")
+      return "color-mix(in srgb, var(--color-ok) 8%, var(--color-card))";
+    return "var(--color-card)";
   }
 
   let leftPaneEl: HTMLDivElement | undefined = $state();
@@ -255,24 +255,21 @@
 >
   <div class="grid grid-cols-2">
     <div
-      class="flex items-center gap-2 px-3 py-2 bg-[rgba(214,67,10,0.06)] border-b border-border"
+      class="flex items-center gap-2 px-3 py-2 bg-err/6 border-b border-border"
     >
-      <span class="text-[13px] font-bold text-edf-orange-fonce"
-        >{leftLabel}</span
-      >
-      <span class="text-xs text-edf-orange-fonce">{kind}</span>
+      <span class="text-[13px] font-bold text-err">{leftLabel}</span>
+      <span class="text-xs text-err">{kind}</span>
     </div>
     <div
-      class="flex items-center gap-2 px-3 py-2 bg-[rgba(48,122,16,0.06)] border-b border-l border-border"
+      class="flex items-center gap-2 px-3 py-2 bg-ok/6 border-b border-l border-border"
     >
-      <span class="text-[13px] font-bold text-edf-vert-fonce">{rightLabel}</span
-      >
-      <span class="text-xs text-edf-vert-fonce">{kind}</span>
+      <span class="text-[13px] font-bold text-ok">{rightLabel}</span>
+      <span class="text-xs text-ok">{kind}</span>
     </div>
   </div>
 
   <div
-    class="flex items-center justify-between gap-3 px-3 py-1.5 bg-edf-gris-clair border-b border-border"
+    class="flex items-center justify-between gap-3 px-3 py-1.5 bg-table-head border-b border-border"
   >
     <div class="flex items-center gap-1">
       <input
@@ -346,11 +343,9 @@
           ? (item.row?.leftContent ?? "")
           : (item.row?.rightContent ?? "")}
       {#if item.kind === "separator"}
-        <div
-          class="flex w-full bg-edf-gris-clair text-muted text-center py-0.5"
-        >
+        <div class="flex w-full bg-table-head text-muted text-center py-0.5">
           <span
-            class="w-[40px] shrink-0 border-r border-separator sticky left-0 z-[1] bg-edf-gris-clair"
+            class="w-[40px] shrink-0 border-r border-separator sticky left-0 z-[1] bg-table-head"
           ></span>
           <span class="px-2 text-[11px]"
             >... {item.skipped} lines hidden ...</span
@@ -365,7 +360,7 @@
             ? 'cursor-pointer'
             : ''}"
           style={isActive
-            ? "background-color: rgba(16,87,200,0.12); color: rgb(16,87,200);"
+            ? "background-color: color-mix(in srgb, var(--color-focus) 12%, transparent); color: var(--color-focus);"
             : ""}
           role={item.row.type !== "equal" || searchMatches.includes(idx)
             ? "button"
@@ -394,7 +389,7 @@
           <span
             class="w-[40px] shrink-0 text-right pr-2 select-none border-r border-separator sticky left-0 z-[1]"
             style="background: {isActive
-              ? 'rgb(16,87,200)'
+              ? 'var(--color-focus)'
               : gutterBg(item.row.type, side)}; color: {isActive
               ? 'white'
               : 'var(--color-muted)'};">{lineNum ?? ""}</span
