@@ -701,12 +701,18 @@ class CodeSaturneAdapter(SolverAdapter):
     def read_restart_origin(self, case_dir: Path) -> dict[str, int | float]:
         """Iteration and physical time the latest run restarted from, read from its logs."""
         latest = self.latest_run_dir(case_dir)
-        if latest is None:
-            return {}
+        return self._run_restart_origin(latest) if latest else {}
+
+    def read_restart_origins(self, case_dir: Path) -> list[dict[str, int | float]]:
+        """Restart origin of every run that restarted from a checkpoint after iteration 0, oldest first."""
+        origins = (self._run_restart_origin(d) for d in self.list_run_dirs(case_dir, newest_first=False))
+        return [o for o in origins if o.get("iteration", 0) > 0 or o.get("time", 0) > 0]
+
+    def _run_restart_origin(self, run_dir: Path) -> dict[str, int | float]:
         iter_value: int | None = None
         time_value: float | None = None
         for name in ("setup.log", *SOLVER_LOG_NAMES):
-            lines = read_tail_lines(latest / name, lines=12000)
+            lines = read_tail_lines(run_dir / name, lines=12000)
             if iter_value is None:
                 iter_value = _last_match(lines, RESTART_ITER_PATTERNS, int)
             if time_value is None:

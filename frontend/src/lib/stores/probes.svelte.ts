@@ -2,8 +2,10 @@
  * Probe plot store — handles both time probes and profile probes.
  *
  * Each tab (time / profile) has independent state for cases, files,
- * columns, start mode, and rendered SVG.
+ * columns, start mode, and plotted series.
  */
+
+import type { PlotSeries } from "#lib/components/plots/LinePlot.svelte";
 
 export interface ProbeTabState {
   selectedCases: string[];
@@ -15,7 +17,9 @@ export interface ProbeTabState {
   startFrom: "zero" | "restart" | "custom";
   xMin: number;
   positionText: string;
-  svgHtml: string;
+  series: PlotSeries[];
+  restarts: number[];
+  yLabel: string;
   autoRefresh: boolean;
 }
 
@@ -30,7 +34,9 @@ function defaultTab(): ProbeTabState {
     startFrom: "zero",
     xMin: 0,
     positionText: "",
-    svgHtml: "",
+    series: [],
+    restarts: [],
+    yLabel: "Probes",
     autoRefresh: true,
   };
 }

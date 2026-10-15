@@ -9,7 +9,7 @@ import type { ProbeTabState } from "#lib/stores/probes.svelte.ts";
 import {
   fetchProbeFiles,
   fetchProbeColumns,
-  fetchProbeSvg,
+  fetchProbeData,
   fetchRestartOrigin,
 } from "#lib/api/endpoints.ts";
 
@@ -21,7 +21,7 @@ export interface ProbeLoaderConfig {
   filterColumns?: (cols: string[]) => string[];
   /** Pick defaults after columns are loaded (e.g. auto-select axis for profiles) */
   onColumnsLoaded?: (cols: string[]) => void;
-  /** Resolve the SVG axis parameter */
+  /** Resolve the x axis parameter */
   getAxis: () => string;
   /** Filter files after fetching (e.g. exclude coords for time probes) */
   filterFiles?: (files: string[]) => string[];
@@ -47,7 +47,8 @@ export function createProbeLoader(config: ProbeLoaderConfig) {
           columns: [],
           selectedColumns: [],
           positionText: "",
-          svgHtml: "",
+          series: [],
+          restarts: [],
         });
         return;
       }
@@ -73,7 +74,12 @@ export function createProbeLoader(config: ProbeLoaderConfig) {
       }
       const updated = getState();
       if (updated.columns.length === 0) {
-        setState({ selectedColumns: [], positionText: "", svgHtml: "" });
+        setState({
+          selectedColumns: [],
+          positionText: "",
+          series: [],
+          restarts: [],
+        });
         return;
       }
       if (updated.selectedColumns.length === 0) {
@@ -90,14 +96,14 @@ export function createProbeLoader(config: ProbeLoaderConfig) {
     await loadFiles();
     state = getState();
     if (!state.file) {
-      setState({ positionText: "", svgHtml: "" });
+      setState({ positionText: "", series: [], restarts: [] });
       return;
     }
     if (state.columns.length === 0 || state.selectedColumns.length === 0) {
       await loadColumns();
       state = getState();
       if (!state.selectedColumns.length) {
-        setState({ positionText: "", svgHtml: "" });
+        setState({ positionText: "", series: [], restarts: [] });
         return;
       }
     }
@@ -118,16 +124,19 @@ export function createProbeLoader(config: ProbeLoaderConfig) {
         xMin = currentState.xMin;
       }
 
-      const svg = await fetchProbeSvg({
+      const data = await fetchProbeData({
         cases: currentState.selectedCases,
         probes: [currentState.file],
         columns: currentState.selectedColumns,
         axis: getAxis(),
-        timeMin: typeof xMin === "number" ? xMin : undefined,
         xMin,
         includeHistory: true,
       });
-      if (svg) setState({ svgHtml: svg });
+      setState({
+        series: data.series,
+        restarts: data.restarts,
+        yLabel: data.y_label,
+      });
     } catch (err) {
       console.error(`Failed to load ${scope} plot:`, err);
     }
@@ -136,7 +145,7 @@ export function createProbeLoader(config: ProbeLoaderConfig) {
   async function handleCasesChange(cases: string[]) {
     setState({ selectedCases: cases });
     if (cases.length === 0) {
-      setState({ svgHtml: "" });
+      setState({ series: [], restarts: [] });
       return;
     }
     await loadFiles();
@@ -146,7 +155,7 @@ export function createProbeLoader(config: ProbeLoaderConfig) {
   function handleColumnsChange(cols: string[]) {
     setState({ selectedColumns: cols });
     if (cols.length === 0) {
-      setState({ svgHtml: "" });
+      setState({ series: [], restarts: [] });
       return;
     }
     loadPlot();

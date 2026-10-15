@@ -8,7 +8,7 @@ from ..logs import (
     list_tail_files,
     read_tail_lines,
 )
-from ..probes import probe_columns, probe_position, render_probe_svg
+from ..probes import probe_columns, probe_position, probe_series, probe_series_label, probe_y_label, render_probe_svg
 from ..web_support import log_case_action
 from .common import shared_models
 
@@ -213,6 +213,53 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
             raise ctx.http_exception_cls(status_code=404, detail="No probe columns found")
         return {"columns": all_cols}
 
+    def probe_query_inputs(query: Any) -> tuple[list[str], list[str], float, list[float]]:
+        probe_list = ctx.probe_files(query.probe)
+        if not probe_list:
+            raise ctx.http_exception_cls(status_code=400, detail="Missing probe parameter")
+        raw_x = query.time_min if query.x_min is None else query.x_min
+        x_value = raw_x if math.isfinite(raw_x) else 0.0
+        validated_cases = ctx.validate_cases(query.case)
+        origin_key = "time" if query.axis.lower() in {"time", "t"} else "iteration"
+        found: set[float] = set()
+        for case_id in validated_cases:
+            case_dir = ctx.runs_dir / case_id
+            if case_dir.is_dir():
+                found.update(
+                    float(val)
+                    for origin in ctx.adapter.read_restart_origins(case_dir)
+                    if (val := origin.get(origin_key)) is not None and val > 0
+                )
+        return validated_cases, probe_list, x_value, sorted(found)
+
+    def parse_columns(raw: str) -> list[str] | None:
+        return [c.strip() for c in raw.replace(",", " ").split() if c.strip()] or None
+
+    @app.get("/api/probe_data", response_model=None)
+    def api_probe_data(
+        query: Annotated[ProbeSvgQuery, Query()],
+        x_csauto_token: str | None = Header(default=None),
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        ctx.require_auth(x_csauto_token, authorization)
+        validated_cases, probe_list, x_value, restart_vals = probe_query_inputs(query)
+        series = probe_series(
+            ctx.runs_dir,
+            validated_cases,
+            probe_list,
+            parse_columns(query.columns),
+            axis=query.axis,
+            x_from=x_value,
+            include_history=query.include_history,
+            adapter=ctx.adapter,
+        )
+        ordered = sorted(series, key=lambda k: (k[0], k[1] or "", k[2]))
+        return {
+            "series": [{"label": probe_series_label(k), "points": [list(p) for p in series[k]]} for k in ordered],
+            "restarts": restart_vals,
+            "y_label": probe_y_label(probe_list),
+        }
+
     @app.get("/api/probe_svg", response_model=None)
     def api_probe_svg(
         query: Annotated[ProbeSvgQuery, Query()],
@@ -220,27 +267,12 @@ def register_case_data_routes(app: Any, ctx: Any, components: dict[str, Any]) ->
         authorization: str | None = Header(default=None),
     ) -> Response:
         ctx.require_auth(x_csauto_token, authorization)
-        probe_list = ctx.probe_files(query.probe)
-        if not probe_list:
-            raise ctx.http_exception_cls(status_code=400, detail="Missing probe parameter")
-        raw_x = query.time_min if query.x_min is None else query.x_min
-        x_value = raw_x if math.isfinite(raw_x) else 0.0
-        validated_cases = ctx.validate_cases(query.case)
-        ax_lower = query.axis.lower()
-        origin_key = "time" if ax_lower in {"time", "t"} else "iteration"
-        restart_vals: list[float] = []
-        for case_id in validated_cases:
-            case_dir = ctx.runs_dir / case_id
-            if case_dir.is_dir():
-                origin = ctx.adapter.read_restart_origin(case_dir)
-                val = origin.get(origin_key)
-                if val is not None:
-                    restart_vals.append(float(val))
+        validated_cases, probe_list, x_value, restart_vals = probe_query_inputs(query)
         svg = render_probe_svg(
             ctx.runs_dir,
             validated_cases,
             probe_list,
-            [c.strip() for c in query.columns.replace(",", " ").split() if c.strip()] or None,
+            parse_columns(query.columns),
             axis=query.axis,
             width=query.width,
             height=query.height,

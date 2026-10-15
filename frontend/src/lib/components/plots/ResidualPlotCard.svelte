@@ -1,7 +1,7 @@
 <!--
   ResidualPlotCard: residual convergence plots for selected cases.
 
-  Fetches available columns from the API, renders SVG plots via the backend,
+  Fetches available columns from the API, plots the series as an interactive chart,
   and supports start-from-restart with restart origin detection.
 -->
 <script lang="ts">
@@ -10,13 +10,10 @@
   import AutoRefreshToggle from "#lib/components/shared/AutoRefreshToggle.svelte";
   import Icon from "#lib/components/shared/Icon.svelte";
   import PlotControls from "./PlotControls.svelte";
-  import SvgHolder from "./SvgHolder.svelte";
+  import LinePlot, { type PlotSeries } from "./LinePlot.svelte";
   import Button from "#lib/components/shared/Button.svelte";
   import { RefreshCw, Download } from "@lucide/svelte";
-  import {
-    savePngFromContainer,
-    buildPlotFilename,
-  } from "#lib/actions/export.ts";
+  import { buildPlotFilename } from "#lib/actions/export.ts";
   import {
     getPlotState,
     setPlotCases,
@@ -24,12 +21,12 @@
     setPlotSelectedColumns,
     setPlotStartFrom,
     setPlotIterMin,
-    setPlotSvg,
+    setPlotData,
     setPlotAutoRefresh,
   } from "#lib/stores/plots.svelte.ts";
   import {
     fetchResidualColumns,
-    fetchResidualsSvg,
+    fetchResidualsData,
     fetchRestartOrigin,
   } from "#lib/api/endpoints.ts";
   import { getAppConfig } from "#lib/stores/appConfig.svelte.ts";
@@ -50,6 +47,7 @@
 
   let plotState = $derived(getPlotState());
   let fetchError = $state("");
+  let plot: LinePlot | undefined = $state();
 
   async function loadColumns() {
     if (!plotState.selectedCases.length) return;
@@ -62,7 +60,7 @@
       setPlotColumns(columns);
       if (columns.length === 0) {
         setPlotSelectedColumns([]);
-        setPlotSvg("");
+        setPlotData([], []);
         return;
       }
       /* Same default as the server: the adapter's default columns that
@@ -105,7 +103,7 @@
         xMin = plotState.iterMin;
       }
 
-      const svg = await fetchResidualsSvg(
+      const data = await fetchResidualsData(
         plotState.selectedCases,
         plotState.selectedColumns,
         {
@@ -114,7 +112,13 @@
         },
       );
       fetchError = "";
-      if (svg) setPlotSvg(svg);
+      setPlotData(
+        data.series.map((s) => ({
+          label: `${s.case} ${s.column}`,
+          points: s.points,
+        })),
+        data.restarts,
+      );
     } catch (err) {
       fetchError = "Failed to load residual plot";
       console.error("Failed to load residual plot:", err);
@@ -124,7 +128,7 @@
   function handleCasesChange(cases: string[]) {
     setPlotCases(cases);
     if (cases.length === 0) {
-      setPlotSvg("");
+      setPlotData([], []);
       return;
     }
     loadColumns();
@@ -134,7 +138,7 @@
   function handleColumnsChange(cols: string[]) {
     setPlotSelectedColumns(cols);
     if (cols.length === 0) {
-      setPlotSvg("");
+      setPlotData([], []);
       return;
     }
     loadPlot();
@@ -227,20 +231,24 @@
           variant="secondary"
           size="sm"
           onclick={() =>
-            savePngFromContainer(
-              "plot-holder",
+            plot?.savePng(
               buildPlotFilename("residuals", plotState.selectedCases),
             )}
-          disabled={!plotState.svgHtml}
+          disabled={plotState.series.length === 0}
           ><Icon icon={Download} /> Download as PNG</Button
         >
       </div>
     {/snippet}
 
     <div class="flex justify-center">
-      <SvgHolder
+      <LinePlot
+        bind:this={plot}
         id="plot-holder"
-        svgHtml={plotState.svgHtml}
+        series={plotState.series}
+        markers={plotState.restarts}
+        xLabel="Iteration"
+        yLabel="Residuals (log10)"
+        logY
         emptyMessage={plotState.selectedCases.length === 0
           ? "Please select at least one case."
           : plotState.columns.length === 0
@@ -252,9 +260,12 @@
     </div>
   {:else}
     <div class="flex justify-center">
-      <SvgHolder
+      <LinePlot
         id="plot-holder"
-        svgHtml=""
+        series={[]}
+        xLabel="Iteration"
+        yLabel="Residuals (log10)"
+        logY
         emptyMessage="No data available. Please run a simulation first."
       />
     </div>

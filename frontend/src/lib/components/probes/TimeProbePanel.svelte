@@ -6,16 +6,13 @@
 -->
 <script lang="ts">
   import PlotControls from "#lib/components/plots/PlotControls.svelte";
-  import SvgHolder from "#lib/components/plots/SvgHolder.svelte";
+  import LinePlot from "#lib/components/plots/LinePlot.svelte";
   import Button from "#lib/components/shared/Button.svelte";
   import FormLabel from "#lib/components/shared/FormLabel.svelte";
   import Dropdown from "#lib/components/shared/Dropdown.svelte";
   import Icon from "#lib/components/shared/Icon.svelte";
   import { Download } from "@lucide/svelte";
-  import {
-    savePngFromContainer,
-    buildPlotFilename,
-  } from "#lib/actions/export.ts";
+  import { buildPlotFilename } from "#lib/actions/export.ts";
   import { createProbeLoader } from "#lib/actions/probeLoader.ts";
   import { getTimeState, setTimeState } from "#lib/stores/probes.svelte.ts";
   import { fetchProbePosition } from "#lib/api/endpoints.ts";
@@ -28,6 +25,7 @@
   let { allCases, onRefresh = $bindable() }: Props = $props();
 
   let state = $derived(getTimeState());
+  let plot: LinePlot | undefined;
 
   const AXIS_EXCLUDED = new Set(["time", "t", "iteration", "iter"]);
 
@@ -183,11 +181,8 @@
         variant="secondary"
         size="sm"
         onclick={() =>
-          savePngFromContainer(
-            "probe-plot-holder",
-            buildPlotFilename("probe", state.selectedCases),
-          )}
-        disabled={!state.svgHtml}
+          plot?.savePng(buildPlotFilename("probe", state.selectedCases))}
+        disabled={state.series.length === 0}
         ><Icon icon={Download} /> Download as PNG</Button
       >
     </div>
@@ -202,13 +197,23 @@
   {/if}
 
   <div class="flex justify-center">
-    <SvgHolder id="probe-plot-holder" svgHtml={state.svgHtml} {emptyMessage} />
+    <LinePlot
+      bind:this={plot}
+      id="probe-plot-holder"
+      series={state.series}
+      markers={state.restarts}
+      xLabel="Time"
+      yLabel={state.yLabel}
+      {emptyMessage}
+    />
   </div>
 {:else}
   <div class="flex justify-center">
-    <SvgHolder
+    <LinePlot
       id="probe-plot-holder"
-      svgHtml=""
+      series={[]}
+      xLabel="Time"
+      yLabel="Probes"
       emptyMessage="No probe data available. Please run a simulation first."
     />
   </div>
