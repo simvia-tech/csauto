@@ -77,7 +77,7 @@ token = "your-secret-token"
 ```toml
 solver = "code_aster"
 runtime = "native"
-saturne_bin = "/path/to/run_aster"   # optional when run_aster is in PATH
+# run_aster is found in PATH; set solver_bin = "/path/to/run_aster" otherwise
 
 host = "127.0.0.1"
 port = 8000
@@ -134,7 +134,8 @@ In the **Status** panel:
 
 csauto writes **n** and **nt** into `.csauto.export` (as `mpi_nbcpu` and
 `ncpus`), a copy of the case's `study.export` that `run_aster` runs; the case's
-own export is never modified.
+own export is never modified. `mpi_nbcpu` and `ncpus` lines in `study.export` are ignored
+(New Campaign and the Run and Restart dialogs warn about them): set the resources with **n** and **nt**.
 
 Cases move to `RUNNING`. Once complete they show `DONE`, except `case0001`,
 whose invalid displacement stops the command file: it shows `FAILED`, with

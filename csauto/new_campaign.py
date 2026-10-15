@@ -84,6 +84,7 @@ def case_info(template: Path, solver: str) -> dict[str, Any]:
     return {
         "setup_file": setup_file.relative_to(template).as_posix(),
         "variables": sorted(collect_template_variables(template, adapter=adapter)),
+        "warnings": adapter.setup_warnings(setup_file),
     }
 
 
@@ -96,6 +97,13 @@ def inspect_inputs(solver: str, files: Mapping[str, Sequence[Path]]) -> dict[str
         info = case_info(root / "TEMPLATE", solver)
         info["files"] = sorted(path.relative_to(root).as_posix() for path in root.rglob("*") if path.is_file())
     return info
+
+
+def input_warnings(solver: str, files: Mapping[str, Sequence[Path]]) -> list[str]:
+    """Problems in the picked files themselves, known before the case can be assembled from them."""
+    adapter = get_solver_adapter(solver)
+    picked = [Path(p) for paths in files.values() for p in paths if Path(p).is_file()]
+    return [w for p in picked for w in adapter.setup_warnings(p)]
 
 
 def _write_doe(path: Path, variables: list[str]) -> None:

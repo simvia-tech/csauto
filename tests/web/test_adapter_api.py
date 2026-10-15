@@ -129,7 +129,7 @@ def test_restart_modes_come_from_the_adapter(client_for, stub_case, monkeypatch)
 class _Selection:
     runtime = "native"
     docker_image = ""
-    saturne_bin = "/usr/bin/python3"
+    solver_bin = "/usr/bin/python3"
     singularity_image = None
     singularity_bin = None
 

@@ -1,7 +1,7 @@
 """A fake solver, and the smallest complete example of an adapter.
 
 The "solver" is a short Python script started with the native runtime
-(``saturne_bin`` pointing at a Python interpreter). It reads ``steps = N`` from
+(``solver_bin`` pointing at a Python interpreter). It reads ``steps = N`` from
 the case's ``stub.toml`` and writes ``OUT/run_0001/stub.log``: one ``step N``
 line per step, then a completion marker. Integration tests use it to drive
 prepare, run, status and control without any real solver installed.

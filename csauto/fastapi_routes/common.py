@@ -119,7 +119,7 @@ class FastAPIContext:
     api_token: str | None
     runtime: str
     docker_image: str
-    saturne_bin: str | None
+    solver_bin: str | None
     singularity_image: str | None
     singularity_bin: str | None
     use_slurm: bool | None

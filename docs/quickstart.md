@@ -17,7 +17,7 @@ is a complete code_aster campaign.
 - Python 3.11+
 - csauto installed and the `csauto` alias configured (see [Installation](../README.md#installation))
 - A working code_saturne runtime (one of):
-  - `native`: `code_saturne` binary installed and in `PATH`, or path set via `saturne_bin`
+  - `native`: `code_saturne` binary installed and in `PATH`, or path set via `solver_bin`
   - `singularity`: Apptainer or Singularity + a `.sif` image file
   - `docker`: Docker engine running (the image defaults to `simvia/code_saturne`)
 
@@ -55,7 +55,7 @@ Create `csauto.toml` in your campaign directory.
 
 ```toml
 runtime = "native"
-saturne_bin = "/opt/code_saturne/bin/code_saturne"
+solver_bin = "/opt/code_saturne/bin/code_saturne"
 use_slurm = false
 max_parallel = 2
 
@@ -67,7 +67,7 @@ port = 8000
 
 ```toml
 runtime = "native"
-saturne_bin = "/opt/code_saturne/bin/code_saturne"
+solver_bin = "/opt/code_saturne/bin/code_saturne"
 
 use_slurm = true
 mpi_exec_options = "--mca btl vader,self,tcp --bind-to core"

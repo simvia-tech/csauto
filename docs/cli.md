@@ -142,7 +142,7 @@ Options:
 - `--resume`: launch only cases currently in `FAILED` status
 - `--runtime auto|docker|singularity|native`: override runtime from config
 - `--docker-image IMAGE`: Docker image (default: `docker_image` from config, else the solver's own image)
-- `--saturne-bin PATH`: the native solver executable (`code_saturne`, or `run_aster` for code_aster)
+- `--solver-bin PATH`: the native solver executable (`code_saturne`, or `run_aster` for code_aster)
 - `--singularity-image PATH`: override Singularity image
 - `--singularity-bin PATH`: override Singularity/Apptainer binary path
 - `--no-doctor`: skip pre-launch environment checks
@@ -155,7 +155,8 @@ Notes:
   use `docker run --rm` with the campaign folder mounted at `/csauto`
 - How `--n` and `--nt` are used depends on the solver: code_saturne receives
   them as `-n` and `--nt`; code_aster runs `.csauto.export`, a copy of the case's
-  export with `mpi_nbcpu` set from `--n` and `ncpus` from `--nt`
+  export with `mpi_nbcpu` set from `--n` and `ncpus` from `--nt`. `mpi_nbcpu` and
+  `ncpus` lines already in the case's export are ignored, with a warning on stderr (New Campaign and the dashboard's Run and Restart dialogs show it too)
 - A case the solver refuses to launch keeps its status, the other cases still
   launch, and the command ends with an error naming the refused cases
 - Slurm submission is controlled by `use_slurm` in `csauto.toml` or `CSAUTO_USE_SLURM`.
@@ -174,7 +175,7 @@ csauto run RUNS --n 64 --nt 1 --case case0002 --case case0008
 csauto run RUNS --n 4 --nt 2 --resume
 
 # Override runtime without editing csauto.toml
-csauto run RUNS --n 4 --nt 2 --runtime native --saturne-bin /opt/cs/bin/code_saturne
+csauto run RUNS --n 4 --nt 2 --runtime native --solver-bin /opt/cs/bin/code_saturne
 ```
 
 ---

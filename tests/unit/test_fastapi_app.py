@@ -76,7 +76,7 @@ def test_fastapi_run_case_uses_default_web_max_parallel_when_missing(
         return RuntimeSelection(
             runtime="native",
             docker_image="simvia/code_saturne",
-            saturne_bin="/usr/bin/code_saturne",
+            solver_bin="/usr/bin/code_saturne",
             singularity_image=None,
             singularity_bin=None,
         )

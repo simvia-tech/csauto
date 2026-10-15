@@ -80,9 +80,9 @@ def test_run_cases_docker_rejects_broken_mesh_symlink(monkeypatch, runs_dir: Pat
 
 def test_run_cases_native_runtime_updates_registry(monkeypatch, runs_dir: Path, case_factory) -> None:
     case_factory(runs_dir, "case0001")
-    saturne_bin = runs_dir / "code_saturne"
-    saturne_bin.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-    saturne_bin.chmod(0o755)
+    solver_bin = runs_dir / "code_saturne"
+    solver_bin.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    solver_bin.chmod(0o755)
 
     class DummyProc:
         def __init__(self, pid: int = 23456) -> None:
@@ -103,7 +103,7 @@ def test_run_cases_native_runtime_updates_registry(monkeypatch, runs_dir: Path, 
         max_parallel=1,
         case_filter=["case0001"],
         runtime="native",
-        saturne_bin=str(saturne_bin),
+        solver_bin=str(solver_bin),
         resume_only_failed=False,
         source="test",
     )
@@ -122,7 +122,7 @@ def test_run_cases_native_runtime_updates_registry(monkeypatch, runs_dir: Path, 
         '"$@"; rc=$?; echo $rc > .csauto.exitcode; exit $rc',
         "csauto-run",
     ]
-    assert popen_calls[0][5:7] == [str(saturne_bin.resolve()), "run"]
+    assert popen_calls[0][5:7] == [str(solver_bin.resolve()), "run"]
 
 
 def test_run_cases_restart_adds_restart_args(monkeypatch, runs_dir: Path, case_factory) -> None:
@@ -134,9 +134,9 @@ def test_run_cases_restart_adds_restart_args(monkeypatch, runs_dir: Path, case_f
         "Checkpoint at iteration 500, physical time         5.00000\n",
         encoding="utf-8",
     )
-    saturne_bin = runs_dir / "code_saturne"
-    saturne_bin.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-    saturne_bin.chmod(0o755)
+    solver_bin = runs_dir / "code_saturne"
+    solver_bin.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    solver_bin.chmod(0o755)
 
     class DummyProc:
         def __init__(self, pid: int = 34567) -> None:
@@ -157,7 +157,7 @@ def test_run_cases_restart_adds_restart_args(monkeypatch, runs_dir: Path, case_f
         max_parallel=1,
         case_filter=["case0001"],
         runtime="native",
-        saturne_bin=str(saturne_bin),
+        solver_bin=str(solver_bin),
         restart=True,
         restart_mode="iterations",
         restart_value=250,
@@ -175,9 +175,9 @@ def test_run_cases_restart_adds_restart_args(monkeypatch, runs_dir: Path, case_f
 
 def test_run_cases_slurm_scheduler_submits_job(monkeypatch, runs_dir: Path, case_factory) -> None:
     case_dir = case_factory(runs_dir, "case0001")
-    saturne_bin = runs_dir / "code_saturne"
-    saturne_bin.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-    saturne_bin.chmod(0o755)
+    solver_bin = runs_dir / "code_saturne"
+    solver_bin.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    solver_bin.chmod(0o755)
     mpi_opts = "--mca btl vader,self,tcp --bind-to core"
 
     monkeypatch.setenv("CSAUTO_USE_SLURM", "1")
@@ -205,7 +205,7 @@ def test_run_cases_slurm_scheduler_submits_job(monkeypatch, runs_dir: Path, case
         max_parallel=1,
         case_filter=["case0001"],
         runtime="native",
-        saturne_bin=str(saturne_bin),
+        solver_bin=str(solver_bin),
         mpi_exec_options=mpi_opts,
         resume_only_failed=False,
         source="test",
@@ -359,9 +359,9 @@ def test_run_cases_singularity_runtime_can_submit_via_slurm_with_cleanenv(
 def test_run_cases_respects_max_parallel_with_slurm_jobs(monkeypatch, runs_dir: Path, case_factory) -> None:
     case1 = case_factory(runs_dir, "case0001")
     case_factory(runs_dir, "case0002")
-    saturne_bin = runs_dir / "code_saturne"
-    saturne_bin.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-    saturne_bin.chmod(0o755)
+    solver_bin = runs_dir / "code_saturne"
+    solver_bin.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    solver_bin.chmod(0o755)
 
     with registry_transaction(runs_dir) as registry:
         update_case(
@@ -392,7 +392,7 @@ def test_run_cases_respects_max_parallel_with_slurm_jobs(monkeypatch, runs_dir: 
             max_parallel=1,
             case_filter=["case0002"],
             runtime="native",
-            saturne_bin=str(saturne_bin),
+            solver_bin=str(solver_bin),
             resume_only_failed=False,
             source="test",
         )
@@ -405,9 +405,9 @@ def test_run_cases_serializes_concurrent_launchers(
 ) -> None:
     case_factory(runs_dir, "case0001")
     case_factory(runs_dir, "case0002")
-    saturne_bin = runs_dir / "code_saturne"
-    saturne_bin.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-    saturne_bin.chmod(0o755)
+    solver_bin = runs_dir / "code_saturne"
+    solver_bin.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    solver_bin.chmod(0o755)
 
     class DummyProc:
         def __init__(self, pid: int) -> None:
@@ -445,7 +445,7 @@ def test_run_cases_serializes_concurrent_launchers(
                 max_parallel=1,
                 case_filter=[case_id],
                 runtime="native",
-                saturne_bin=str(saturne_bin),
+                solver_bin=str(solver_bin),
                 restart=True,
                 resume_only_failed=False,
                 source="test",
@@ -1230,12 +1230,12 @@ def test_a_refused_launch_restores_the_case_and_continues_the_batch(monkeypatch,
 
     monkeypatch.setattr("csauto.solvers.code_saturne.CodeSaturneAdapter.build_restart_args", restart_stub)
     monkeypatch.setattr("csauto.runner._launch_local", lambda case_dir, case_id, *_a: started.append("launched"))
-    saturne_bin = runs_dir / "code_saturne"
-    saturne_bin.write_text("#!/bin/sh\n", encoding="utf-8")
-    saturne_bin.chmod(0o755)
+    solver_bin = runs_dir / "code_saturne"
+    solver_bin.write_text("#!/bin/sh\n", encoding="utf-8")
+    solver_bin.chmod(0o755)
 
     with pytest.raises(RuntimeError, match="1 case\\(s\\) not launched: case0001: No checkpoint"):
-        run_cases(runs_dir, 1, 1, 1, runtime="native", saturne_bin=str(saturne_bin), restart=True, source="test")
+        run_cases(runs_dir, 1, 1, 1, runtime="native", solver_bin=str(solver_bin), restart=True, source="test")
 
     registry = load_registry(runs_dir)
     assert registry["case0001"]["status"] == STATUS_DONE  # not stranded in PENDING

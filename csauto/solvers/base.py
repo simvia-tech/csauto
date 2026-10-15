@@ -224,6 +224,14 @@ class SolverAdapter(ABC):
         """
         return None
 
+    def setup_warnings(self, setup_file: Path) -> list[str]:
+        """Problems in a user's input file that they should fix, shown when creating a campaign and at launch.
+
+        Called with the main input file, and with each file picked in New Campaign (return [] for those you
+        do not check): assemble_case may already have cleaned the problem from the copy.
+        """
+        return []
+
     def gui_argv(self, setup_path: str) -> list[str]:
         """Arguments that open the solver GUI on `setup_path` (relative to the case folder)."""
         raise ValueError(f"GUI not supported for solver {self.name!r}")

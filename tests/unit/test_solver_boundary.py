@@ -35,8 +35,8 @@ SOLVER_TOKENS = (
 TOKEN_RE = re.compile(r"(?<![A-Za-z0-9])(" + "|".join(map(re.escape, SOLVER_TOKENS)) + r")(?![A-Za-z0-9])")
 
 # Deliberate residue, the same list as "Accepted residue" in docs/architecture.md:
-# the TOML key and CLI flag saturne_bin / --saturne-bin and the historical HTTP
-# names keep their spelling. Each entry is removed from a line before the
+# the deprecated TOML key and CLI flag saturne_bin / --saturne-bin (aliases of
+# solver_bin / --solver-bin) and the historical HTTP names keep their spelling. Each entry is removed from a line before the
 # tokens are searched.
 ACCEPTED_RESIDUE: dict[str, tuple[str, ...]] = {
     "*": ("saturne_bin", "--saturne-bin"),

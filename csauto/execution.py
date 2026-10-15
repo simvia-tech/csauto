@@ -23,7 +23,7 @@ RUNTIME_CHOICES = {RUNTIME_AUTO, RUNTIME_DOCKER, RUNTIME_SINGULARITY, RUNTIME_NA
 class RuntimeSelection:
     runtime: str
     docker_image: str
-    saturne_bin: str | None = None
+    solver_bin: str | None = None
     singularity_image: str | None = None
     singularity_bin: str | None = None
 
@@ -55,13 +55,13 @@ def _resolve_executable(name_or_path: str) -> str | None:
     return shutil.which(name_or_path)
 
 
-def resolve_saturne_bin(saturne_bin: str | None, bin_name: str) -> str | None:
+def resolve_solver_bin(solver_bin: str | None, bin_name: str) -> str | None:
     """Resolve the native solver binary, falling back to a PATH lookup of `bin_name`."""
-    if saturne_bin:
-        resolved = _resolve_executable(saturne_bin)
+    if solver_bin:
+        resolved = _resolve_executable(solver_bin)
         if resolved:
             return resolved
-        raise FileNotFoundError(f"{bin_name} executable not found: {saturne_bin}")
+        raise FileNotFoundError(f"{bin_name} executable not found: {solver_bin}")
     return shutil.which(bin_name)
 
 
@@ -97,7 +97,7 @@ def resolve_singularity_image(singularity_image: str | None) -> str | None:
 def resolve_runtime(
     runtime: str | None,
     docker_image: str | None = None,
-    saturne_bin: str | None = None,
+    solver_bin: str | None = None,
     singularity_image: str | None = None,
     singularity_bin: str | None = None,
     adapter: SolverAdapter | None = None,
@@ -117,13 +117,13 @@ def resolve_runtime(
         raise ValueError(f"Solver {adapter.name!r} does not support the {selected} runtime (supported: {choices}).")
 
     def native_selection(bin_hint: str | None) -> RuntimeSelection:
-        resolved = resolve_saturne_bin(bin_hint, bin_name=bin_name)
+        resolved = resolve_solver_bin(bin_hint, bin_name=bin_name)
         if not resolved:
             raise FileNotFoundError(f"{bin_name} executable not found in PATH.")
         return RuntimeSelection(
             runtime=RUNTIME_NATIVE,
             docker_image=docker_image,
-            saturne_bin=resolved,
+            solver_bin=resolved,
         )
 
     def singularity_selection() -> RuntimeSelection:
@@ -148,27 +148,27 @@ def resolve_runtime(
     if selected == RUNTIME_DOCKER:
         return docker_selection()
     if selected == RUNTIME_NATIVE:
-        return native_selection(saturne_bin)
+        return native_selection(solver_bin)
     if selected == RUNTIME_SINGULARITY:
         return singularity_selection()
 
     # AUTO mode, among the runtimes the adapter supports:
-    if saturne_bin and RUNTIME_NATIVE in supported:
-        return native_selection(saturne_bin)
+    if solver_bin and RUNTIME_NATIVE in supported:
+        return native_selection(solver_bin)
     if singularity_image and RUNTIME_SINGULARITY in supported:
         return singularity_selection()
     if shutil.which("docker") and RUNTIME_DOCKER in supported and docker_image:
         return RuntimeSelection(runtime=RUNTIME_DOCKER, docker_image=docker_image)
-    resolved_native = resolve_saturne_bin(None, bin_name=bin_name) if RUNTIME_NATIVE in supported else None
+    resolved_native = resolve_solver_bin(None, bin_name=bin_name) if RUNTIME_NATIVE in supported else None
     if resolved_native:
         return RuntimeSelection(
             runtime=RUNTIME_NATIVE,
             docker_image=docker_image,
-            saturne_bin=resolved_native,
+            solver_bin=resolved_native,
         )
     raise FileNotFoundError(
         f"No execution backend available for {adapter.name} ({', '.join(sorted(supported))}). "
-        "Configure runtime/saturne_bin/singularity_image/docker_image in csauto.toml."
+        "Configure runtime/solver_bin/singularity_image/docker_image in csauto.toml."
     )
 
 
@@ -298,9 +298,9 @@ def build_runtime_run_command(
             adapter=adapter,
         )
     if selection.runtime == RUNTIME_NATIVE:
-        if not selection.saturne_bin:
-            raise ValueError("saturne_bin required for native runtime.")
-        return ["nohup", *solver_command(adapter, selection.saturne_bin, args, in_container=False)]
+        if not selection.solver_bin:
+            raise ValueError("solver_bin required for native runtime.")
+        return ["nohup", *solver_command(adapter, selection.solver_bin, args, in_container=False)]
     if selection.runtime == RUNTIME_SINGULARITY:
         cmd = ["nohup", *_singularity_prefix(case_dir, selection, adapter)]
         if cleanenv:
@@ -334,9 +334,9 @@ def build_runtime_gui_command(
     if selection.runtime == RUNTIME_DOCKER:
         return build_gui_command(case_dir, selection.docker_image, args, adapter=adapter, extra_env=gui_env)
     if selection.runtime == RUNTIME_NATIVE:
-        if not selection.saturne_bin:
-            raise ValueError("saturne_bin required for native runtime.")
-        return solver_command(adapter, selection.saturne_bin, args, in_container=False)
+        if not selection.solver_bin:
+            raise ValueError("solver_bin required for native runtime.")
+        return solver_command(adapter, selection.solver_bin, args, in_container=False)
     if selection.runtime == RUNTIME_SINGULARITY:
         cmd = _singularity_prefix(case_dir, selection, adapter)
         if os.environ.get("DISPLAY") and Path("/tmp/.X11-unix").exists():

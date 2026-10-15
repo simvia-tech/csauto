@@ -6,6 +6,8 @@ export interface CampaignConfig {
   solver?: string;
   runtime?: string;
   docker_image?: string;
+  solver_bin?: string;
+  /** Deprecated name of solver_bin. */
   saturne_bin?: string;
   singularity_image?: string;
 }
@@ -35,6 +37,7 @@ export function readCampaignConfig(root: string): CampaignConfig {
       config[match[1]] = match[2];
     }
   }
+  config.solver_bin ??= config.saturne_bin;
   return config;
 }
 
@@ -49,6 +52,9 @@ export function writeCampaignConfig(root: string, changes: Partial<Record<keyof 
   let topEnd = lines.findIndex((line) => TABLE_LINE.test(line));
   if (topEnd === -1) {
     topEnd = lines.length;
+  }
+  if ("solver_bin" in changes) {
+    changes = { ...changes, saturne_bin: undefined };
   }
   for (const [key, value] of Object.entries(changes)) {
     const index = lines.slice(0, topEnd).findIndex((line) => KEY_LINE.exec(line)?.[1] === key);

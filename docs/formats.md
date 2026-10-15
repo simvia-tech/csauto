@@ -114,7 +114,9 @@ RUNS/case0001/.csauto.export         ← code_aster: the export actually run
 `sbatch --wrap` jobs. code_saturne writes its Slurm batch script for the
 Singularity runtime. code_aster runs `.csauto.export`, a copy of the case's
 `.export` with `mpi_nbcpu` and `ncpus` set from `n` and `nt`; the case's own
-`.export` is never modified.
+`.export` is never modified. `mpi_nbcpu` and `ncpus` lines in the case's `.export` are
+ignored: set them with `n` and `nt`. New Campaign and the dashboard's Run and Restart dialogs warn about them,
+and the launch logs a warning on stderr.
 
 code_saturne writes one folder per run:
 

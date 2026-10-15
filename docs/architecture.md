@@ -89,9 +89,9 @@ tests are for.
 Accepted residue, listed in `ACCEPTED_RESIDUE` in
 `tests/unit/test_solver_boundary.py`: the HTTP API keeps its historical names
 (`/api/resu_dirs`, `/api/resu_files`, `resu_removed`, `resu_size_mb`, the
-`profiles` scope of `/api/probes`), and the TOML key and CLI flag
-`saturne_bin` / `--saturne-bin` (the native solver executable, whatever the
-solver) keep their names.
+`profiles` scope of `/api/probes`), and the deprecated TOML key and CLI flag
+`saturne_bin` / `--saturne-bin`, still accepted as aliases of `solver_bin` /
+`--solver-bin`.
 
 `StubAdapter` (`solver = "stub"`) is a shipped fake solver: it runs a short
 Python script writing `OUT/run_0001/stub.log` and lets the tests cover

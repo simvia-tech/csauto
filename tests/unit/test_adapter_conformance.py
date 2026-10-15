@@ -108,7 +108,7 @@ def test_launch_command_for_every_supported_runtime(adapter, finished_case: Path
     argv = adapter.run_argv(finished_case, 2, 1)
     assert all(isinstance(arg, str) for arg in argv)
     selections = {
-        "native": RuntimeSelection("native", "image", saturne_bin="/usr/bin/solver"),
+        "native": RuntimeSelection("native", "image", solver_bin="/usr/bin/solver"),
         "docker": RuntimeSelection("docker", adapter.default_docker_image or "image"),
         "singularity": RuntimeSelection("singularity", "image", singularity_bin="apptainer", singularity_image="a.sif"),
     }

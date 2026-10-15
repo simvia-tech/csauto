@@ -62,7 +62,7 @@ campaign's solver.
 
 ---
 
-### `Warning: RUNS was prepared for code_saturne: ignoring solver, docker_image, saturne_bin and singularity_image from ...`
+### `Warning: RUNS was prepared for code_saturne: ignoring solver, docker_image, solver_bin and singularity_image from ...`
 
 **Cause**: the `csauto.toml` found for this command selects another solver than
 the one the campaign was prepared for. csauto uses the campaign's solver, with
@@ -71,7 +71,7 @@ belong to the other solver.
 
 **Fix**: nothing is needed. To silence it, run the command from the campaign's
 own directory or fix `solver` in that `csauto.toml`. To use your own image for
-this campaign, pass `--docker-image` (or `--saturne-bin`, `--singularity-image`)
+this campaign, pass `--docker-image` (or `--solver-bin`, `--singularity-image`)
 on the command line, or set it in a `csauto.toml` that selects the campaign's
 solver.
 
@@ -236,7 +236,7 @@ code_aster), or the exit status in `.csauto.exitcode`.
 
 1. Run `csauto doctor RUNS`: it will identify the exact failing check
 2. Verify the binary is in `PATH` or set the explicit path in `csauto.toml`:
-   - `saturne_bin = "/path/to/code_saturne"` (or to `run_aster` for code_aster)
+   - `solver_bin = "/path/to/code_saturne"` (or to `run_aster` for code_aster)
    - `singularity_bin = "/path/to/apptainer"`
    - `singularity_image = "/path/to/image.sif"`
    - `docker_image = "image:tag"` (optional, the solver's own image by default;

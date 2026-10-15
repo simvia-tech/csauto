@@ -97,7 +97,7 @@ def dispatch_serve_command(
         "solver": config.solver,
         "runtime": config.runtime,
         "docker_image": config.docker_image,
-        "saturne_bin": config.saturne_bin,
+        "solver_bin": config.solver_bin,
         "singularity_image": config.singularity_image,
         "singularity_bin": config.singularity_bin,
         "use_slurm": config.use_slurm,

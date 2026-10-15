@@ -154,6 +154,22 @@ export class NewCampaignPanel {
         );
         return;
       }
+      case "checkFiles": {
+        const python = await this.python();
+        if (!python) {
+          return;
+        }
+        const result = await runCsauto(
+          python,
+          ["_inspect-inputs", "--solver", message.solver, "--warnings-only", ...inputArgs(message.files)],
+          this.workspaceRoot,
+          this.output,
+        );
+        if (result.ok) {
+          this.post({ type: "fileWarnings", warnings: JSON.parse(result.stdout).warnings });
+        }
+        return;
+      }
       case "listImages": {
         const python = await this.python();
         const solver = python

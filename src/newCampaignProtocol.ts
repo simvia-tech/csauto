@@ -38,6 +38,7 @@ export interface Inspection {
   setup_file: string;
   variables: string[];
   files?: string[];
+  warnings?: string[];
 }
 
 export interface DockerImage {
@@ -54,7 +55,7 @@ export interface DockerImage {
 export interface SolverSetup {
   runtime: string;
   docker_image?: string;
-  saturne_bin?: string;
+  solver_bin?: string;
   singularity_image?: string;
 }
 
@@ -76,6 +77,7 @@ export type ToWebview =
   | { type: "picked"; key: string; paths: string[] }
   | { type: "inspected"; inspection: Inspection }
   | { type: "inspectFailed"; message: string }
+  | { type: "fileWarnings"; warnings: string[] }
   | { type: "images"; solver: string; images: DockerImage[]; hubReachable: boolean }
   | { type: "pathPicked"; purpose: "native" | "singularity"; path: string }
   | { type: "progress"; message: string }
@@ -86,6 +88,8 @@ export type ToExtension =
   | { type: "pickFiles"; key: string; label: string; extensions: string[]; multiple: boolean }
   | { type: "pickFolder"; solver: string }
   | { type: "inspect"; solver: string; start: StartKind; files: Record<string, string[]>; folder?: string }
+  /** Problems in the picked files, asked for before every required file is picked. */
+  | { type: "checkFiles"; solver: string; files: Record<string, string[]> }
   | { type: "listImages"; solver: string }
   | { type: "pickPath"; purpose: "native" | "singularity"; solver: string }
   /** Close the open file dialog, as Escape would (the user clicked outside it). */
