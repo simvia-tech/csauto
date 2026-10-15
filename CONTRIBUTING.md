@@ -48,7 +48,7 @@ Merge requests adding support for new solvers are gladly welcome! csauto knows a
 
 ### Development setup
 
-See [DEVELOPMENT.md](DEVELOPMENT.md) to set up your environment, run the extension and debug each layer (the [README](README.md#development) has the short version).
+See [DEVELOPMENT.md](DEVELOPMENT.md) to set up your environment, run the extension and debug each layer (it also covers the test commands and frontend development).
 
 After cloning, install the git hooks:
 
@@ -67,7 +67,10 @@ This installs a pre-commit hook that formats staged Python (ruff) and frontend (
 
 ### Recognition
 
-All contributors will be acknowledged in the project's [README](README.md) file.
+Thank you to all our contributors:
+
+- Ulysse Bouchet - [Email](mailto:ulysse.bouchet@simvia.tech)
+- Florian Hermet - [Email](mailto:florian.hermet@simvia.tech)
 
 ### Contact
 

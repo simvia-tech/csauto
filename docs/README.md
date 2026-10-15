@@ -2,8 +2,10 @@
 
 ## Getting started
 
-1. [Core concepts](./concepts.md): understand the DOE/template/cases mental model before anything else
-2. [Quickstart](./quickstart.md): step-by-step first run, local and Slurm
+1. [Installation](./installation.md): VS Code extension, CLI, wheel, manual setup and prerequisites
+2. [VS Code extension](./extension.md): install, New Campaign, the Campaigns view and settings
+3. [Core concepts](./concepts.md): understand the DOE/template/cases mental model before anything else
+4. [Quickstart](./quickstart.md): step-by-step first run, local and Slurm
 
 ## Daily use (web UI)
 
@@ -21,6 +23,7 @@ The web UI is the recommended interface for all daily operations.
 - [HTTP API](./api.md): REST endpoints, request conventions, cURL examples
 - [CLI reference](./cli.md): all commands and options (for scripting and setup steps)
 - [Limitations](./limitations.md): known constraints and best practices
+- [Telemetry](./telemetry.md): what is collected and how to opt out
 
 ## Troubleshooting
 
