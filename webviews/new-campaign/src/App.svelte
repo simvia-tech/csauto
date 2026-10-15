@@ -54,6 +54,7 @@
 
   const solver = $derived(solvers.find((candidate) => candidate.name === solverName));
   const columns = $derived(inspection?.variables ?? []);
+  const shownWarnings = $derived(start === "files" ? fileWarnings : (inspection?.warnings ?? []));
   const needsCase = $derived(start === "files" || start === "folder");
   const repository = $derived(solver ? repositoryOf(solver.default_docker_image) : "");
 
@@ -325,7 +326,7 @@
 </script>
 
 {#snippet warnings()}
-  {#each start === "files" ? fileWarnings : (inspection?.warnings ?? []) as warning (warning)}
+  {#each shownWarnings as warning (warning)}
     <p class="mt-2 flex items-start gap-1.5 text-sm text-ui-warning"><Icon name="alert" size={14} /> {warning}</p>
   {/each}
 {/snippet}
