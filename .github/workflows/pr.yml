@@ -76,6 +76,34 @@ jobs:
         working-directory: frontend
         run: pnpm build
 
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11
+
+      - name: Build the landing page
+        working-directory: site
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm lint
+          pnpm build
+
+      - name: Build the docs
+        working-directory: docs-site
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
   extension:
     runs-on: ubuntu-latest
     steps:

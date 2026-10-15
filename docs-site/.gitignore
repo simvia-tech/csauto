@@ -1,0 +1,5 @@
+pages
+public/assets
+dist
+.zudoku
+node_modules
