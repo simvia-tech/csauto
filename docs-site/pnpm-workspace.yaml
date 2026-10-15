@@ -1,2 +1,6 @@
 allowBuilds:
   esbuild: true
+# Patched versions of transitive dependencies of zudoku (Dependabot alerts); drop once zudoku ships them.
+overrides:
+  toml: ">=4.2.0"
+  "@graphql-tools/utils@<12.0.1": ">=12.0.1"
