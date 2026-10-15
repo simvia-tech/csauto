@@ -121,7 +121,7 @@ Docker tests against real solver images are opt-in: `CSAUTO_DOCKER_TESTS=1 pytes
 
 A release is a merge to `main`; the GitHub workflows do the rest.
 
-1. On the branch, put the new section in `CHANGELOG.md` (`## [1.0.0-rc.3] - YYYY-MM-DD`, with a one-line summary under it), then bump `VERSION`, both `package.json` files, `package-lock.json`, the `softwareVersion` in `site/index.html` and the version lines in `ROADMAP.md`. The commit is named `docs: prepare release <version>`.
+1. On the branch, put the new section in `CHANGELOG.md` (`## [1.0.0-rc.3] - YYYY-MM-DD`, with a one-line summary under it), then bump `VERSION`, both `package.json` files, `package-lock.json`, and the version lines in `ROADMAP.md` (the website reads `VERSION` when it builds). The commit is named `docs: prepare release <version>`.
 2. Open a pull request to `main`: the CI workflow (lint, Python tests on 3.11 to 3.13, frontend checks, extension build) must pass.
 3. Merge it with a merge commit or a squash, not a fast-forward. The Release workflow runs after CI succeeds on `main` and only looks at whether `VERSION` changed in the tip commit against its first parent.
 4. The Release workflow then reads the version from `VERSION`, takes the matching `CHANGELOG.md` section as the release notes (it fails when there is none), builds every `.vsix` and the wheel with `scripts/package-all.sh`, and creates the `v<version>` tag and GitHub release. A version with a hyphen (`1.0.0-rc.3`) is published as a pre-release. Nothing happens if the tag already exists.
