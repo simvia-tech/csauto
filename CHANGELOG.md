@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.0] - 2026-10-15
+
+First stable release: csauto is published on the VS Code Marketplace, with interactive residual and probe charts, a new website and online documentation. It gathers everything since 1.0.0-rc.1, so the release candidates below hold the details.
+
+### Fixed
+- The documentation site no longer pulls vulnerable transitive dependencies: `toml`, `@graphql-tools/utils` and `postcss-selector-parser` are overridden to their patched versions
+
 ## [1.0.0-rc.4] - 2026-10-15
 
 Fourth release candidate for 1.0.0: the residual and probe plots become interactive charts, every restart is marked on them, and csauto gets a new website with online documentation.
