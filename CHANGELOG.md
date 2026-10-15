@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.0-rc.3] - 2026-10-15
+
+Third release candidate for 1.0.0: warnings about code_aster export keywords that csauto ignores now show in New Campaign and in the dashboard's Run and Restart dialogs, and `saturne_bin` becomes `solver_bin`.
+
+### Added
+- A code_aster export that sets `mpi_nbcpu` or `ncpus` now warns where you look: New Campaign shows it as soon as the `.export` is picked (also for a folder start), and the Run and Restart dialogs show it before you launch (`POST /api/setup_warnings`). Adapters report such problems through `setup_warnings(setup_file)`
+
+### Changed
+- `saturne_bin` is now `solver_bin` (TOML key, `--solver-bin`, `/api/` config): it is the native executable of any solver. `saturne_bin` and `--saturne-bin` still work as deprecated aliases
+- The code_aster example's export header says VS Code Aster can help create an `.export`, and its README no longer sets a solver binary for the native runtime
+
 ## [1.0.0-rc.2] - 2026-10-14
 
 Second release candidate for 1.0.0: the embedded dashboard follows the editor theme with dark-theme logos, code_aster's compare shows the export that ran, the dashboard no longer overloads the machine when many cases are run, and the extension's campaign detection is stricter.
