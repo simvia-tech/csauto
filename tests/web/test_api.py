@@ -702,6 +702,22 @@ def test_api_run_case_without_max_parallel_uses_running_plus_requested(
     assert captured["case_filter"] == ["case0002"]
 
 
+def test_api_setup_warnings_flags_ignored_cpu_keywords(runs_dir: Path, case_factory) -> None:
+    case_dir = case_factory(runs_dir, "case0001")
+    (case_dir / "study.export").write_text("P ncpus 1\nF comm study.comm D 1\n", encoding="utf-8")
+    save_registry(runs_dir, {"case0001": {"case_id": "case0001", "path": str(case_dir), "status": "PREPARED"}})
+
+    base_url, thread, httpd = _start_server(runs_dir, solver="code_aster")
+    try:
+        status, body = _http_post(f"{base_url}/api/setup_warnings", {"cases": ["case0001"]})
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2)
+    assert status == 200
+    assert any("ncpus" in warning for warning in json.loads(body)["warnings"])
+
+
 def test_api_run_case_restart_passes_restart_options(
     runs_dir: Path,
     case_factory,

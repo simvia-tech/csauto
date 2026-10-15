@@ -65,7 +65,7 @@ token = "your-secret-token"
 **Native binary:**
 ```toml
 runtime = "native"
-saturne_bin = "/path/to/code_saturne"
+solver_bin = "/path/to/code_saturne"
 
 host = "127.0.0.1"
 port = 8000

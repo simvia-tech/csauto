@@ -51,9 +51,9 @@ def test_a_campaign_of_another_solver_drops_that_solvers_settings(tmp_path: Path
 
     runs = tmp_path / "RUNS"
     write_campaign_solver(runs, "stub")
-    config = Config(solver="code_saturne", docker_image="my/saturne", saturne_bin="/opt/cs", path=tmp_path / "a.toml")
+    config = Config(solver="code_saturne", docker_image="my/saturne", solver_bin="/opt/cs", path=tmp_path / "a.toml")
     assert _use_campaign_solver(runs, config)
-    assert (config.solver, config.docker_image, config.saturne_bin) == ("stub", None, None)
+    assert (config.solver, config.docker_image, config.solver_bin) == ("stub", None, None)
     assert not _use_campaign_solver(runs, config)  # already on the recorded solver
 
 

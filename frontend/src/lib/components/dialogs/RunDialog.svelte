@@ -8,6 +8,7 @@
   import { closeDialog } from "#lib/actions/dialog.svelte.ts";
   import { appAlert } from "#lib/actions/dialog.svelte.ts";
   import DialogShell from "./DialogShell.svelte";
+  import SetupWarnings from "./SetupWarnings.svelte";
   import Button from "#lib/components/shared/Button.svelte";
   import FormLabel from "#lib/components/shared/FormLabel.svelte";
   import {
@@ -72,6 +73,8 @@
       <input type="number" min="0" step="1" bind:value={maxParallel} />
     </FormLabel>
   </div>
+
+  <SetupWarnings {cases} />
 
   {#snippet footer()}
     <Button variant="secondary" onclick={() => closeDialog(null)}>Cancel</Button

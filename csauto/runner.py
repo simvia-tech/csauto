@@ -397,7 +397,7 @@ def _start_case(
         if selection.runtime == RUNTIME_DOCKER:
             history_details["docker_image"] = selection.docker_image
         elif selection.runtime == "native":
-            history_details["saturne_bin"] = selection.saturne_bin
+            history_details["solver_bin"] = selection.solver_bin
         elif selection.runtime == "singularity":
             history_details["singularity_bin"] = selection.singularity_bin
             history_details["singularity_image"] = selection.singularity_image
@@ -574,7 +574,7 @@ def run_cases(
     case_filter: Sequence[str] | None = None,
     docker_image: str | None = None,
     runtime: str = "auto",
-    saturne_bin: str | None = None,
+    solver_bin: str | None = None,
     singularity_image: str | None = None,
     singularity_bin: str | None = None,
     resume_only_failed: bool = False,
@@ -603,7 +603,7 @@ def run_cases(
     selection = resolve_runtime(
         runtime=runtime,
         docker_image=docker_image,
-        saturne_bin=saturne_bin,
+        solver_bin=solver_bin,
         singularity_image=singularity_image,
         singularity_bin=singularity_bin,
         adapter=adapter,

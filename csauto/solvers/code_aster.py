@@ -2,7 +2,7 @@
 
 Runs ``run_aster`` on the case's ``.export`` file, from inside the case folder.
 In containers the image's environment is activated first (``container_setup``);
-natively, ``run_aster`` must be on PATH (or set as ``saturne_bin``). Results go
+natively, ``run_aster`` must be on PATH (or set as ``solver_bin``). Results go
 straight into ``RESU/``, so each case holds one run. The outcome is the
 ``DIAGNOSTIC JOB`` line run_aster prints on its standard output, which csauto
 saves in ``csauto.stdout``.
@@ -164,15 +164,22 @@ class CodeAsterAdapter(SolverAdapter):
         export = self.find_setup_file(case_dir)
         text = export.read_text(encoding="utf-8", errors="surrogateescape")
         lines = [line for line in text.splitlines() if line.split()[:2] not in CPU_PARAMS]
-        if len(lines) < len(text.splitlines()):
-            print(
-                f"Warning: {export.name} sets mpi_nbcpu or ncpus: ignored, the launch sets them from n and nt "
-                "(the run's export is .csauto.export).",
-                file=sys.stderr,
-            )
+        for message in self.setup_warnings(export):
+            print(f"Warning: {message}", file=sys.stderr)
         lines += [f"P mpi_nbcpu {nprocs}", f"P ncpus {nt}"]
         (case_dir / RUN_EXPORT_NAME).write_text("\n".join(lines) + "\n", encoding="utf-8", errors="surrogateescape")
         self.results_root(case_dir).mkdir(exist_ok=True)
+
+    def setup_warnings(self, setup_file: Path) -> list[str]:
+        if setup_file.suffix != ".export":
+            return []
+        text = setup_file.read_text(encoding="utf-8", errors="replace")
+        if any(line.split()[:2] in CPU_PARAMS for line in text.splitlines()):
+            return [
+                f"{setup_file.name} sets mpi_nbcpu or ncpus: ignored, the launch sets them from n and nt "
+                "(the run's export is .csauto.export)."
+            ]
+        return []
 
     def assemble_case(self, campaign_dir: Path, files: Mapping[str, Sequence[Path]]) -> None:
         super().assemble_case(campaign_dir, files)

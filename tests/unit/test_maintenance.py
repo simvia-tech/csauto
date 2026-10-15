@@ -238,26 +238,26 @@ def test_run_doctor_runtime_singularity_missing_image_config_warns(tmp_path: Pat
 def test_run_doctor_runtime_native_explicit_executable_bin_ok(tmp_path: Path) -> None:
     runs_dir = _make_runs_dir(tmp_path)
     _add_case(runs_dir, "case0001")
-    saturne_bin = _make_binary(tmp_path / "code_saturne", executable=True)
+    solver_bin = _make_binary(tmp_path / "code_saturne", executable=True)
 
     items = run_doctor(
         runs_dir,
         runtime="native",
-        saturne_bin=str(saturne_bin),
+        solver_bin=str(solver_bin),
         check_display=False,
     )
-    assert _has_item(items, "ok", f"code_saturne binary: {saturne_bin}")
+    assert _has_item(items, "ok", f"code_saturne binary: {solver_bin}")
 
 
 def test_run_doctor_runtime_native_explicit_non_exec_bin_fails(tmp_path: Path) -> None:
     runs_dir = _make_runs_dir(tmp_path)
     _add_case(runs_dir, "case0001")
-    saturne_bin = _make_binary(tmp_path / "code_saturne", executable=False)
+    solver_bin = _make_binary(tmp_path / "code_saturne", executable=False)
 
     items = run_doctor(
         runs_dir,
         runtime="native",
-        saturne_bin=str(saturne_bin),
+        solver_bin=str(solver_bin),
         check_display=False,
     )
     assert _has_item(items, "fail", "code_saturne binary not found or not executable")
@@ -270,7 +270,7 @@ def test_run_doctor_runtime_native_explicit_missing_bin_fails(tmp_path: Path) ->
     items = run_doctor(
         runs_dir,
         runtime="native",
-        saturne_bin=str(tmp_path / "missing_code_saturne"),
+        solver_bin=str(tmp_path / "missing_code_saturne"),
         check_display=False,
     )
     assert _has_item(items, "fail", "code_saturne binary not found or not executable")
@@ -294,7 +294,7 @@ def test_run_doctor_runtime_native_fails_without_bin_or_path(
     _patch_which(monkeypatch, {})
 
     items = run_doctor(runs_dir, runtime="native", check_display=False)
-    assert _has_item(items, "fail", "code_saturne not found in PATH and saturne_bin not configured")
+    assert _has_item(items, "fail", "code_saturne not found in PATH and solver_bin not configured")
 
 
 def test_run_doctor_runtime_auto_detects_all_runtimes(
@@ -328,19 +328,19 @@ def test_run_doctor_runtime_auto_warns_when_none_detected(
     assert _has_item(items, "warn", "no runtime found for code_saturne (code_saturne, docker, apptainer/singularity)")
 
 
-def test_run_doctor_runtime_auto_detects_native_from_saturne_bin_file(
+def test_run_doctor_runtime_auto_detects_native_from_solver_bin_file(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     runs_dir = _make_runs_dir(tmp_path)
     _add_case(runs_dir, "case0001")
-    saturne_bin = _make_binary(tmp_path / "code_saturne", executable=False)
+    solver_bin = _make_binary(tmp_path / "code_saturne", executable=False)
     _patch_which(monkeypatch, {})
 
     items = run_doctor(
         runs_dir,
         runtime="auto",
-        saturne_bin=str(saturne_bin),
+        solver_bin=str(solver_bin),
         check_display=False,
     )
     assert _has_item(items, "ok", "available runtimes: native")

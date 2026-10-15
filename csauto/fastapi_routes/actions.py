@@ -417,7 +417,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
             runtime_selection = resolve_runtime(
                 runtime=ctx.runtime,
                 docker_image=ctx.docker_image,
-                saturne_bin=ctx.saturne_bin,
+                solver_bin=ctx.solver_bin,
                 singularity_image=ctx.singularity_image,
                 singularity_bin=ctx.singularity_bin,
                 adapter=ctx.adapter,
@@ -472,6 +472,25 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         )
         return {"status": "ok"}
 
+    @app.post("/api/setup_warnings", response_model=None)
+    def api_setup_warnings(
+        payload: KillCasesPayload,
+        x_csauto_token: str | None = Header(default=None),
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        """Problems in the input files of the given cases, to show before running them."""
+        ctx.require_auth(x_csauto_token, authorization)
+        try:
+            case_ids = [ctx.validate_case(case) for case in normalize_cases(payload.cases)]
+        except ValueError as exc:
+            raise ctx.http_exception_cls(status_code=400, detail=str(exc)) from exc
+        warnings: list[str] = []
+        for case_id in case_ids:
+            with contextlib.suppress(OSError, ValueError):  # FileNotFoundError is an OSError
+                setup_file = ctx.adapter.find_setup_file(ctx.runs_dir / case_id)
+                warnings += [w for w in ctx.adapter.setup_warnings(setup_file) if w not in warnings]
+        return {"warnings": warnings}
+
     @app.post("/api/run_case", response_model=SuccessResponse)
     def api_run_case(
         payload: RunCasePayload,
@@ -509,7 +528,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
             runtime_selection = resolve_runtime(
                 runtime=ctx.runtime,
                 docker_image=ctx.docker_image,
-                saturne_bin=ctx.saturne_bin,
+                solver_bin=ctx.solver_bin,
                 singularity_image=ctx.singularity_image,
                 singularity_bin=ctx.singularity_bin,
                 adapter=ctx.adapter,
@@ -526,7 +545,7 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
                 case_filter=case_ids,
                 docker_image=runtime_selection.docker_image,
                 runtime=runtime_selection.runtime,
-                saturne_bin=runtime_selection.saturne_bin,
+                solver_bin=runtime_selection.solver_bin,
                 singularity_image=runtime_selection.singularity_image,
                 singularity_bin=runtime_selection.singularity_bin,
                 resume_only_failed=False,

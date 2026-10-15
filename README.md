@@ -93,7 +93,7 @@ You need at least one runtime for your solver:
 
 | Runtime       | Requirement                                      |
 |---------------|--------------------------------------------------|
-| `native`      | The solver's executable (`code_saturne`, or `run_aster` for code_aster) in PATH or set via `saturne_bin` |
+| `native`      | The solver's executable (`code_saturne`, or `run_aster` for code_aster) in PATH or set via `solver_bin` |
 | `singularity` | Apptainer/Singularity + a `.sif` image           |
 | `docker`      | Docker engine; the image defaults to the solver's own (`simvia/code_saturne`, `simvia/code_aster:17.4.0`) |
 

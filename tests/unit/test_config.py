@@ -8,13 +8,21 @@ from csauto.cli import main
 from csauto.config import load_config
 
 
+def test_load_config_accepts_deprecated_saturne_bin(tmp_path: Path) -> None:
+    cfg = tmp_path / "csauto.toml"
+    cfg.write_text('saturne_bin = "/old/bin"\n', encoding="utf-8")
+    assert load_config(cfg).solver_bin == "/old/bin"
+    cfg.write_text('saturne_bin = "/old/bin"\nsolver_bin = "/new/bin"\n', encoding="utf-8")
+    assert load_config(cfg).solver_bin == "/new/bin"
+
+
 def test_load_config_reads_runtime_fields(tmp_path: Path) -> None:
     cfg = tmp_path / "csauto.toml"
     cfg.write_text(
         """
 runtime = "auto"
 docker_image = "simvia/code_saturne:latest"
-saturne_bin = "/opt/code_saturne/bin/code_saturne"
+solver_bin = "/opt/code_saturne/bin/code_saturne"
 singularity_image = "/images/cs.sif"
 singularity_bin = "/usr/bin/apptainer"
 use_slurm = true
@@ -26,7 +34,7 @@ mpi_exec_options = "--mca btl vader,self,tcp --bind-to core"
     config = load_config(cfg)
     assert config.runtime == "auto"
     assert config.docker_image == "simvia/code_saturne:latest"
-    assert config.saturne_bin == "/opt/code_saturne/bin/code_saturne"
+    assert config.solver_bin == "/opt/code_saturne/bin/code_saturne"
     assert config.singularity_image == "/images/cs.sif"
     assert config.singularity_bin == "/usr/bin/apptainer"
     assert config.use_slurm is True

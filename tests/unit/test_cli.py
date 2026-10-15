@@ -136,7 +136,7 @@ def test_serve_command_invokes_fastapi_entrypoint(tmp_path: Path) -> None:
         solver: str | None = None,
         runtime: str = "auto",
         docker_image: str = "simvia/code_saturne",
-        saturne_bin: str | None = None,
+        solver_bin: str | None = None,
         singularity_image: str | None = None,
         singularity_bin: str | None = None,
         use_slurm: bool | None = None,
@@ -150,7 +150,7 @@ def test_serve_command_invokes_fastapi_entrypoint(tmp_path: Path) -> None:
         call["solver"] = solver
         call["runtime"] = runtime
         call["docker_image"] = docker_image
-        call["saturne_bin"] = saturne_bin
+        call["solver_bin"] = solver_bin
         call["singularity_image"] = singularity_image
         call["singularity_bin"] = singularity_bin
         call["use_slurm"] = use_slurm

@@ -205,9 +205,10 @@ def parse_arguments(
         help="Docker image to use (default: docker_image in csauto.toml, else the solver's own image).",
     )
     run_parser.add_argument(
-        "--saturne-bin",
-        dest="saturne_bin",
-        default=config.saturne_bin,
+        "--solver-bin",
+        "--saturne-bin",  # deprecated alias
+        dest="solver_bin",
+        default=config.solver_bin,
         help="Path to the native solver executable (native runtime).",
     )
     run_parser.add_argument(
@@ -388,6 +389,7 @@ def parse_arguments(
     inspect_parser = subparsers.add_parser("_inspect-inputs")
     inspect_parser.add_argument("--solver", required=True)
     inspect_parser.add_argument("--input", action="append", default=[], metavar="KEY=PATH")
+    inspect_parser.add_argument("--warnings-only", action="store_true", help="Only check the picked files.")
     case_info_parser = subparsers.add_parser("_case-info")
     case_info_parser.add_argument("template", type=Path)
     case_info_parser.add_argument("--solver", required=True)
@@ -456,11 +458,11 @@ def _use_campaign_solver(runs_dir: Path | None, config: Config) -> bool:
         raise ValueError(f"{runs_dir}/campaign.json names an unknown solver: {recorded!r}")
     if config.path is not None:
         warn(
-            f"{runs_dir} was prepared for {recorded}: ignoring solver, docker_image, saturne_bin "
+            f"{runs_dir} was prepared for {recorded}: ignoring solver, docker_image, solver_bin "
             f"and singularity_image from {config.path}"
         )
     config.solver = recorded
-    config.docker_image = config.saturne_bin = config.singularity_image = None
+    config.docker_image = config.solver_bin = config.singularity_image = None
     return True
 
 
@@ -526,7 +528,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             runtime_selection = resolve_runtime(
                 runtime=args.runtime,
                 docker_image=args.docker_image,
-                saturne_bin=args.saturne_bin,
+                solver_bin=args.solver_bin,
                 singularity_image=args.singularity_image,
                 singularity_bin=args.singularity_bin,
                 adapter=adapter,
@@ -540,7 +542,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     require_write=True,
                     check_setup=True,
                     runtime=runtime_selection.runtime,
-                    saturne_bin=runtime_selection.saturne_bin,
+                    solver_bin=runtime_selection.solver_bin,
                     singularity_image=runtime_selection.singularity_image,
                     singularity_bin=runtime_selection.singularity_bin,
                     adapter=adapter,
@@ -555,7 +557,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 case_filter=args.cases,
                 docker_image=runtime_selection.docker_image,
                 runtime=runtime_selection.runtime,
-                saturne_bin=runtime_selection.saturne_bin,
+                solver_bin=runtime_selection.solver_bin,
                 singularity_image=runtime_selection.singularity_image,
                 singularity_bin=runtime_selection.singularity_bin,
                 resume_only_failed=args.resume,
@@ -642,7 +644,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 require_write=True,
                 check_setup=True,
                 runtime=config.runtime,
-                saturne_bin=config.saturne_bin,
+                solver_bin=config.solver_bin,
                 singularity_image=config.singularity_image,
                 singularity_bin=config.singularity_bin,
                 adapter=adapter,
@@ -707,9 +709,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             files = _parse_inputs(args.input)
             print(create_campaign(args.target, args.solver, args.runtime, args.template, empty=args.empty, files=files))
         elif args.command == "_inspect-inputs":
-            from .new_campaign import inspect_inputs
+            from .new_campaign import input_warnings, inspect_inputs
 
-            print(json.dumps(inspect_inputs(args.solver, _parse_inputs(args.input))))
+            picked = _parse_inputs(args.input)
+            if args.warnings_only:
+                print(json.dumps({"warnings": input_warnings(args.solver, picked)}))
+            else:
+                print(json.dumps(inspect_inputs(args.solver, picked)))
         elif args.command == "_case-info":
             from .new_campaign import case_info
 

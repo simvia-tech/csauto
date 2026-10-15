@@ -24,6 +24,7 @@
   --color-ui-link: var(--vscode-textLink-foreground, #0078d4);
   --color-ui-accent-soft: var(--ui-accent-soft);
   --color-ui-success: var(--vscode-testing-iconPassed, #3fb950);
+  --color-ui-warning: var(--vscode-editorWarning-foreground, #cca700);
   --color-ui-error: var(--vscode-inputValidation-errorBorder, #d45858);
 }
 

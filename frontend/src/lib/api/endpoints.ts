@@ -226,6 +226,13 @@ export function runCase(params: {
   }).then(() => undefined);
 }
 
+/** Problems in the input files of these cases, worth showing before running them. */
+export function fetchSetupWarnings(cases: string[]): Promise<string[]> {
+  return apiPost<{ warnings?: string[] }>("/api/setup_warnings", {
+    cases,
+  }).then((res) => res.warnings ?? []);
+}
+
 export function killCase(cases: string[]): Promise<void> {
   return apiPost("/api/kill_case", { cases }).then(() => undefined);
 }

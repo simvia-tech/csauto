@@ -32,6 +32,7 @@
   let folder = $state("");
   let inspection = $state<Inspection | undefined>();
   let inspectError = $state("");
+  let fileWarnings = $state<string[]>([]);
   let rows = $state<string[][]>([]);
 
   let name = $state("");
@@ -135,6 +136,9 @@
         }
         break;
       }
+      case "fileWarnings":
+        fileWarnings = message.warnings;
+        break;
       case "inspectFailed":
         inspection = undefined;
         inspectError = message.message;
@@ -216,6 +220,10 @@
     if (!solver) {
       return;
     }
+    fileWarnings = [];
+    if (start === "files" && Object.values(files).some((paths) => paths.length > 0)) {
+      post({ type: "checkFiles", solver: solver.name, files: $state.snapshot(files) });
+    }
     if (start === "files" && missingInputs.length === 0) {
       post({ type: "inspect", solver: solver.name, start, files: $state.snapshot(files) });
     } else if (start === "folder" && folder) {
@@ -291,7 +299,7 @@
     if (runtime === "docker") {
       setup.docker_image = image === "__other__" ? `${repository}:${otherTag.trim()}` : image;
     } else if (runtime === "native" && nativePath) {
-      setup.saturne_bin = nativePath;
+      setup.solver_bin = nativePath;
     } else if (runtime === "singularity") {
       setup.singularity_image = sifPath;
     }
@@ -315,6 +323,12 @@
 
   post({ type: "ready" });
 </script>
+
+{#snippet warnings()}
+  {#each start === "files" ? fileWarnings : (inspection?.warnings ?? []) as warning (warning)}
+    <p class="mt-2 flex items-start gap-1.5 text-sm text-ui-warning"><Icon name="alert" size={14} /> {warning}</p>
+  {/each}
+{/snippet}
 
 {#snippet stepHead(number: number, title: string, note = "")}
   <div class="mb-3 flex items-center gap-2.5">
@@ -440,6 +454,7 @@
               {#each inspection.files as file (file)}<code>{file}</code>{/each}
             </div>
           {/if}
+          {@render warnings()}
         </li>
       {:else if start === "folder"}
         <li class="card">
@@ -456,6 +471,7 @@
           </div>
           {#if inspection}
             <p class="mt-2 text-xs text-ui-text-muted">Input file found: <code>{inspection.setup_file}</code></p>
+            {@render warnings()}
           {/if}
         </li>
       {/if}

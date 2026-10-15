@@ -22,7 +22,7 @@ If no file is found, all default values are used.
 ```toml
 # Use the code_saturne binary installed on the machine
 runtime = "native"
-saturne_bin = "/opt/code_saturne/bin/code_saturne"
+solver_bin = "/opt/code_saturne/bin/code_saturne"
 
 # No Slurm; csauto run launches at most 2 cases at a time
 use_slurm = false
@@ -38,7 +38,7 @@ port = 8000
 ```toml
 # Native code_saturne on the compute nodes
 runtime = "native"
-saturne_bin = "/opt/code_saturne/bin/code_saturne"
+solver_bin = "/opt/code_saturne/bin/code_saturne"
 
 # Submit each case as a Slurm job
 use_slurm = true
@@ -110,7 +110,7 @@ runtime = "docker"   # docker_image defaults to simvia/code_aster:17.4.0
 max_parallel = 2
 ```
 
-For the `native` runtime, `run_aster` must be in `PATH`, or `saturne_bin` must
+For the `native` runtime, `run_aster` must be in `PATH`, or `solver_bin` must
 point to it.
 
 In containers, csauto starts `run_aster` with `bash`, after sourcing
@@ -123,7 +123,7 @@ ENTRYPOINT starts `run_aster` itself only gets its arguments.
 
 ```toml
 runtime = "native"
-saturne_bin = "/opt/code_saturne/bin/code_saturne"
+solver_bin = "/opt/code_saturne/bin/code_saturne"
 use_slurm = false
 max_parallel = 4
 
@@ -144,7 +144,7 @@ token = "your-secret-token"
 |---|---|---|
 | `solver` | `code_saturne` | The campaign's solver: `code_saturne`, `code_aster`, or `stub` (a fake solver for tests). `csauto prepare` records it in `RUNS/campaign.json` (see [architecture.md](./architecture.md#solver-adapter-boundary)) |
 | `runtime` | `auto` | Execution backend: `auto`, `native`, `docker`, or `singularity` |
-| `saturne_bin` | (auto-detected) | Path to the native solver executable (`code_saturne`, or `run_aster` for code_aster) for `native` runtime |
+| `solver_bin` | (auto-detected) | Path to the native solver executable (`code_saturne`, or `run_aster` for code_aster) for `native` runtime |
 | `docker_image` | (the solver's own image) | Docker image name for `docker` runtime; defaults to `simvia/code_saturne` for code_saturne, `simvia/code_aster:17.4.0` for code_aster. csauto keeps the image's own ENTRYPOINT (see [Docker container](#docker-container)) |
 | `singularity_image` | (none) | Path or URI to `.sif` image for `singularity` runtime |
 | `singularity_bin` | (auto-detected) | Path to `apptainer` or `singularity` binary |
@@ -171,7 +171,7 @@ token = "your-secret-token"
 
 ## Priority rules
 
-**Runtime**: CLI flags (`--runtime`, `--saturne-bin`, etc.) override the TOML values.
+**Runtime**: CLI flags (`--runtime`, `--solver-bin`, etc.) override the TOML values.
 
 **Solver**: commands on an existing campaign use the solver recorded in
 `RUNS/campaign.json` by `prepare`, whatever directory they run from; a different
@@ -192,7 +192,7 @@ cases to a folder prepared for another solver.
 When `runtime = "auto"`, csauto tries backends in this order, among the
 runtimes the solver supports (code_saturne and code_aster support all three):
 
-1. Explicit `saturne_bin` set → use `native`
+1. Explicit `solver_bin` set → use `native`
 2. Explicit `singularity_image` set → use `singularity`
 3. `docker` command available → use `docker`
 4. The solver's executable (`code_saturne`, `run_aster`) in `PATH` → use `native`

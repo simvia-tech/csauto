@@ -17,7 +17,7 @@ from csauto.execution import (
 from csauto.solvers.code_saturne import CodeSaturneAdapter
 
 
-def test_resolve_runtime_auto_prefers_saturne_bin(tmp_path: Path, monkeypatch) -> None:
+def test_resolve_runtime_auto_prefers_solver_bin(tmp_path: Path, monkeypatch) -> None:
     saturne = tmp_path / "code_saturne"
     saturne.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     saturne.chmod(0o755)
@@ -26,11 +26,11 @@ def test_resolve_runtime_auto_prefers_saturne_bin(tmp_path: Path, monkeypatch) -
     selection = resolve_runtime(
         runtime="auto",
         docker_image="img",
-        saturne_bin=str(saturne),
+        solver_bin=str(saturne),
     )
 
     assert selection.runtime == RUNTIME_NATIVE
-    assert selection.saturne_bin == str(saturne.resolve())
+    assert selection.solver_bin == str(saturne.resolve())
 
 
 def test_resolve_runtime_auto_uses_docker_when_no_hint(monkeypatch) -> None:
@@ -54,7 +54,7 @@ def test_build_runtime_run_command_native(tmp_path: Path) -> None:
     selection = RuntimeSelection(
         runtime=RUNTIME_NATIVE,
         docker_image="img",
-        saturne_bin="/opt/code_saturne/bin/code_saturne",
+        solver_bin="/opt/code_saturne/bin/code_saturne",
     )
     cmd = build_runtime_run_command(case_dir, nprocs=4, nt=2, selection=selection)
     # Every runtime starts inside the case folder, so the case is ".".
@@ -69,7 +69,7 @@ def test_build_runtime_run_command_native_with_restart_args(tmp_path: Path) -> N
     selection = RuntimeSelection(
         runtime=RUNTIME_NATIVE,
         docker_image="img",
-        saturne_bin="/opt/code_saturne/bin/code_saturne",
+        solver_bin="/opt/code_saturne/bin/code_saturne",
     )
     cmd = build_runtime_run_command(
         case_dir,
@@ -124,7 +124,7 @@ def test_build_runtime_gui_command_native(tmp_path: Path) -> None:
     selection = RuntimeSelection(
         runtime=RUNTIME_NATIVE,
         docker_image="img",
-        saturne_bin="/opt/code_saturne/bin/code_saturne",
+        solver_bin="/opt/code_saturne/bin/code_saturne",
     )
     cmd = build_runtime_gui_command(case_dir, selection)
     assert cmd == ["/opt/code_saturne/bin/code_saturne", "gui", "DATA/setup.xml"]

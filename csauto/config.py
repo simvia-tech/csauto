@@ -18,7 +18,7 @@ class Config:
     solver: str = DEFAULT_SOLVER
     runtime: str = "auto"
     docker_image: str | None = None  # None: the solver adapter's default image
-    saturne_bin: str | None = None
+    solver_bin: str | None = None
     singularity_image: str | None = None
     singularity_bin: str | None = None
     use_slurm: bool | None = None
@@ -160,8 +160,8 @@ def load_config(path: Path | None = None) -> Config:
         config.runtime = _parse_runtime(data.get("runtime"), config_path=config_path)
     if "docker_image" in data:
         config.docker_image = _coerce_str(data.get("docker_image"), "").strip() or None
-    if "saturne_bin" in data:
-        config.saturne_bin = _coerce_str(data.get("saturne_bin"), "").strip() or None
+    if "solver_bin" in data or "saturne_bin" in data:  # saturne_bin: deprecated name
+        config.solver_bin = _coerce_str(data.get("solver_bin", data.get("saturne_bin")), "").strip() or None
     if "singularity_image" in data:
         config.singularity_image = _coerce_str(data.get("singularity_image"), "").strip() or None
     if "singularity_bin" in data:

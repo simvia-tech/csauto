@@ -31,7 +31,7 @@ export function describeSolverSetup(config: CampaignConfig, solver: SolverInfo |
     return image ? `${tagOf(image)} · docker` : "docker";
   }
   if (runtime === "native") {
-    return config.saturne_bin ? `native (${config.saturne_bin})` : "native (PATH)";
+    return config.solver_bin ? `native (${config.solver_bin})` : "native (PATH)";
   }
   if (runtime === "singularity") {
     return config.singularity_image ? `${path.basename(config.singularity_image)} · singularity` : "singularity (no image set)";
@@ -274,11 +274,11 @@ export async function pickSolverSetup(
     items.push({ label: "$(folder-opened) Choose the executable…", value: "browse" });
     const how = (await vscode.window.showQuickPick(items, { title, placeHolder: `Which ${solver.native_bin_name}?`, ignoreFocusOut: true }))?.value;
     if (how === "path") {
-      return { runtime, saturne_bin: undefined };
+      return { runtime, solver_bin: undefined };
     }
     if (how === "browse") {
       const chosen = await vscode.window.showOpenDialog({ title: `Choose ${solver.native_bin_name}`, canSelectMany: false });
-      return chosen?.[0] ? { runtime, saturne_bin: chosen[0].fsPath } : undefined;
+      return chosen?.[0] ? { runtime, solver_bin: chosen[0].fsPath } : undefined;
     }
     return undefined;
   }

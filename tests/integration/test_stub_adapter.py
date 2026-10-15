@@ -42,7 +42,7 @@ def test_run_cases_launches_stub_solver(runs_dir: Path) -> None:
         max_parallel=1,
         case_filter=["case0001"],
         runtime="native",
-        saturne_bin=sys.executable,
+        solver_bin=sys.executable,
         resume_only_failed=False,
         source="test",
         adapter=adapter,

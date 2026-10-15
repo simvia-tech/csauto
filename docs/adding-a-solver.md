@@ -167,7 +167,7 @@ the solver (code_aster: `"[ ! -f /opt/activate.sh ] || source /opt/activate.sh"`
 ENTRYPOINT, csauto starts the solver with `--entrypoint`; an image whose own
 ENTRYPOINT starts the solver gets only `run_argv`, so that script sets up the
 environment instead of `container_setup`.
-For native runs, the solver must already be on PATH, or `saturne_bin` in
+For native runs, the solver must already be on PATH, or `solver_bin` in
 `csauto.toml` must point to it.
 
 ### Results go in one folder per run, or straight into the results folder

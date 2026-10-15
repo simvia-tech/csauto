@@ -99,14 +99,14 @@ class TestCodeSaturneAdapter:
         assert adapter.gui_argv("DATA/setup.xml") == ["gui", "DATA/setup.xml"]
 
     def test_build_run_command_matches_execution_native(self, adapter, tmp_path):
-        selection = RuntimeSelection(runtime="native", docker_image="img", saturne_bin="/bin/true")
+        selection = RuntimeSelection(runtime="native", docker_image="img", solver_bin="/bin/true")
         case_dir = tmp_path / "case1"
         expected = build_runtime_run_command(case_dir, 2, 4, selection)
         assert adapter.build_run_command(case_dir, 2, 4, selection) == expected
         assert expected == ["nohup", "/bin/true", *adapter.run_argv(case_dir, 2, 4)]
 
     def test_build_slurm_script_is_none_outside_singularity(self, adapter, tmp_path):
-        selection = RuntimeSelection(runtime="native", docker_image="img", saturne_bin="/bin/true")
+        selection = RuntimeSelection(runtime="native", docker_image="img", solver_bin="/bin/true")
         assert adapter.build_slurm_script(tmp_path / "case1", 1, 1, selection) is None
 
     def test_mpi_env(self, adapter):
@@ -186,9 +186,7 @@ class TestCodeAsterAdapter:
         monkeypatch.delenv("DISPLAY", raising=False)
         case_dir = tmp_path / "RUNS" / "case1"
         case_dir.mkdir(parents=True)
-        native = adapter.build_run_command(
-            case_dir, 1, 1, RuntimeSelection("native", "img", saturne_bin="/x/run_aster")
-        )
+        native = adapter.build_run_command(case_dir, 1, 1, RuntimeSelection("native", "img", solver_bin="/x/run_aster"))
         assert native == ["nohup", "/x/run_aster", ".csauto.export"]
         apptainer = adapter.build_run_command(
             case_dir,
@@ -254,6 +252,16 @@ class TestCodeAsterAdapter:
         for export in (_generated_export(comm, []), _relinked_export(user_export, comm, [])):
             assert "ncpus" not in export and "mpi_nbcpu" not in export
             assert "P mpi_nbnoeud 1" in export
+
+    def test_setup_warnings_flag_cpu_keywords(self, adapter, tmp_path):
+        export = tmp_path / "study.export"
+        export.write_text("P mpi_nbcpu 4\nF comm study.comm D 1\n", encoding="utf-8")
+        assert any("mpi_nbcpu" in w for w in adapter.setup_warnings(export))
+        export.write_text("P mpi_nbnoeud 1\n", encoding="utf-8")
+        assert adapter.setup_warnings(export) == []
+        mesh = tmp_path / "mesh.med"
+        mesh.write_bytes(b"P ncpus 2\n")
+        assert adapter.setup_warnings(mesh) == []
 
 
 class TestStubAdapter:

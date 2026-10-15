@@ -50,7 +50,7 @@ def run_doctor(
     require_write: bool = True,
     check_setup: bool = True,
     runtime: str | None = None,
-    saturne_bin: str | None = None,
+    solver_bin: str | None = None,
     singularity_image: str | None = None,
     singularity_bin: str | None = None,
     adapter=None,
@@ -82,7 +82,7 @@ def run_doctor(
                 runs_dir,
                 case_dirs,
                 runtime=runtime,
-                solver_bin=saturne_bin,
+                solver_bin=solver_bin,
                 singularity_image=singularity_image,
                 singularity_bin=singularity_bin,
             )
@@ -134,7 +134,7 @@ def run_doctor(
         else:
             add("warn", "singularity_image not configured")
     elif _rt in ("native",):
-        _bin = saturne_bin or ""
+        _bin = solver_bin or ""
         if _bin:
             _bin_path = Path(_bin).expanduser()
             if _bin_path.is_file() and os.access(_bin_path, os.X_OK):
@@ -144,11 +144,11 @@ def run_doctor(
         elif shutil.which(solver_bin_name):
             add("ok", f"{solver_bin_name} found in PATH")
         else:
-            add("fail", f"{solver_bin_name} not found in PATH and saturne_bin not configured")
+            add("fail", f"{solver_bin_name} not found in PATH and solver_bin not configured")
     else:
         # auto or unknown: best-effort
         _found: list[str] = []
-        if shutil.which(solver_bin_name) or (saturne_bin and Path(saturne_bin).expanduser().is_file()):
+        if shutil.which(solver_bin_name) or (solver_bin and Path(solver_bin).expanduser().is_file()):
             _found.append("native")
         if shutil.which("docker"):
             _found.append("docker")
