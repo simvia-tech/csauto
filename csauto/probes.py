@@ -365,20 +365,17 @@ def probe_columns(runs_dir: Path, case: str, probe_files: str | Sequence[str], a
     return columns
 
 
-def render_probe_svg(
+def probe_series(
     runs_dir: Path,
     cases: Sequence[str],
     probe_file: str | Sequence[str],
     columns: Sequence[str] | None,
     axis: str = "time",
-    width: int = 900,
-    height: int = 500,
     x_from: float = 0.0,
     include_history: bool = False,
-    restart_values: Sequence[float] | None = None,
     adapter=None,
-) -> str:
-    """Generate an SVG plot for probe data (time or iteration on x-axis)."""
+) -> dict[tuple[str, str | None, str], list[tuple[float, float]]]:
+    """Probe points per (case, probe or None, column), x >= x_from. Empty when nothing is plottable."""
     probe_list = _normalize_probe_files(probe_file)
     multi_probe = len(probe_list) > 1
     header, rows = read_probe_rows(
@@ -400,7 +397,7 @@ def render_probe_svg(
     if not cols:
         cols = available_cols[:2] if available_cols else []
         if not cols:
-            return empty_svg(width, height, "No probe data available")
+            return {}
 
     try:
         x_threshold = float(x_from)
@@ -410,10 +407,6 @@ def render_probe_svg(
         x_threshold = 0.0
 
     series: dict[tuple[str, str | None, str], list[tuple[float, float]]] = {}
-    x_min = float("inf")
-    x_max = float("-inf")
-    y_min = float("inf")
-    y_max = float("-inf")
 
     for row in rows:
         case_id = row.get("case_id", "")
@@ -423,24 +416,55 @@ def render_probe_svg(
             continue
         if x_val < x_threshold:
             continue
-        x_min = min(x_min, x_val)
-        x_max = max(x_max, x_val)
         for col in cols:
             y_val = as_float(row.get(col))
             if y_val is None:
                 continue
             key = (case_id, probe_name, col)
             series.setdefault(key, []).append((x_val, y_val))
-            y_min = min(y_min, y_val)
-            y_max = max(y_max, y_val)
+    for points in series.values():
+        points.sort(key=lambda point: point[0])
+    return series
 
+
+def probe_y_label(probe_list: Sequence[str]) -> str:
+    y_label = "Probes"
+    if len(probe_list) == 1:
+        suffix = probe_label_suffix(probe_list[0])
+        if suffix and suffix.lower() not in {"probe", "probes"}:
+            y_label = f"{y_label} · {suffix}"
+    return y_label
+
+
+def probe_series_label(key: tuple[str, str | None, str]) -> str:
+    return " | ".join(p for p in key if p)
+
+
+def render_probe_svg(
+    runs_dir: Path,
+    cases: Sequence[str],
+    probe_file: str | Sequence[str],
+    columns: Sequence[str] | None,
+    axis: str = "time",
+    width: int = 900,
+    height: int = 500,
+    x_from: float = 0.0,
+    include_history: bool = False,
+    restart_values: Sequence[float] | None = None,
+    adapter=None,
+) -> str:
+    """Generate an SVG plot for probe data (time or iteration on x-axis)."""
+    probe_list = _normalize_probe_files(probe_file)
+    series = probe_series(
+        runs_dir, cases, probe_list, columns, axis=axis, x_from=x_from, include_history=include_history, adapter=adapter
+    )
     if not series:
         return empty_svg(width, height, "No numeric data to plot")
 
-    if x_min == float("inf") or x_max == float("-inf"):
-        return empty_svg(width, height, "No valid X value")
-    if y_min == float("inf") or y_max == float("-inf"):
-        return empty_svg(width, height, "No numeric values")
+    x_min = min(x for pts in series.values() for x, _ in pts)
+    x_max = max(x for pts in series.values() for x, _ in pts)
+    y_min = min(y for pts in series.values() for _, y in pts)
+    y_max = max(y for pts in series.values() for _, y in pts)
 
     if x_min == x_max:
         x_max = x_min + 1.0
@@ -467,12 +491,7 @@ def render_probe_svg(
     svg_elements.extend(render_grid_lines(linear_ticks(x_min, x_max, n=6), "x", scale_x, margin, width, height))
     svg_elements.extend(render_grid_lines(linear_ticks(y_min, y_max, n=6), "y", scale_y, margin, width, height))
 
-    y_label = "Probes"
-    if len(probe_list) == 1:
-        suffix = probe_label_suffix(probe_list[0])
-        if suffix and suffix.lower() not in {"probe", "probes"}:
-            y_label = f"{y_label} · {suffix}"
-    svg_elements.extend(render_axis_labels(axis.capitalize(), y_label, margin, width, height))
+    svg_elements.extend(render_axis_labels(axis.capitalize(), probe_y_label(probe_list), margin, width, height))
 
     ordered_keys = sorted(series.keys(), key=lambda k: (k[0], k[1] or "", k[2]))
     ordered_series_list: list[tuple[str, list[tuple[float, float]], str]] = []
@@ -480,11 +499,7 @@ def render_probe_svg(
     for idx, key in enumerate(ordered_keys):
         case_name, probe_name, col_name = key
         color = COLOR_PALETTE[idx % len(COLOR_PALETTE)]
-        label_parts = [case_name]
-        if probe_name:
-            label_parts.append(probe_name)
-        label_parts.append(col_name)
-        series_label = " | ".join(p for p in label_parts if p)
+        series_label = probe_series_label(key)
         ordered_series_list.append((series_label, sorted(series[key], key=lambda p: p[0]), color))
         legend_label = col_name.strip() or "value"
         if probe_name:
@@ -508,6 +523,9 @@ __all__ = [
     "probe_columns",
     "probe_label_suffix",
     "probe_position",
+    "probe_series",
+    "probe_series_label",
+    "probe_y_label",
     "read_probe_rows",
     "render_probe_svg",
 ]

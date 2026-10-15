@@ -330,6 +330,11 @@ class SolverAdapter(ABC):
         """Iteration and/or time the latest run restarted from ({"iteration": ..., "time": ...})."""
         return {}
 
+    def read_restart_origins(self, case_dir: Path) -> list[dict[str, int | float]]:
+        """Restart origins of every run that restarted from a checkpoint, oldest first."""
+        origin = self.read_restart_origin(case_dir)
+        return [origin] if origin else []
+
     def apply_control(
         self,
         case_dir: Path,

@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+/* Tokens copied from @simvia/simvia-react-lib (src/lib/tailwind/theme.css, v2.7.3).
+   The package is private, so the site carries the tokens it uses, not the components. */
+@theme {
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-soft: var(--font-soft), var(--font-body), ui-sans-serif, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --color-edf-orange-fonce: rgb(214, 67, 10);
+  --color-edf-orange-moyen: rgb(255, 134, 29);
+  --color-edf-orange-clair: rgb(255, 178, 16);
+  --color-edf-orange-texte: rgb(174, 74, 0);
+
+  --color-edf-vert-texte: rgb(27, 78, 6);
+
+  --color-edf-bleu-fonce: rgb(0, 26, 112);
+  --color-edf-bleu-moyen: rgb(16, 87, 200);
+  --color-edf-bleu-action: rgb(0, 91, 255);
+  --color-edf-bleu-clair: rgb(16, 137, 255);
+
+  --color-edf-noir: rgb(51, 51, 51);
+  --color-edf-gris-fonce: rgb(102, 102, 102);
+  --color-edf-gris-moyen: rgb(224, 224, 224);
+  --color-edf-gris-clair: rgb(248, 247, 247);
+  --color-edf-blanc: rgb(255, 255, 255);
+
+  --color-edf-pastille-bleu: rgb(219, 230, 247);
+  --color-edf-pastille-orange: rgb(255, 232, 208);
+  --color-edf-pastille-vert: rgb(226, 238, 221);
+
+  --color-edf-neutre-tres-fonce: rgb(35, 42, 67);
+  --color-edf-neutre-moyen: rgb(197, 202, 221);
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  background: var(--color-edf-blanc);
+  color: var(--color-edf-noir);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-edf-bleu-action);
+  outline-offset: 2px;
+}
+
+summary::-webkit-details-marker {
+  display: none;
+}

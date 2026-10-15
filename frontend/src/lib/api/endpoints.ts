@@ -58,24 +58,22 @@ export function fetchResidualColumns(cases: string[]): Promise<string[]> {
   ).then((r) => r.columns ?? []);
 }
 
-export function fetchResidualsSvg(
+export interface ResidualsData {
+  series: { case: string; column: string; points: [number, number][] }[];
+  restarts: number[];
+}
+
+export function fetchResidualsData(
   cases: string[],
   columns: string[],
-  opts: {
-    width?: number;
-    height?: number;
-    xMin?: number;
-    includeHistory?: boolean;
-  } = {},
-): Promise<string> {
+  opts: { xMin?: number; includeHistory?: boolean } = {},
+): Promise<ResidualsData> {
   const params = new URLSearchParams();
   cases.forEach((c) => params.append("case", c));
   params.set("columns", columns.join(","));
-  if (opts.width) params.set("width", String(opts.width));
-  if (opts.height) params.set("height", String(opts.height));
   if (opts.xMin !== undefined) params.set("x_min", String(opts.xMin));
   if (opts.includeHistory) params.set("include_history", "true");
-  return apiGetText(`/api/residuals_svg?${params}`);
+  return apiGet<ResidualsData>(`/api/residuals_data?${params}`);
 }
 
 export function fetchRestartOrigin(
@@ -162,28 +160,28 @@ export function fetchProbePosition(
   return apiGet<ProbePositionResponse>(`/api/probe_position?${qs}`);
 }
 
-export function fetchProbeSvg(params: {
+export interface ProbeData {
+  series: { label: string; points: [number, number][] }[];
+  restarts: number[];
+  y_label: string;
+}
+
+export function fetchProbeData(params: {
   cases: string[];
   probes: string[];
   columns: string[];
   axis?: string;
   xMin?: number;
-  timeMin?: number;
   includeHistory?: boolean;
-  width?: number;
-  height?: number;
-}): Promise<string> {
+}): Promise<ProbeData> {
   const qs = new URLSearchParams();
   params.cases.forEach((c) => qs.append("case", c));
   params.probes.forEach((p) => qs.append("probe", p));
   qs.set("columns", params.columns.join(","));
   if (params.axis) qs.set("axis", params.axis);
   if (params.xMin !== undefined) qs.set("x_min", String(params.xMin));
-  if (params.timeMin !== undefined) qs.set("time_min", String(params.timeMin));
   if (params.includeHistory) qs.set("include_history", "true");
-  if (params.width) qs.set("width", String(params.width));
-  if (params.height) qs.set("height", String(params.height));
-  return apiGetText(`/api/probe_svg?${qs}`);
+  return apiGet<ProbeData>(`/api/probe_data?${qs}`);
 }
 
 /* Compare */

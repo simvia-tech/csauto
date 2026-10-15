@@ -15,7 +15,7 @@ is a complete code_aster campaign.
 ## Prerequisites
 
 - Python 3.11+
-- csauto installed and the `csauto` alias configured (see [Installation](../README.md#installation))
+- csauto installed and the `csauto` alias configured (see [Installation](./installation.md))
 - A working code_saturne runtime (one of):
   - `native`: `code_saturne` binary installed and in `PATH`, or path set via `solver_bin`
   - `singularity`: Apptainer or Singularity + a `.sif` image file

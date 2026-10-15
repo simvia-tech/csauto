@@ -1,15 +1,18 @@
 /**
  * Residual plot store.
  *
- * Tracks selected cases, columns, start mode, and the rendered SVG.
+ * Tracks selected cases, columns, start mode, and the plotted series.
  */
+
+import type { PlotSeries } from "#lib/components/plots/LinePlot.svelte";
 
 let selectedCases = $state<string[]>([]);
 let columns = $state<string[]>([]);
 let selectedColumns = $state<string[]>([]);
 let startFrom = $state<"zero" | "restart" | "custom">("zero");
 let iterMin = $state(0);
-let svgHtml = $state("");
+let series = $state<PlotSeries[]>([]);
+let restarts = $state<number[]>([]);
 let autoRefresh = $state(true);
 
 export function getPlotState() {
@@ -19,7 +22,8 @@ export function getPlotState() {
     selectedColumns,
     startFrom,
     iterMin,
-    svgHtml,
+    series,
+    restarts,
     autoRefresh,
   };
 }
@@ -39,8 +43,9 @@ export function setPlotStartFrom(s: "zero" | "restart" | "custom") {
 export function setPlotIterMin(n: number) {
   iterMin = n;
 }
-export function setPlotSvg(s: string) {
-  svgHtml = s;
+export function setPlotData(s: PlotSeries[], r: number[]) {
+  series = s;
+  restarts = r;
 }
 export function setPlotAutoRefresh(a: boolean) {
   autoRefresh = a;

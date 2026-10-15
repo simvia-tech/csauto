@@ -1,6 +1,6 @@
 {
   "name": "csauto-frontend",
-  "version": "1.0.0-rc.3",
+  "version": "1.0.0-rc.4",
   "private": true,
   "type": "module",
   "imports": {
@@ -29,6 +29,9 @@
     "vite": "^8.3.4"
   },
   "dependencies": {
-    "@lucide/svelte": "^1.55.0"
+    "@lucide/svelte": "^1.55.0",
+    "chart.js": "^4.5.1",
+    "chartjs-plugin-annotation": "^3.1.0",
+    "chartjs-plugin-zoom": "^2.2.0"
   }
 }

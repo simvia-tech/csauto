@@ -8,7 +8,7 @@ from ..logs import (
     collect_recent_errors,
     read_performance_rows,
 )
-from ..residuals import render_residuals_svg, residual_columns
+from ..residuals import render_residuals_svg, residual_columns, residual_series
 from ..web_services import get_status_payload
 from ..web_support import log_case_action
 from .common import expand_csv_query, shared_models
@@ -233,6 +233,46 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
         ctx.require_auth(x_csauto_token, authorization)
         return {"columns": residual_columns(ctx.runs_dir, ctx.validate_cases(query.case), adapter=ctx.adapter)}
 
+    def restart_iterations(validated_cases: list[str]) -> list[float]:
+        """Every restart of the selected cases, once each, ignoring starts from iteration 0."""
+        found: set[float] = set()
+        for case_id in validated_cases:
+            case_dir = ctx.runs_dir / case_id
+            if case_dir.is_dir():
+                found.update(
+                    float(it)
+                    for origin in ctx.adapter.read_restart_origins(case_dir)
+                    if (it := origin.get("iteration")) is not None and it > 0
+                )
+        return sorted(found)
+
+    def parse_columns(raw: str) -> list[str] | None:
+        return [c.strip() for c in raw.replace(",", " ").split() if c.strip()] or None
+
+    @app.get("/api/residuals_data", response_model=None)
+    def api_residuals_data(
+        query: Annotated[ResidualsSvgQuery, Query()],
+        x_csauto_token: str | None = Header(default=None),
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        ctx.require_auth(x_csauto_token, authorization)
+        validated_cases = ctx.validate_cases(query.case)
+        series = residual_series(
+            ctx.runs_dir,
+            validated_cases,
+            parse_columns(query.columns),
+            x_from=query.x_min if math.isfinite(query.x_min) else 0.0,
+            include_history=query.include_history,
+            adapter=ctx.adapter,
+        )
+        return {
+            "series": [
+                {"case": key.split(":", 1)[0], "column": key.split(":", 1)[1], "points": [list(p) for p in pts]}
+                for key, pts in sorted(series.items())
+            ],
+            "restarts": restart_iterations(validated_cases),
+        }
+
     @app.get("/api/residuals_svg", response_model=None)
     def api_residuals_svg(
         query: Annotated[ResidualsSvgQuery, Query()],
@@ -242,19 +282,11 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
         ctx.require_auth(x_csauto_token, authorization)
         x_value = query.x_min if math.isfinite(query.x_min) else 0.0
         validated_cases = ctx.validate_cases(query.case)
-        # Collect restart iterations for all requested cases
-        restart_iters: list[float] = []
-        for case_id in validated_cases:
-            case_dir = ctx.runs_dir / case_id
-            if case_dir.is_dir():
-                origin = ctx.adapter.read_restart_origin(case_dir)
-                it = origin.get("iteration")
-                if it is not None:
-                    restart_iters.append(float(it))
+        restart_iters = restart_iterations(validated_cases)
         svg = render_residuals_svg(
             ctx.runs_dir,
             validated_cases,
-            [c.strip() for c in query.columns.replace(",", " ").split() if c.strip()] or None,
+            parse_columns(query.columns),
             width=query.width,
             height=query.height,
             x_from=x_value,

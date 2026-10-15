@@ -51,6 +51,19 @@ export async function savePngFromContainer(
 }
 
 /**
+ * Save a canvas (e.g. a Chart.js chart) as a PNG file.
+ */
+export async function saveCanvasPng(
+  canvas: HTMLCanvasElement,
+  filename = "plot.png",
+): Promise<void> {
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, "image/png"),
+  );
+  if (blob) await saveBlobWithPicker(blob, ensurePngExtension(filename));
+}
+
+/**
  * Build a plot filename from a prefix, case list, and suffix.
  */
 export function buildPlotFilename(

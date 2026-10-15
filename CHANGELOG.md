@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.0-rc.4] - 2026-10-15
+
+Fourth release candidate for 1.0.0: the residual and probe plots become interactive charts, every restart is marked on them, and csauto gets a new website with online documentation.
+
+### Added
+- Interactive residual, time probe and profile plots (Chart.js): hover for values, wheel or drag to zoom, shift-drag to pan, a Reset zoom button, legend toggling, and PNG export of the chart. Auto-refresh updates the chart in place, so the zoom and hidden series are kept. Zoom and pan stay within the data
+- `GET /api/residuals_data` and `GET /api/probe_data` return the plotted series as JSON (`residuals_svg` and `probe_svg` stay for scripts and the CLI)
+- Every restart of a case is marked on the plots, once each and without the first start from iteration 0. Adapters can report them through `read_restart_origins(case_dir)`; code_saturne reads one per run folder
+- Website at https://simvia-tech.github.io/csauto/ rebuilt as a Next.js page in the Simvia design language, with documentation at `/docs` (Zudoku, built from `docs/`). New pages: Installation, VS Code extension and Telemetry
+
+### Changed
+- The README is now short: install, a quick start and links. Installation details, telemetry and the extension guide moved to `docs/`
+- The dashboard screenshots are taken from the extension running in VS Code
+
+### Fixed
+- Residual and probe points from several runs of one case are sorted by x, so older runs no longer draw back-and-forth lines across the plot
+
 ## [1.0.0-rc.3] - 2026-10-15
 
 Third release candidate for 1.0.0: warnings about code_aster export keywords that csauto ignores now show in New Campaign and in the dashboard's Run and Restart dialogs, and `saturne_bin` becomes `solver_bin`.

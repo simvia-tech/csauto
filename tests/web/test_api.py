@@ -333,6 +333,29 @@ def test_api_probes_and_residuals_svg(web_env) -> None:
     assert status == 200
     assert "No" in svg_zoomed
 
+    status, body = _http_get(f"{base_url}/api/residuals_data?case=case0001")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["series"]
+    first = payload["series"][0]
+    assert first["case"] == "case0001"
+    assert all(len(p) == 2 for p in first["points"])
+    assert isinstance(payload["restarts"], list)
+
+    status, body = _http_get(f"{base_url}/api/residuals_data?case=case0001&x_min=10")
+    assert status == 200
+    assert json.loads(body)["series"] == []
+
+    status, body = _http_get(f"{base_url}/api/probe_data?case=case0001&probe=probe_density.csv")
+    assert status == 200
+    probe_payload = json.loads(body)
+    assert probe_payload["series"] and probe_payload["series"][0]["points"]
+    assert probe_payload["y_label"].startswith("Probes")
+
+    status, body = _http_get(f"{base_url}/api/probe_data?case=case0001&probe=probe_density.csv&time_min=10")
+    assert status == 200
+    assert json.loads(body)["series"] == []
+
     status, probe_svg_zoomed = _http_get(f"{base_url}/api/probe_svg?case=case0001&probe=probe_density.csv&time_min=10")
     assert status == 200
     assert "No" in probe_svg_zoomed

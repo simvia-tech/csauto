@@ -254,21 +254,18 @@ def collect_residuals(runs_dir: Path, cases: Sequence[str], output_path: Path | 
             output.close()
 
 
-def render_residuals_svg(
+def residual_series(
     runs_dir: Path,
     cases: Sequence[str],
     columns: Sequence[str] | None,
-    width: int = 900,
-    height: int = 500,
     x_from: float = 0.0,
     include_history: bool = False,
-    restart_iterations: Sequence[float] | None = None,
     adapter=None,
-) -> str:
-    """Generate an SVG string of residuals vs iteration for selected cases/columns.
+) -> dict[str, list[tuple[float, float]]]:
+    """Positive residual points per "case:column" key, x >= x_from.
 
-    Without `columns`, plots the adapter's default_residual_columns, else the
-    first two residuals.
+    Without `columns`, uses the adapter's default_residual_columns, else the
+    first two residuals. Empty when there is nothing plottable.
     """
     adapter = adapter or _default_adapter()
     header, rows = read_residual_rows(
@@ -287,7 +284,7 @@ def render_residuals_svg(
     if not cols:
         cols = available_cols[:2] if available_cols else []
         if not cols:
-            return empty_svg(width, height, "No residual data available")
+            return {}
 
     try:
         x_from_value = float(x_from)
@@ -297,10 +294,6 @@ def render_residuals_svg(
         x_from_value = 0.0
 
     series: dict[str, list[tuple[float, float]]] = {}
-    x_min = float("inf")
-    x_max = float("-inf")
-    y_min = float("inf")
-    y_max = float("-inf")
 
     # Rows without an iteration are numbered in order, per case.
     row_numbers: dict[str, int] = {}
@@ -318,10 +311,6 @@ def render_residuals_svg(
             continue
         if x < x_from_value:
             continue
-        if x_min > x:
-            x_min = x
-        if x_max < x:
-            x_max = x
         for col in cols:
             try:
                 y = float(row.get(col, "") or 0.0)
@@ -331,20 +320,38 @@ def render_residuals_svg(
                 continue
             key = f"{case_id}:{col}"
             series.setdefault(key, []).append((x, y))
-            if y_min > y:
-                y_min = y
-            if y_max < y:
-                y_max = y
 
     if unnumbered:
         warn("some residual rows have no iteration column; they are plotted in row order")
+    for points in series.values():
+        points.sort(key=lambda point: point[0])
+    return series
+
+
+def render_residuals_svg(
+    runs_dir: Path,
+    cases: Sequence[str],
+    columns: Sequence[str] | None,
+    width: int = 900,
+    height: int = 500,
+    x_from: float = 0.0,
+    include_history: bool = False,
+    restart_iterations: Sequence[float] | None = None,
+    adapter=None,
+) -> str:
+    """Generate an SVG string of residuals vs iteration for selected cases/columns.
+
+    Without `columns`, plots the adapter's default_residual_columns, else the
+    first two residuals.
+    """
+    series = residual_series(runs_dir, cases, columns, x_from=x_from, include_history=include_history, adapter=adapter)
     if not series:
         return empty_svg(width, height, "No numeric data to plot")
 
-    if x_min == float("inf") or x_max == float("-inf"):
-        return empty_svg(width, height, "No valid iteration")
-    if y_min == float("inf") or y_max == float("-inf"):
-        return empty_svg(width, height, "No positive value (log scale)")
+    x_min = min(x for pts in series.values() for x, _ in pts)
+    x_max = max(x for pts in series.values() for x, _ in pts)
+    y_min = min(y for pts in series.values() for _, y in pts)
+    y_max = max(y for pts in series.values() for _, y in pts)
 
     if x_min == x_max:
         x_max = x_min + 1.0

@@ -6,16 +6,13 @@
 -->
 <script lang="ts">
   import PlotControls from "#lib/components/plots/PlotControls.svelte";
-  import SvgHolder from "#lib/components/plots/SvgHolder.svelte";
+  import LinePlot from "#lib/components/plots/LinePlot.svelte";
   import Button from "#lib/components/shared/Button.svelte";
   import FormLabel from "#lib/components/shared/FormLabel.svelte";
   import Dropdown from "#lib/components/shared/Dropdown.svelte";
   import Icon from "#lib/components/shared/Icon.svelte";
   import { Download } from "@lucide/svelte";
-  import {
-    savePngFromContainer,
-    buildPlotFilename,
-  } from "#lib/actions/export.ts";
+  import { buildPlotFilename } from "#lib/actions/export.ts";
   import { createProbeLoader } from "#lib/actions/probeLoader.ts";
   import {
     getProfileState,
@@ -30,6 +27,7 @@
   let { allCases, onRefresh = $bindable() }: Props = $props();
 
   let state = $derived(getProfileState());
+  let plot: LinePlot | undefined;
 
   /** Preferred axis column names, in priority order */
   const AXIS_PREFERENCE = [
@@ -182,28 +180,31 @@
         variant="secondary"
         size="sm"
         onclick={() =>
-          savePngFromContainer(
-            "profile-plot-holder",
-            buildPlotFilename("profile", state.selectedCases),
-          )}
-        disabled={!state.svgHtml}
+          plot?.savePng(buildPlotFilename("profile", state.selectedCases))}
+        disabled={state.series.length === 0}
         ><Icon icon={Download} /> Download as PNG</Button
       >
     </div>
   {/snippet}
 
   <div class="flex justify-center">
-    <SvgHolder
+    <LinePlot
+      bind:this={plot}
       id="profile-plot-holder"
-      svgHtml={state.svgHtml}
+      series={state.series}
+      markers={state.restarts}
+      xLabel={state.axis}
+      yLabel={state.yLabel}
       {emptyMessage}
     />
   </div>
 {:else}
   <div class="flex justify-center">
-    <SvgHolder
+    <LinePlot
       id="profile-plot-holder"
-      svgHtml=""
+      series={[]}
+      xLabel=""
+      yLabel="Probes"
       emptyMessage="No profile data available. Please run a simulation first."
     />
   </div>
