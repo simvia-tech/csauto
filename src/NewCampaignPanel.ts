@@ -190,6 +190,26 @@ export class NewCampaignPanel {
         this.post({ type: "pathPicked", purpose: message.purpose, path: picked?.[0]?.fsPath ?? "" });
         return;
       }
+      case "pickCsv": {
+        const picked = await vscode.window.showOpenDialog({
+          title: "The CSV file of your parameter table",
+          canSelectMany: false,
+          defaultUri: vscode.Uri.file(this.workspaceRoot),
+          filters: { "CSV files": ["csv", "tsv", "txt"], "All files": ["*"] },
+        });
+        const file = picked?.[0];
+        if (!file) {
+          this.post({ type: "csvPicked", name: "", text: "" });
+          return;
+        }
+        try {
+          this.post({ type: "csvPicked", name: path.basename(file.fsPath), text: fs.readFileSync(file.fsPath, "utf-8") });
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : String(error);
+          this.post({ type: "csvPicked", name: path.basename(file.fsPath), text: "", error: `Could not read ${file.fsPath}: ${reason}` });
+        }
+        return;
+      }
       case "closeDialog":
         // In a remote window the file dialog is a quick input; closing it resolves the pending pick.
         await vscode.commands.executeCommand("workbench.action.closeQuickOpen");
