@@ -268,3 +268,28 @@ def test_check_spec_against_template_missing_template_dir(tmp_path: Path) -> Non
 
     with pytest.raises(FileNotFoundError):
         check_spec_against_template(["u_inlet"], tmp_path / "nope")
+
+
+def test_load_doe_spec_accepts_resource_parameters(tmp_path: Path) -> None:
+    spec_path = write_spec(tmp_path, "[parameters.csauto_mpi]\nlevels = [1, 2, 4, 8]\n")
+    params = load_doe_spec(spec_path)
+    assert [p.name for p in params] == ["csauto_mpi"]
+    assert params[0].levels == ["1", "2", "4", "8"]
+
+
+def test_load_doe_spec_rejects_unknown_reserved_name(tmp_path: Path) -> None:
+    spec_path = write_spec(tmp_path, "[parameters.csauto_threads]\nlevels = [1, 2]\n")
+    with pytest.raises(ValueError, match="csauto_\\* names are csauto_mpi, csauto_omp"):
+        load_doe_spec(spec_path)
+
+
+def test_check_spec_against_template_ignores_resource_parameters(tmp_path: Path) -> None:
+    from csauto.doe_generate import check_spec_against_template
+
+    template_dir = tmp_path / "TEMPLATE"
+    (template_dir / "DATA").mkdir(parents=True)
+    (template_dir / "DATA" / "setup.xml").write_text("<root>{u_inlet}</root>", encoding="utf-8")
+
+    check_spec_against_template(["u_inlet", "csauto_mpi", "csauto_omp"], template_dir)
+    with pytest.raises(ValueError, match="no matching placeholder"):
+        check_spec_against_template(["u_inlet", "u_inlett"], template_dir)

@@ -89,6 +89,10 @@ With one or more cases selected, the action buttons activate:
 **Run**: launch the selected cases (`PREPARED`, `DONE`, or `FAILED`). A popup
 asks for **MPI Ranks (n)**, **OMP Threads (nt)** and **Max Parallel** (left
 empty, local runs are capped to `cpu_count // (n * nt)` at once, a scheduler receives every selected case).
+A resource every selected case takes from its DOE row (the `csauto_mpi` and
+`csauto_omp` columns, see [DOE format](./doe-format.md#resource-columns-csauto_mpi-csauto_omp))
+reads "From the DOE" instead of asking a value; when only some cases set it,
+the value entered applies to the others.
 
 **Restart** (when the solver supports it): continue finished cases. A popup
 offers the solver's restart modes and asks for a value when the mode takes

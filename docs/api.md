@@ -92,7 +92,8 @@ Response (code_saturne):
   ],
   "default_residual_columns": ["velocity", "pressure"],
   "logo": true,
-  "icon": true
+  "icon": true,
+  "resource_columns": { "nprocs": "csauto_mpi", "nt": "csauto_omp" }
 }
 ```
 
@@ -111,6 +112,8 @@ Fields:
   taken; otherwise `value_kind` (`int` or `float`) says which number is expected
 - `default_residual_columns`: residual curves plotted first
 - `logo`, `icon`: whether `/api/solver_logo` and `/api/solver_icon` have an image
+- `resource_columns`: the DOE columns that set a case's launch resources, by
+  the `/api/run_case` field they replace (`nprocs` for `n`, `nt` for `nt`)
 
 For code_aster, `panels` is `status`, `compare`, `tail`, `errors`, the only
 capability is `compare`, and `control_actions` and `restart_modes` are empty.
@@ -721,9 +724,12 @@ Restart payload:
 
 Rules:
 
-- `cases`, `n`, `nt` are required
+- `cases` is required; `n` and `nt` are required for every case whose DOE row
+  does not set them (the `csauto_mpi` and `csauto_omp` columns, named by
+  `resource_columns` in `/api/app_config`). A row's value always wins over the
+  payload's; a case left without one is a `400` naming it and the column
 - `n`, `nt`, `max_parallel` must be integers `> 0`
-- without `max_parallel`, local runs are capped to `cpu_count // (n * nt)` at once (a scheduler receives every selected case) (`max_parallel` in
+- without `max_parallel`, local runs are capped to `cpu_count // (n * nt)` at once, with the largest `n * nt` among the selected cases (a scheduler receives every selected case) (`max_parallel` in
   `csauto.toml` only applies to `csauto run`)
 - a restart needs the `restart` capability (code_saturne only)
 - `restart_mode` must be one of the solver's `restart_modes` (see

@@ -8,7 +8,7 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-from .doe import RESERVED_COLUMNS
+from .doe import RESERVED_COLUMN_PREFIX, RESOURCE_COLUMNS
 from .warn import warn
 
 _NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
@@ -33,8 +33,13 @@ def _parse_parameter(name: str, table: object, spec_path: Path) -> ParameterSpec
         raise ValueError(
             f"Invalid parameter name {name!r} in {spec_path}: allowed characters are letters, digits, ., _, -"
         )
-    if name in RESERVED_COLUMNS:
+    if name == "case_id":
         raise ValueError(f"Invalid parameter name {name!r} in {spec_path}: {name!r} is reserved")
+    if name.startswith(RESERVED_COLUMN_PREFIX) and name not in RESOURCE_COLUMNS:
+        known = ", ".join(sorted(RESOURCE_COLUMNS))
+        raise ValueError(
+            f"Invalid parameter name {name!r} in {spec_path}: the {RESERVED_COLUMN_PREFIX}* names are {known}"
+        )
 
     has_range = "min" in table or "max" in table
     has_levels = "levels" in table
@@ -98,7 +103,8 @@ def check_spec_against_template(param_names: list[str], template_dir: Path, adap
     from .doe import collect_template_variables
 
     variables = collect_template_variables(template_dir, adapter=adapter)
-    unmatched = sorted(name for name in param_names if name not in variables)
+    # Resource columns are read at launch, so they need no placeholder.
+    unmatched = sorted(name for name in param_names if name not in variables and name not in RESOURCE_COLUMNS)
     if unmatched:
         joined = ", ".join(unmatched)
         raise ValueError(

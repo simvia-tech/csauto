@@ -82,6 +82,8 @@ export interface AppConfig {
   logo_dark: boolean;
   /** True when /api/solver_icon serves an SVG. */
   icon: boolean;
+  /** DOE columns that set a case's launch resources, by the run_case field they replace (n, nt). */
+  resource_columns: Record<"nprocs" | "nt", string>;
 }
 
 /* Shared */
@@ -158,8 +160,9 @@ export interface CleanupResponse {
 /* Action params (sent by frontend) */
 
 export interface RunParams {
-  n: number;
-  nt: number;
+  /** Null when every selected case takes it from its DOE row (see AppConfig.resource_columns). */
+  n: number | null;
+  nt: number | null;
   maxParallel: number | null;
 }
 

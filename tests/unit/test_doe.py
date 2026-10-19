@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from csauto.doe import generate_cases, load_doe, read_doe_row
+from csauto.doe import case_resources, generate_cases, load_doe, parse_resource_value, read_doe_row
 
 
 def test_load_doe_reads_headers_and_rows(tmp_path: Path) -> None:
@@ -178,3 +178,79 @@ def test_a_binary_with_a_text_head_is_copied_verbatim(tmp_path: Path) -> None:
     (template_dir / "mesh.bin").write_bytes(blob)
     generate_cases(["foo"], [{"foo": "1"}], template_dir, tmp_path / "RUNS")
     assert (tmp_path / "RUNS" / "case0001" / "mesh.bin").read_bytes() == blob
+
+
+# ---------------------------------------------------------------------------
+# Reserved resource columns (csauto_mpi, csauto_omp)
+# ---------------------------------------------------------------------------
+
+
+def _template(tmp_path: Path, setup: str = "<root>{foo}</root>") -> Path:
+    template_dir = tmp_path / "TEMPLATE"
+    (template_dir / "DATA").mkdir(parents=True)
+    (template_dir / "DATA" / "setup.xml").write_text(setup, encoding="utf-8")
+    return template_dir
+
+
+def test_generate_cases_accepts_resource_columns_without_warning(tmp_path: Path, monkeypatch) -> None:
+    warnings: list[str] = []
+    monkeypatch.setattr("csauto.doe.warn", warnings.append)
+    template_dir = _template(tmp_path)
+    headers, rows = ["foo", "csauto_mpi", "csauto_omp"], [{"foo": "1", "csauto_mpi": "4", "csauto_omp": "2"}]
+    output_dir = tmp_path / "RUNS"
+
+    generate_cases(headers, rows, template_dir, output_dir, strict=True)
+
+    assert not [w for w in warnings if "not used" in w]
+    values, columns = read_doe_row(output_dir / "case0001")
+    assert columns == ["foo", "csauto_mpi", "csauto_omp", "case_id"]
+    assert values["csauto_mpi"] == "4"
+    assert case_resources(output_dir / "case0001") == {"nprocs": 4, "nt": 2}
+
+
+def test_case_resources_skips_empty_cells_and_missing_columns(tmp_path: Path) -> None:
+    template_dir = _template(tmp_path)
+    headers = ["foo", "csauto_mpi"]
+    rows = [{"foo": "1", "csauto_mpi": "8"}, {"foo": "2", "csauto_mpi": ""}]
+    output_dir = tmp_path / "RUNS"
+
+    generate_cases(headers, rows, template_dir, output_dir)
+
+    assert case_resources(output_dir / "case0001") == {"nprocs": 8}
+    assert case_resources(output_dir / "case0002") == {}
+
+
+def test_generate_cases_rejects_invalid_resource_values(tmp_path: Path) -> None:
+    template_dir = _template(tmp_path)
+    headers = ["case_id", "foo", "csauto_omp"]
+    rows = [{"case_id": "fine", "foo": "1", "csauto_omp": "2"}, {"case_id": "bad", "foo": "2", "csauto_omp": "2.5"}]
+
+    with pytest.raises(ValueError, match=r"csauto_omp must be a positive integer, got '2\.5' for bad"):
+        generate_cases(headers, rows, template_dir, tmp_path / "RUNS")
+    assert not (tmp_path / "RUNS").exists()
+
+
+@pytest.mark.parametrize("value", ["0", "-4", "four"])
+def test_parse_resource_value_rejects_non_positive_integers(value: str) -> None:
+    with pytest.raises(ValueError, match="positive integer"):
+        parse_resource_value("csauto_mpi", value, "case0001")
+
+
+def test_generate_cases_rejects_unknown_reserved_column(tmp_path: Path) -> None:
+    template_dir = _template(tmp_path)
+    headers, rows = ["foo", "csauto_mpi_ranks"], [{"foo": "1", "csauto_mpi_ranks": "4"}]
+
+    with pytest.raises(ValueError, match="Unknown reserved DOE columns: csauto_mpi_ranks"):
+        generate_cases(headers, rows, template_dir, tmp_path / "RUNS")
+
+
+def test_resource_column_is_also_a_template_placeholder(tmp_path: Path) -> None:
+    template_dir = _template(tmp_path, "<root ntasks='{csauto_mpi}'>{foo}</root>")
+    headers, rows = ["foo", "csauto_mpi"], [{"foo": "1", "csauto_mpi": "16"}]
+    output_dir = tmp_path / "RUNS"
+
+    generate_cases(headers, rows, template_dir, output_dir, strict=True)
+
+    rendered = (output_dir / "case0001" / "DATA" / "setup.xml").read_text(encoding="utf-8")
+    assert rendered == "<root ntasks='16'>1</root>"
+    assert case_resources(output_dir / "case0001") == {"nprocs": 16}

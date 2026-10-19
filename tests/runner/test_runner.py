@@ -1289,3 +1289,54 @@ def test_launch_slot_waits_for_memory_only_while_cases_run(monkeypatch: pytest.M
     monkeypatch.setenv(runner.MIN_FREE_MEMORY_ENV, "0")  # disabled
     runner._wait_for_launch_slot(tmp_path, 4, adapter)
     assert len(sleeps) == 2
+
+
+def _patch_local_launch(monkeypatch, pid: int = 4242) -> None:
+    monkeypatch.setattr("csauto.runner.read_container_id", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("shutil.which", lambda _name: "/bin/true")
+
+    class DummyProc:
+        def __init__(self) -> None:
+            self.pid = pid
+
+    monkeypatch.setattr("subprocess.Popen", lambda *_args, **_kwargs: DummyProc())
+
+
+def test_run_cases_takes_resources_from_the_doe_row(monkeypatch, runs_dir: Path, case_factory) -> None:
+    case_dir = case_factory(runs_dir, "case0001")
+    (case_dir / "doe_row.csv").write_text("csauto_mpi,csauto_omp,case_id\n4,2,case0001\n", encoding="utf-8")
+    _patch_local_launch(monkeypatch)
+
+    run_cases(runs_dir, nprocs=None, nt=None, max_parallel=1, case_filter=["case0001"], docker_image="image")
+
+    record = load_registry(runs_dir)["case0001"]
+    assert record["status"] == STATUS_RUNNING
+    assert (record["nprocs"], record["nt"]) == (4, 2)
+
+
+def test_run_cases_doe_row_overrides_the_given_counts_per_case(monkeypatch, runs_dir: Path, case_factory) -> None:
+    sized = case_factory(runs_dir, "sized")
+    (sized / "doe_row.csv").write_text("csauto_mpi,case_id\n8,sized\n", encoding="utf-8")
+    case_factory(runs_dir, "plain")
+    _patch_local_launch(monkeypatch)
+
+    run_cases(runs_dir, nprocs=2, nt=3, max_parallel=2, case_filter=["sized", "plain"], docker_image="image")
+
+    registry = load_registry(runs_dir)
+    assert (registry["sized"]["nprocs"], registry["sized"]["nt"]) == (8, 3)
+    assert (registry["plain"]["nprocs"], registry["plain"]["nt"]) == (2, 3)
+
+
+def test_run_cases_without_counts_reports_the_cases_missing_them(monkeypatch, runs_dir: Path, case_factory) -> None:
+    sized = case_factory(runs_dir, "sized")
+    (sized / "doe_row.csv").write_text("csauto_mpi,csauto_omp,case_id\n4,1,sized\n", encoding="utf-8")
+    plain = case_factory(runs_dir, "plain")
+    _patch_local_launch(monkeypatch)
+
+    with pytest.raises(RuntimeError, match=r"plain: missing --n \(or a csauto_mpi column\) and --nt"):
+        run_cases(runs_dir, nprocs=None, nt=None, max_parallel=2, case_filter=["sized", "plain"], docker_image="image")
+
+    registry = load_registry(runs_dir)
+    assert registry["sized"]["status"] == STATUS_RUNNING
+    assert registry.get("plain", {}).get("status") in {None, STATUS_PREPARED}
+    assert "launch_error" in (plain / ".csauto.history.jsonl").read_text(encoding="utf-8")

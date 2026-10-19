@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .docker import read_container_id
-from .doe import read_doe_row
+from .doe import RESOURCE_COLUMNS, case_resources, read_doe_row
 from .execution import (
     RUNTIME_DOCKER,
     RUNTIME_SINGULARITY,
@@ -566,10 +566,29 @@ def _launch_local(
                 update_case(registry, case_id, container_id=container_id)
 
 
+def resolve_case_resources(case_dir: Path, nprocs: int | None, nt: int | None) -> tuple[int, int]:
+    """The MPI process and thread counts a case runs with: its DOE row's `csauto_mpi`/`csauto_omp`, else the given ones.
+
+    Raises ValueError when neither provides a value, or when the DOE row holds an invalid one.
+    """
+    resources = case_resources(case_dir)
+    resolved_n = resources.get("nprocs", nprocs)
+    resolved_nt = resources.get("nt", nt)
+    columns = {key: column for column, key in RESOURCE_COLUMNS.items()}
+    missing = [
+        f"--n (or a {columns['nprocs']} column)" if resolved_n is None else None,
+        f"--nt (or a {columns['nt']} column)" if resolved_nt is None else None,
+    ]
+    missing = [m for m in missing if m]
+    if missing:
+        raise ValueError(f"{case_dir.name}: missing {' and '.join(missing)}")
+    return int(resolved_n), int(resolved_nt)
+
+
 def run_cases(
     runs_dir: Path,
-    nprocs: int,
-    nt: int,
+    nprocs: int | None,
+    nt: int | None,
     max_parallel: int,
     case_filter: Sequence[str] | None = None,
     docker_image: str | None = None,
@@ -587,11 +606,14 @@ def run_cases(
     source: str = "cli",
     adapter: SolverAdapter | None = None,
 ) -> None:
-    """Launch solver runs for each case directory."""
+    """Launch solver runs for each case directory.
+
+    `nprocs` and `nt` apply to the cases whose DOE row sets no `csauto_mpi`/`csauto_omp`; None means every case must.
+    """
     # Commands start inside the case folder, so every path handed to them
     # (the docker cidfile, the case itself) must be absolute.
     runs_dir = runs_dir.resolve()
-    if nprocs <= 0 or nt <= 0:
+    if (nprocs is not None and nprocs <= 0) or (nt is not None and nt <= 0):
         raise ValueError("nprocs and nt must be > 0")
     if max_parallel <= 0:
         raise ValueError("max_parallel must be > 0")
@@ -635,6 +657,12 @@ def run_cases(
 
     for case_dir in case_dirs:
         case_id = case_dir.name
+        try:
+            case_nprocs, case_nt = resolve_case_resources(case_dir, nprocs, nt)
+        except ValueError as exc:
+            errors.append(str(exc))
+            append_history(case_dir, "launch_error", details={"error": str(exc)}, source=source)
+            continue
         # Mark as PENDING before waiting for a launch slot so the UI
         # shows the case is queued while max_parallel is reached.
         with registry_transaction(runs_dir) as registry:
@@ -647,13 +675,13 @@ def run_cases(
             previous_status = status or STATUS_PREPARED
             update_case(registry, case_id, status=STATUS_PENDING)
 
-        def _do_start(selected_case: Path = case_dir) -> None:
+        def _do_start(selected_case: Path = case_dir, case_nprocs: int = case_nprocs, case_nt: int = case_nt) -> None:
             nonlocal launched
             if _start_case(
                 selected_case,
                 runs_dir=runs_dir,
-                nprocs=nprocs,
-                nt=nt,
+                nprocs=case_nprocs,
+                nt=case_nt,
                 selection=selection,
                 adapter=adapter,
                 use_slurm_scheduler=use_slurm_scheduler,
