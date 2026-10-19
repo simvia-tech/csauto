@@ -7,6 +7,7 @@
   import type {
     CreateRequest,
     DockerImage,
+    DoeSpec,
     Inspection,
     SolverCard,
     StartKind,
@@ -39,6 +40,23 @@
   let importNotes = $state<string[]>([]);
   let importError = $state("");
 
+  // The generator: for each column, a list of levels or a range to sample.
+  interface GeneratorInput {
+    kind: "levels" | "range";
+    levels: string;
+    min: string;
+    max: string;
+  }
+  let generatorOpen = $state(false);
+  let generatorInputs = $state<Record<string, GeneratorInput>>({});
+  // Resource columns (csauto_mpi, csauto_omp) added to the generated table.
+  let generatorResources = $state<string[]>([]);
+  let generatorMethod = $state<DoeSpec["method"]>("factorial");
+  let generatorSamples = $state(8);
+  let generatorSeed = $state(0);
+  let generating = $state(false);
+  let generatorError = $state("");
+
   let name = $state("");
   let runtime = $state("");
   let images = $state<DockerImage[]>([]);
@@ -59,6 +77,15 @@
   const solver = $derived(solvers.find((candidate) => candidate.name === solverName));
   const variables = $derived(inspection?.variables ?? []);
   const columns = $derived([...variables, ...extraColumns]);
+  const generatorColumns = $derived([...variables, ...generatorResources]);
+  const generatorNeedsSamples = $derived(generatorMethod === "lhs" || generatorMethod === "sobol");
+
+  const methodOptions: SelectOption[] = [
+    { value: "factorial", label: "Full factorial", detail: "every combination of the levels" },
+    { value: "lhs", label: "Latin hypercube", detail: "space-filling sample of the ranges" },
+    { value: "sobol", label: "Sobol", detail: "quasi-random sample of the ranges; needs csauto[doe]" },
+    { value: "ccd", label: "Central composite", detail: "corners, axes and center of the ranges" },
+  ];
   const shownWarnings = $derived(start === "files" ? fileWarnings : (inspection?.warnings ?? []));
   const needsCase = $derived(start === "files" || start === "folder");
   const repository = $derived(solver ? repositoryOf(solver.default_docker_image) : "");
@@ -151,6 +178,21 @@
           importRows(message.name, message.text);
         }
         break;
+      case "doeGenerated": {
+        generating = false;
+        generatorError = "";
+        extraColumns = message.columns.filter((column) => !variables.includes(column));
+        const order = [...variables, ...extraColumns].map((column) => message.columns.indexOf(column));
+        rows = message.rows.map((cells) => order.map((index) => (index >= 0 ? (cells[index] ?? "") : "")));
+        importError = "";
+        const method = methodOptions.find((option) => option.value === generatorMethod)?.label ?? generatorMethod;
+        importNotes = [`${rows.length} case${rows.length === 1 ? "" : "s"} generated (${method.toLowerCase()}).`];
+        break;
+      }
+      case "doeGenerateFailed":
+        generating = false;
+        generatorError = message.message;
+        break;
       case "fileWarnings":
         fileWarnings = message.warnings;
         break;
@@ -227,6 +269,108 @@
     extraColumns = [];
     importNotes = [];
     importError = "";
+    generatorOpen = false;
+    generatorInputs = {};
+    generatorResources = [];
+    generatorError = "";
+  }
+
+  const kindOptions: SelectOption[] = [
+    { value: "levels", label: "Levels" },
+    { value: "range", label: "Range" },
+  ];
+
+  // Every generator column gets its inputs once, so what was typed survives adding a column.
+  $effect(() => {
+    for (const column of generatorColumns) {
+      if (!generatorInputs[column]) {
+        generatorInputs[column] = { kind: "levels", levels: "", min: "", max: "" };
+      }
+    }
+  });
+
+  function addGeneratorResource(column: string) {
+    if (!generatorResources.includes(column)) {
+      generatorResources = [...generatorResources, column];
+    }
+  }
+
+  function removeGeneratorResource(column: string) {
+    generatorResources = generatorResources.filter((candidate) => candidate !== column);
+  }
+
+  /** Levels typed as "1, 2, 4": split on commas or semicolons, or on spaces when there are none. */
+  function splitLevels(text: string): string[] {
+    const separator = /[,;]/.test(text) ? /[,;]/ : /\s+/;
+    return text
+      .split(separator)
+      .map((level) => level.trim())
+      .filter(Boolean);
+  }
+
+  /** Build the csauto doe request from the generator inputs, or set generatorError and return undefined. */
+  function generatorSpec(): DoeSpec | undefined {
+    if (generatorColumns.length === 0) {
+      generatorError = "Add a resource column to generate a table for a case without parameters.";
+      return undefined;
+    }
+    const parameters: DoeSpec["parameters"] = [];
+    for (const column of generatorColumns) {
+      const input = generatorInputs[column] ?? { kind: "levels", levels: "", min: "", max: "" };
+      if (input.kind === "levels") {
+        const levels = splitLevels(input.levels);
+        if (levels.length === 0) {
+          generatorError = `Give ${column} at least one level.`;
+          return undefined;
+        }
+        if (new Set(levels).size !== levels.length) {
+          generatorError = `${column} has duplicate levels.`;
+          return undefined;
+        }
+        parameters.push({ name: column, levels });
+      } else {
+        const min = Number(input.min);
+        const max = Number(input.max);
+        if (input.min.trim() === "" || input.max.trim() === "" || !Number.isFinite(min) || !Number.isFinite(max)) {
+          generatorError = `Give ${column} a numeric min and max.`;
+          return undefined;
+        }
+        if (min >= max) {
+          generatorError = `${column}: min must be less than max.`;
+          return undefined;
+        }
+        parameters.push({ name: column, min, max });
+      }
+    }
+    const hasRange = parameters.some((parameter) => parameter.levels === undefined);
+    if (generatorMethod === "factorial" && hasRange) {
+      generatorError = "Full factorial takes levels only: give every column levels, or pick another method.";
+      return undefined;
+    }
+    if (generatorMethod !== "factorial" && !hasRange) {
+      generatorError = `${methodOptions.find((option) => option.value === generatorMethod)?.label} needs at least one range; with levels only, use Full factorial.`;
+      return undefined;
+    }
+    if (generatorNeedsSamples && (!Number.isInteger(generatorSamples) || generatorSamples <= 0)) {
+      generatorError = "Samples must be an integer > 0.";
+      return undefined;
+    }
+    const spec: DoeSpec = { parameters, method: generatorMethod };
+    if (generatorNeedsSamples) {
+      spec.samples = generatorSamples;
+      spec.seed = Number.isInteger(generatorSeed) ? generatorSeed : 0;
+    }
+    return spec;
+  }
+
+  function generateTable() {
+    const spec = generatorSpec();
+    if (!spec) {
+      return;
+    }
+    generatorError = "";
+    generating = true;
+    post({ type: "generateDoe", spec });
   }
 
   function removeFile(key: string, filePath: string) {
@@ -445,6 +589,88 @@
   {/each}
 {/snippet}
 
+{#snippet tableTools(withAddRow: boolean)}
+  <div class="mt-2 flex flex-wrap items-center gap-2">
+    {#if withAddRow}
+      <button class="btn-ghost" onclick={addRow} disabled={busy}><Icon name="plus" size={13} /> Add a case</button>
+    {/if}
+    <button class="btn-ghost" onclick={() => openDialog({ type: "pickCsv" })} disabled={busy}><Icon name="file" size={13} /> Import a CSV…</button>
+    <button class="btn-ghost" onclick={() => (generatorOpen = !generatorOpen)} disabled={busy} aria-expanded={generatorOpen}>
+      <Icon name="beaker" size={13} /> {generatorOpen ? "Hide the generator" : "Generate…"}
+    </button>
+  </div>
+  {#if generatorOpen}
+    {@render generator()}
+  {/if}
+  {@render importMessages()}
+{/snippet}
+
+{#snippet generator()}
+  <div class="mt-3 rounded border border-ui-border bg-ui-bg p-3">
+    <p class="mb-2.5 text-xs text-ui-text-muted">
+      Give each column a list of levels (<code>1, 2, 4</code>) or a range to sample, pick a method, then generate. The table
+      below is replaced and stays editable.
+    </p>
+    {#if generatorColumns.length > 0}
+      <div class="grid grid-cols-[auto_auto_1fr] items-center gap-x-3 gap-y-2">
+        {#each generatorColumns as column (column)}
+          {@const input = generatorInputs[column]}
+          {#if input}
+            <div class="flex items-center gap-1.5">
+              <code class="text-sm">{column}</code>
+              {#if generatorResources.includes(column)}
+                <button class="icon-btn" onclick={() => removeGeneratorResource(column)} disabled={busy} aria-label={`Remove ${column}`}>
+                  <Icon name="x" size={12} />
+                </button>
+              {/if}
+            </div>
+            <Select options={kindOptions} value={input.kind} onSelect={(value) => (input.kind = value as GeneratorInput["kind"])} disabled={busy || generating} />
+            {#if input.kind === "levels"}
+              <input type="text" class="text-input" bind:value={input.levels} placeholder="1, 2, 4" disabled={busy || generating} aria-label={`${column} levels`} />
+            {:else}
+              <div class="flex items-center gap-2">
+                <input type="text" class="text-input" bind:value={input.min} placeholder="min" disabled={busy || generating} aria-label={`${column} min`} />
+                <span class="text-xs text-ui-text-muted">to</span>
+                <input type="text" class="text-input" bind:value={input.max} placeholder="max" disabled={busy || generating} aria-label={`${column} max`} />
+              </div>
+            {/if}
+          {/if}
+        {/each}
+      </div>
+    {/if}
+    {#if RESERVED_COLUMNS.some((column) => column !== "case_id" && !generatorResources.includes(column))}
+      <div class="mt-2.5 flex flex-wrap items-center gap-2 text-xs text-ui-text-muted">
+        <span>Resources per case:</span>
+        {#each RESERVED_COLUMNS.filter((column) => column !== "case_id" && !generatorResources.includes(column)) as column (column)}
+          <button class="btn-ghost" onclick={() => addGeneratorResource(column)} disabled={busy}><Icon name="plus" size={12} /> <code>{column}</code></button>
+        {/each}
+      </div>
+    {/if}
+    <div class="mt-3 flex flex-wrap items-end gap-3">
+      <label class="flex flex-col gap-1 text-xs text-ui-text-muted">
+        Method
+        <Select options={methodOptions} value={generatorMethod} onSelect={(value) => (generatorMethod = value as DoeSpec["method"])} disabled={busy || generating} />
+      </label>
+      {#if generatorNeedsSamples}
+        <label class="flex flex-col gap-1 text-xs text-ui-text-muted">
+          Samples
+          <input type="number" class="text-input !w-24" min="1" step="1" bind:value={generatorSamples} disabled={busy || generating} />
+        </label>
+        <label class="flex flex-col gap-1 text-xs text-ui-text-muted">
+          Seed
+          <input type="number" class="text-input !w-24" step="1" bind:value={generatorSeed} disabled={busy || generating} />
+        </label>
+      {/if}
+      <button class="btn-secondary" onclick={generateTable} disabled={busy || generating}>
+        {#if generating}<Icon name="spinner" size={13} /> Generating…{:else}Generate the table{/if}
+      </button>
+    </div>
+    {#if generatorError}
+      <p class="mt-2 flex items-start gap-1.5 text-sm text-ui-error"><Icon name="alert" size={14} /> {generatorError}</p>
+    {/if}
+  </div>
+{/snippet}
+
 {#snippet importMessages()}
   {#if importError}
     <p class="mt-2 flex items-start gap-1.5 text-sm text-ui-error"><Icon name="alert" size={14} /> {importError}</p>
@@ -618,8 +844,7 @@
               To run it several times with different resources, import a CSV with <code>case_id</code>,
               <code>csauto_mpi</code> and <code>csauto_omp</code> columns.
             </p>
-            <button class="btn-ghost mt-2" onclick={() => openDialog({ type: "pickCsv" })} disabled={busy}><Icon name="file" size={13} /> Import a CSV…</button>
-            {@render importMessages()}
+            {@render tableTools(false)}
           {:else}
             <p class="mb-2.5 text-xs text-ui-text-muted">
               One row per case. Paste rows from a spreadsheet or a CSV file into any cell, or import a CSV file whose header names the columns.
@@ -662,11 +887,7 @@
                 </tbody>
               </table>
             </div>
-            <div class="mt-2 flex flex-wrap items-center gap-2">
-              <button class="btn-ghost" onclick={addRow} disabled={busy}><Icon name="plus" size={13} /> Add a case</button>
-              <button class="btn-ghost" onclick={() => openDialog({ type: "pickCsv" })} disabled={busy}><Icon name="file" size={13} /> Import a CSV…</button>
-            </div>
-            {@render importMessages()}
+            {@render tableTools(true)}
           {/if}
         </li>
       {/if}

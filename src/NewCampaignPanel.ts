@@ -210,6 +210,21 @@ export class NewCampaignPanel {
         }
         return;
       }
+      case "generateDoe": {
+        const python = await this.python();
+        if (!python) {
+          this.post({ type: "doeGenerateFailed", message: "csauto needs its Python environment to generate the table." });
+          return;
+        }
+        const result = await runCsauto(python, ["_doe-generate", JSON.stringify(message.spec)], this.workspaceRoot, this.output);
+        if (result.ok) {
+          const generated = JSON.parse(result.stdout) as { columns: string[]; rows: string[][] };
+          this.post({ type: "doeGenerated", columns: generated.columns, rows: generated.rows });
+        } else {
+          this.post({ type: "doeGenerateFailed", message: errorLine(result) });
+        }
+        return;
+      }
       case "closeDialog":
         // In a remote window the file dialog is a quick input; closing it resolves the pending pick.
         await vscode.commands.executeCommand("workbench.action.closeQuickOpen");

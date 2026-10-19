@@ -293,3 +293,52 @@ def test_check_spec_against_template_ignores_resource_parameters(tmp_path: Path)
     check_spec_against_template(["u_inlet", "csauto_mpi", "csauto_omp"], template_dir)
     with pytest.raises(ValueError, match="no matching placeholder"):
         check_spec_against_template(["u_inlet", "u_inlett"], template_dir)
+
+
+def test_generate_from_request_returns_columns_and_rows_in_parameter_order() -> None:
+    from csauto.doe_generate import generate_from_request
+
+    result = generate_from_request(
+        {
+            "parameters": [{"name": "model", "levels": ["a", "b"]}, {"name": "csauto_mpi", "levels": [1, 4]}],
+            "method": "factorial",
+        }
+    )
+    assert result["columns"] == ["model", "csauto_mpi"]
+    assert result["rows"] == [["a", "1"], ["a", "4"], ["b", "1"], ["b", "4"]]
+
+
+def test_generate_from_request_samples_a_range() -> None:
+    from csauto.doe_generate import generate_from_request
+
+    result = generate_from_request(
+        {"parameters": [{"name": "u", "min": 1.0, "max": 2.0}], "method": "lhs", "samples": 3, "seed": 7, "round": 2}
+    )
+    assert result["columns"] == ["u"]
+    assert len(result["rows"]) == 3
+    assert all(1.0 <= float(row[0]) <= 2.0 for row in result["rows"])
+
+
+@pytest.mark.parametrize(
+    ("request_body", "match"),
+    [
+        ([], "must be a JSON object"),
+        ({"method": "factorial"}, "needs a parameters list"),
+        ({"parameters": [{"levels": [1]}], "method": "factorial"}, "needs a name"),
+        (
+            {"parameters": [{"name": "a", "levels": [1]}, {"name": "a", "levels": [2]}], "method": "factorial"},
+            "Duplicate",
+        ),
+        ({"parameters": [{"name": "a", "levels": [1]}]}, "needs a method"),
+        (
+            {"parameters": [{"name": "a", "min": 0, "max": 1}], "method": "lhs", "samples": "4"},
+            "samples must be an integer",
+        ),
+        ({"parameters": [{"name": "a", "min": 0, "max": 1}], "method": "factorial"}, "requires discrete levels"),
+    ],
+)
+def test_generate_from_request_rejects_bad_requests(request_body: object, match: str) -> None:
+    from csauto.doe_generate import generate_from_request
+
+    with pytest.raises(ValueError, match=match):
+        generate_from_request(request_body)
