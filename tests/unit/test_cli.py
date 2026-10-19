@@ -428,3 +428,18 @@ def test_prepare_without_strict_only_warns_on_unused_column(tmp_path: Path, caps
     assert exit_code == 0
     assert "extra_col" in capsys.readouterr().err
     assert (tmp_path / "RUNS" / "case0001").is_dir()
+
+
+def test_doe_generate_command_prints_json_rows(capsys) -> None:
+    import json
+
+    request = json.dumps({"parameters": [{"name": "k", "levels": [10, 20]}], "method": "factorial"})
+    assert main(["_doe-generate", request]) == 0
+    assert json.loads(capsys.readouterr().out) == {"columns": ["k"], "rows": [["10"], ["20"]]}
+
+
+def test_doe_generate_command_reports_errors(capsys) -> None:
+    assert main(["_doe-generate", "{not json"]) == 1
+    assert "Invalid JSON request" in capsys.readouterr().err
+    assert main(["_doe-generate", '{"parameters": [], "method": "lhs"}']) == 1
+    assert "at least one parameter" in capsys.readouterr().err

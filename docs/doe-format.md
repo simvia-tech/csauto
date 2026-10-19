@@ -50,7 +50,9 @@ And `case0002/DATA/setup.xml` becomes:
 
 ## Generating doe.csv with `csauto doe`
 
-Instead of hand-writing `doe.csv`, generate it from a parameter spec:
+Instead of hand-writing `doe.csv`, generate it from a parameter spec (the
+VS Code extension offers the same methods in New Campaign, see
+[VS Code extension](./extension.md)):
 
 ```bash
 csauto doe spec.toml doe.csv --method lhs --samples 40 --seed 42

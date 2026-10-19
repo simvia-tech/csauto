@@ -59,6 +59,22 @@ export interface SolverSetup {
   singularity_image?: string;
 }
 
+/** One column of a generated parameter table: a list of levels, or a numeric range to sample. */
+export interface DoeParameterSpec {
+  name: string;
+  levels?: string[];
+  min?: number;
+  max?: number;
+}
+
+/** What `csauto _doe-generate` takes: the parameters, the sampling method and its settings. */
+export interface DoeSpec {
+  parameters: DoeParameterSpec[];
+  method: "factorial" | "lhs" | "sobol" | "ccd";
+  samples?: number;
+  seed?: number;
+}
+
 export interface CreateRequest {
   solver: string;
   start: StartKind;
@@ -82,6 +98,8 @@ export type ToWebview =
   | { type: "pathPicked"; purpose: "native" | "singularity"; path: string }
   /** The CSV picked for the parameter table; empty `text` when the pick was cancelled or the file unreadable. */
   | { type: "csvPicked"; name: string; text: string; error?: string }
+  | { type: "doeGenerated"; columns: string[]; rows: string[][] }
+  | { type: "doeGenerateFailed"; message: string }
   | { type: "progress"; message: string }
   | { type: "createFailed"; message: string };
 
@@ -96,6 +114,8 @@ export type ToExtension =
   | { type: "pickPath"; purpose: "native" | "singularity"; solver: string }
   /** Pick a CSV file and send its text back, to fill the parameter table. */
   | { type: "pickCsv" }
+  /** Generate the parameter table from levels and ranges (csauto doe). */
+  | { type: "generateDoe"; spec: DoeSpec }
   /** Close the open file dialog, as Escape would (the user clicked outside it). */
   | { type: "closeDialog" }
   | { type: "create"; request: CreateRequest }

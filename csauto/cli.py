@@ -405,6 +405,8 @@ def parse_arguments(
     case_info_parser = subparsers.add_parser("_case-info")
     case_info_parser.add_argument("template", type=Path)
     case_info_parser.add_argument("--solver", required=True)
+    doe_generate_parser = subparsers.add_parser("_doe-generate")
+    doe_generate_parser.add_argument("request", help="JSON: parameters, method, samples, seed, round")
 
     # Backward compatibility: allow legacy call without subcommand.
     commands = {
@@ -430,6 +432,7 @@ def parse_arguments(
         "_new-campaign",
         "_case-info",
         "_inspect-inputs",
+        "_doe-generate",
     }
     argv_list = list(argv)
     if argv_list and argv_list[0] not in commands and len(argv_list) == 3:
@@ -732,6 +735,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             from .new_campaign import case_info
 
             print(json.dumps(case_info(args.template, args.solver)))
+        elif args.command == "_doe-generate":
+            from .doe_generate import generate_from_request
+
+            try:
+                request = json.loads(args.request)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"Invalid JSON request: {exc}") from exc
+            print(json.dumps(generate_from_request(request)))
         else:
             raise ValueError("Unknown command.")
     except Exception as exc:

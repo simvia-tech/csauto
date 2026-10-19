@@ -84,11 +84,50 @@ def load_doe_spec(spec_path: Path) -> list[ParameterSpec]:
 
     if not isinstance(data, dict) or "parameters" not in data:
         raise ValueError(f"DOE spec {spec_path} must contain a [parameters] table")
-    parameters = data["parameters"]
-    if not isinstance(parameters, dict) or not parameters:
-        raise ValueError(f"DOE spec {spec_path} must define at least one parameter under [parameters]")
+    return parse_spec_parameters(data["parameters"], spec_path)
 
-    return [_parse_parameter(name, table, spec_path) for name, table in parameters.items()]
+
+def parse_spec_parameters(parameters: object, source: str | Path) -> list[ParameterSpec]:
+    """Validate a `parameters` mapping (name -> {levels} or {min, max}) from a TOML spec or a JSON request."""
+    if not isinstance(parameters, dict) or not parameters:
+        raise ValueError(f"DOE spec {source} must define at least one parameter under [parameters]")
+    return [_parse_parameter(name, table, source) for name, table in parameters.items()]
+
+
+def generate_from_request(request: object) -> dict[str, list]:
+    """Rows for the extension's New Campaign page, from a JSON request.
+
+    `{"parameters": [{"name", "levels"} | {"name", "min", "max"}, ...], "method", "samples"?, "seed"?, "round"?}`
+    gives `{"columns": [...], "rows": [[...], ...]}`, in the order of the parameters.
+    """
+    if not isinstance(request, dict):
+        raise ValueError("DOE request must be a JSON object")
+    raw_parameters = request.get("parameters")
+    if not isinstance(raw_parameters, list):
+        raise ValueError("DOE request needs a parameters list")
+    parameters: dict[str, object] = {}
+    for entry in raw_parameters:
+        if not isinstance(entry, dict) or not isinstance(entry.get("name"), str):
+            raise ValueError("Each DOE parameter needs a name")
+        name = entry["name"]
+        if name in parameters:
+            raise ValueError(f"Duplicate DOE parameter {name!r}")
+        parameters[name] = {key: value for key, value in entry.items() if key != "name"}
+    params = parse_spec_parameters(parameters, "request")
+    method = request.get("method")
+    if not isinstance(method, str):
+        raise ValueError("DOE request needs a method")
+    samples = request.get("samples")
+    seed = request.get("seed", 0)
+    round_ndigits = request.get("round", 6)
+    for label, value in (("samples", samples), ("seed", seed), ("round", round_ndigits)):
+        if value is not None and (isinstance(value, bool) or not isinstance(value, int)):
+            raise ValueError(f"DOE request: {label} must be an integer")
+    rows = generate_rows(
+        params, method, samples=samples, seed=seed if seed is not None else 0, round_ndigits=round_ndigits
+    )
+    names = [param.name for param in params]
+    return {"columns": names, "rows": [[row.get(name, "") for name in names] for row in rows]}
 
 
 def check_spec_against_template(param_names: list[str], template_dir: Path, adapter=None) -> None:
