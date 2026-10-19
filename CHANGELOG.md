@@ -14,6 +14,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ### Fixed
 - New Campaign no longer requires every cell of the parameter table to be filled before creating the campaign: an empty cell is a valid value for `csauto prepare` (a parameter only used inside an `IF` block, as in the code_saturne example). Only a row with nothing in it blocks
 
+## [1.1.0] - 2026-10-19
+
+### Added
+- DOE columns `csauto_mpi` and `csauto_omp` set the number of MPI processes and OpenMP threads per case
+- New Campaign page: import a CSV into the parameter table
+- New Campaign page: generate the parameter table with the existing DOE generators (full factorial, Sobol, etc.)
+
 ## [1.0.0] - 2026-10-15
 
 First stable release: csauto is published on the VS Code Marketplace, with interactive residual and probe charts, a new website and online documentation. It gathers everything since 1.0.0-rc.1, so the release candidates below hold the details.
