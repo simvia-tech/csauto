@@ -175,8 +175,20 @@ def parse_arguments(
     )
     run_parser = subparsers.add_parser("run", help="Launch the configured solver on all cases.")
     run_parser.add_argument("runs_dir", type=Path, help="Directory containing generated cases")
-    run_parser.add_argument("--n", dest="nprocs", type=int, required=True, help="Number of MPI processes")
-    run_parser.add_argument("--nt", dest="nt", type=int, required=True, help="Number of OpenMP threads")
+    run_parser.add_argument(
+        "--n",
+        dest="nprocs",
+        type=int,
+        default=None,
+        help="Number of MPI processes (required unless every case sets csauto_mpi in the DOE).",
+    )
+    run_parser.add_argument(
+        "--nt",
+        dest="nt",
+        type=int,
+        default=None,
+        help="Number of OpenMP threads per process (required unless every case sets csauto_omp in the DOE).",
+    )
     run_parser.add_argument(
         "--max-parallel",
         dest="max_parallel",

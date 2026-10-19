@@ -70,7 +70,9 @@ levels = ["k-epsilon", "k-omega-sst"]
 ```
 
 Parameter names follow the same character rules as placeholders (letters,
-digits, `.`, `_`, `-`) and `case_id` is reserved.
+digits, `.`, `_`, `-`); `case_id` is reserved, and the only `csauto_*` names
+allowed are the [resource columns](#resource-columns-csauto_mpi-csauto_omp)
+(`[parameters.csauto_mpi] levels = [1, 2, 4, 8]` writes a scaling study).
 
 ### Methods
 
@@ -124,6 +126,39 @@ error.
 - Example valid IDs: `case0001`, `run-A`, `mesh.fine`
 - Every command works with any valid ID: csauto finds cases from its registry
   and their `doe_row.csv`, not from their names
+
+---
+
+## Resource columns (`csauto_mpi`, `csauto_omp`)
+
+Two reserved columns give each case the resources it is launched with:
+
+| Column | Meaning | Replaces |
+|---|---|---|
+| `csauto_mpi` | Number of MPI processes | `csauto run --n`, **MPI Ranks (n)** in the Run dialog |
+| `csauto_omp` | Number of OpenMP threads per process | `csauto run --nt`, **OMP Threads (nt)** in the Run dialog |
+
+```csv
+case_id,mesh,csauto_mpi,csauto_omp
+strong-1,fine.med,1,1
+strong-4,fine.med,4,1
+strong-16,fine.med,16,1
+hybrid-4x4,fine.med,4,4
+```
+
+Rules:
+
+- Values are positive integers; `prepare` rejects anything else and names the
+  case. An empty cell means "not set for this case".
+- A case whose row sets a resource always uses it: the value given at launch
+  (`--n`, `--nt`, the dialog) only applies to the cases that do not. When every
+  selected case sets both, `--n`/`--nt` can be left out and the dialog shows
+  "From the DOE" instead of asking.
+- Both columns are exempt from the "DOE columns not used in template" warning
+  and from `--strict`, and both may still be used as placeholders
+  (`{csauto_mpi}` in a Slurm header or a `run.cfg`).
+- Any other `csauto_*` column is an error, so a typo such as `csauto_mpi_ranks`
+  cannot silently become an ordinary variable.
 
 ---
 

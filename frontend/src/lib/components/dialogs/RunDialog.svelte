@@ -2,6 +2,7 @@
   RunDialog — configure MPI ranks, threads, and max parallel before running cases.
 
   Pre-fills from localStorage settings. Validates inputs before resolving.
+  Ranks or threads every selected case takes from its DOE row are sent as null.
 -->
 <script lang="ts">
   import { untrack } from "svelte";
@@ -9,12 +10,17 @@
   import { appAlert } from "#lib/actions/dialog.svelte.ts";
   import DialogShell from "./DialogShell.svelte";
   import SetupWarnings from "./SetupWarnings.svelte";
+  import ResourceFields from "./ResourceFields.svelte";
   import Button from "#lib/components/shared/Button.svelte";
-  import FormLabel from "#lib/components/shared/FormLabel.svelte";
   import {
     getRunSettings,
     setRunSettings,
   } from "#lib/stores/settings.svelte.ts";
+  import {
+    coveredByDoe,
+    doeResourceCoverage,
+    resourceValueError,
+  } from "#lib/utils/resources.ts";
   import type { RunParams } from "#lib/api/types.ts";
 
   interface Props {
@@ -28,17 +34,18 @@
   const defaultParallel = untrack(
     () => saved.maxParallel ?? (cases.length > 1 ? cases.length : 0),
   );
+  const coverageN = untrack(() => doeResourceCoverage(cases, "nprocs"));
+  const coverageNt = untrack(() => doeResourceCoverage(cases, "nt"));
   let n = $state(saved.n);
   let nt = $state(saved.nt);
   let maxParallel = $state(defaultParallel);
 
   async function confirm() {
-    if (!Number.isFinite(n) || n <= 0) {
-      await appAlert("MPI ranks must be an integer > 0.", "Invalid value");
-      return;
-    }
-    if (!Number.isFinite(nt) || nt <= 0) {
-      await appAlert("Threads must be an integer > 0.", "Invalid value");
+    const valueError =
+      resourceValueError("MPI ranks", n, coverageN) ||
+      resourceValueError("Threads", nt, coverageNt);
+    if (valueError) {
+      await appAlert(valueError, "Invalid value");
       return;
     }
     if (maxParallel && (!Number.isFinite(maxParallel) || maxParallel <= 0)) {
@@ -46,12 +53,12 @@
       return;
     }
 
+    setRunSettings({ n, nt, maxParallel: maxParallel || null });
     const params: RunParams = {
-      n,
-      nt,
+      n: coveredByDoe(coverageN) ? null : n,
+      nt: coveredByDoe(coverageNt) ? null : nt,
       maxParallel: maxParallel || null,
     };
-    setRunSettings(params);
     closeDialog(params);
   }
 </script>
@@ -62,17 +69,7 @@
   subtitle="{cases.length} case{cases.length > 1 ? 's' : ''} selected"
   onConfirm={confirm}
 >
-  <div class="grid grid-cols-3 gap-2.5 mb-3">
-    <FormLabel text="MPI Ranks (n)">
-      <input type="number" min="1" step="1" bind:value={n} />
-    </FormLabel>
-    <FormLabel text="OMP Threads (nt)">
-      <input type="number" min="1" step="1" bind:value={nt} />
-    </FormLabel>
-    <FormLabel text="Max Parallel">
-      <input type="number" min="0" step="1" bind:value={maxParallel} />
-    </FormLabel>
-  </div>
+  <ResourceFields bind:n bind:nt bind:maxParallel {coverageN} {coverageNt} />
 
   <SetupWarnings {cases} />
 

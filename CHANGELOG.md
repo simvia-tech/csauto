@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- Reserved DOE columns `csauto_mpi` and `csauto_omp` set a case's number of MPI processes and OpenMP threads, for scaling studies. A case whose row sets them is launched with them; `csauto run --n/--nt` and the Run and Restart dialogs only apply to the cases that do not, and the dialogs read "From the DOE" when every selected case is covered. `prepare` checks the values are positive integers, exempts both columns from the unused-column warning, and rejects any other `csauto_*` column; `csauto doe` accepts them as parameters. `GET /api/app_config` names them in `resource_columns`
+
 ## [1.0.0] - 2026-10-15
 
 First stable release: csauto is published on the VS Code Marketplace, with interactive residual and probe charts, a new website and online documentation. It gathers everything since 1.0.0-rc.1, so the release candidates below hold the details.

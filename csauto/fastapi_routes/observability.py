@@ -2,6 +2,7 @@ import math
 from pathlib import Path
 from typing import Annotated, Any
 
+from ..doe import RESOURCE_COLUMNS
 from ..logs import (
     ANOMALY_CONTEXT_DEFAULT,
     ANOMALY_SEVERITY,
@@ -99,6 +100,7 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
         logo: bool
         logo_dark: bool
         icon: bool
+        resource_columns: dict[str, str]
 
     class RecentErrorItemModel(BaseModel):
         case_id: str
@@ -168,6 +170,8 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
             "logo": bool(ctx.adapter.logo_file and ctx.adapter.logo_file.is_file()),
             "logo_dark": bool(ctx.adapter.logo_dark_file and ctx.adapter.logo_dark_file.is_file()),
             "icon": bool(ctx.adapter.icon_file and ctx.adapter.icon_file.is_file()),
+            # DOE columns that set a case's launch resources, keyed by the run_case field they replace.
+            "resource_columns": {key: column for column, key in RESOURCE_COLUMNS.items()},
         }
 
     def _svg_or_404(path: Path | None) -> Any:

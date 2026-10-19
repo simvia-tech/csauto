@@ -204,8 +204,9 @@ export function fetchCompareDiff(params: {
 
 export function runCase(params: {
   cases: string[];
-  n: number;
-  nt: number;
+  /** Null or omitted: the cases' DOE rows provide it (csauto_mpi / csauto_omp). */
+  n?: number | null;
+  nt?: number | null;
   maxParallel?: number | null;
   restart?: boolean;
   restartMode?: string;
@@ -214,8 +215,8 @@ export function runCase(params: {
 }): Promise<void> {
   return apiPost("/api/run_case", {
     cases: params.cases,
-    n: params.n,
-    nt: params.nt,
+    n: params.n ?? undefined,
+    nt: params.nt ?? undefined,
     max_parallel: params.maxParallel ?? undefined,
     restart: params.restart ?? false,
     restart_mode: params.restartMode ?? "",

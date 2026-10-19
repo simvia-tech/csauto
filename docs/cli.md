@@ -126,14 +126,17 @@ to `FAILED` ones. Cases run as background processes (local) or Slurm batch jobs
 depending on the configuration.
 
 ```bash
-csauto run <runs_dir> --n <mpi_ranks> --nt <omp_threads> [options]
+csauto run <runs_dir> [--n <mpi_ranks>] [--nt <omp_threads>] [options]
 ```
 
 Required arguments:
 
 - `<runs_dir>`: the campaign folder created by `prepare`
-- `--n N`: number of MPI ranks per case (must be `> 0`)
-- `--nt N`: number of OpenMP threads per MPI rank (must be `> 0`)
+- `--n N`: number of MPI ranks per case (must be `> 0`); a case whose DOE row
+  sets `csauto_mpi` uses that instead, and the option can be left out when
+  every selected case does (see [DOE format](./doe-format.md#resource-columns-csauto_mpi-csauto_omp))
+- `--nt N`: number of OpenMP threads per MPI rank (must be `> 0`); same with
+  the `csauto_omp` column
 
 Options:
 

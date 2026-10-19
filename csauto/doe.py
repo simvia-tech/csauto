@@ -31,7 +31,11 @@ def _default_adapter():
     return get_solver_adapter(None)
 
 
-RESERVED_COLUMNS = {"case_id"}
+# Columns csauto reads itself. `csauto_mpi` and `csauto_omp` give a case its number of MPI processes and of
+# OpenMP threads per process at launch; both may also be used as template placeholders.
+RESERVED_COLUMN_PREFIX = "csauto_"
+RESOURCE_COLUMNS = {"csauto_mpi": "nprocs", "csauto_omp": "nt"}
+RESERVED_COLUMNS = {"case_id", *RESOURCE_COLUMNS}
 CASE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 DOE_ROW_CACHE_LOCK = threading.RLock()
 DOE_ROW_CACHE: dict[Path, dict[str, Any]] = {}
@@ -119,6 +123,61 @@ def _report_unused_columns(headers: Iterable[str], used_columns: set[str], *, st
         if strict:
             raise ValueError(f"DOE columns not used in template: {joined}")
         warn(f"DOE columns not used in template: {joined}")
+
+
+def _check_reserved_columns(headers: Iterable[str]) -> None:
+    """Refuse `csauto_*` columns csauto does not know: a typo must not silently become a plain variable."""
+    unknown = [h for h in headers if h.startswith(RESERVED_COLUMN_PREFIX) and h not in RESERVED_COLUMNS]
+    if unknown:
+        known = ", ".join(sorted(RESOURCE_COLUMNS))
+        raise ValueError(
+            f"Unknown reserved DOE columns: {', '.join(unknown)} (the {RESERVED_COLUMN_PREFIX}* columns are {known})"
+        )
+
+
+def parse_resource_value(column: str, raw: str | None, case_id: str) -> int | None:
+    """The positive integer in a resource column, None when the cell is empty."""
+    text = (raw or "").strip()
+    if not text:
+        return None
+    try:
+        value = int(text)
+    except ValueError:
+        value = 0
+    if value <= 0 or text != str(value):
+        raise ValueError(f"{column} must be a positive integer, got {text!r} for {case_id}")
+    return value
+
+
+def _check_resource_values(headers: Sequence[str], rows: Sequence[Mapping[str, str]]) -> None:
+    columns = [h for h in headers if h in RESOURCE_COLUMNS]
+    if not columns:
+        return
+    problems: list[str] = []
+    for index, row in enumerate(rows, start=1):
+        case_id = _resolve_case_id(row, index)
+        for column in columns:
+            try:
+                parse_resource_value(column, row.get(column), case_id)
+            except ValueError as exc:
+                problems.append(str(exc))
+    if problems:
+        shown = "; ".join(problems[:5])
+        more = f" (and {len(problems) - 5} more)" if len(problems) > 5 else ""
+        raise ValueError(f"Invalid resource values in the DOE: {shown}{more}")
+
+
+def case_resources(case_dir: Path) -> dict[str, int]:
+    """The launch resources a case's DOE row sets: `nprocs` and/or `nt`, only when the cell is filled."""
+    values, _columns = read_doe_row(case_dir)
+    resources: dict[str, int] = {}
+    for column, key in RESOURCE_COLUMNS.items():
+        if column not in values:
+            continue
+        value = parse_resource_value(column, values.get(column), case_dir.name)
+        if value is not None:
+            resources[key] = value
+    return resources
 
 
 def _write_doe_row(case_dir: Path, headers: Sequence[str], row: Mapping[str, str], case_id: str) -> None:
@@ -373,6 +432,8 @@ def generate_cases(
             f"\\{{{example}}} in the template to keep a literal {{{example}}} (for example in Python code)."
         )
 
+    _check_reserved_columns(headers)
+    _check_resource_values(headers, rows)
     _report_unused_columns(headers, required_columns, strict=strict)
     output_dir.mkdir(parents=True, exist_ok=True)
     # Recorded before any case exists, so commands always know the campaign's solver.

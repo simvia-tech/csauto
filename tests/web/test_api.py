@@ -1406,3 +1406,58 @@ def test_run_without_restart_is_not_blocked_by_the_restart_guard(aster_env) -> N
         # A launch failure (no runtime available in CI) is acceptable here;
         # a capability rejection is not.
         assert "does not support restart" not in exc.read().decode("utf-8")
+
+
+def test_api_run_case_takes_n_and_nt_from_the_doe_row(runs_dir: Path, case_factory, monkeypatch) -> None:
+    case_dir = case_factory(runs_dir, "case0001")
+    (case_dir / "doe_row.csv").write_text("csauto_mpi,csauto_omp,case_id\n4,2,case0001\n", encoding="utf-8")
+    save_registry(runs_dir, {"case0001": {"case_id": "case0001", "path": str(case_dir), "status": "PREPARED"}})
+    monkeypatch.setattr(
+        "csauto.fastapi_routes.actions.resolve_runtime",
+        lambda **_kwargs: RuntimeSelection(runtime="docker", docker_image="dummy/image:latest"),
+    )
+    captured: dict[str, object] = {}
+
+    def fake_run_cases(_runs_dir: Path, nprocs, nt, max_parallel: int, **_kwargs: object) -> None:
+        captured.update(nprocs=nprocs, nt=nt, max_parallel=max_parallel)
+
+    monkeypatch.setattr("csauto.fastapi_routes.actions.run_cases", fake_run_cases)
+
+    base_url, thread, httpd = _start_server(runs_dir)
+    try:
+        status, _body = _http_post(f"{base_url}/api/run_case", {"cases": ["case0001"]})
+        assert status == 200
+        # The missing field is named with the column that would provide it.
+        with pytest.raises(HTTPError) as excinfo:
+            _http_post(f"{base_url}/api/run_case", {"cases": ["case0001"], "n": 0})
+        assert excinfo.value.code == 400
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2)
+    # The runner resolves the per-case values itself; the request's own counts stay None.
+    assert (captured["nprocs"], captured["nt"], captured["max_parallel"]) == (None, None, 1)
+
+
+def test_api_run_case_names_the_column_when_n_is_missing(runs_dir: Path, case_factory, monkeypatch) -> None:
+    case_dir = case_factory(runs_dir, "case0001")
+    save_registry(runs_dir, {"case0001": {"case_id": "case0001", "path": str(case_dir), "status": "PREPARED"}})
+    monkeypatch.setattr("csauto.fastapi_routes.actions.run_cases", lambda *_a, **_kw: None)
+
+    base_url, thread, httpd = _start_server(runs_dir)
+    try:
+        with pytest.raises(HTTPError) as excinfo:
+            _http_post(f"{base_url}/api/run_case", {"cases": ["case0001"], "nt": 2})
+        assert excinfo.value.code == 400
+        assert "csauto_mpi" in excinfo.value.read().decode("utf-8")
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2)
+
+
+def test_api_app_config_names_the_resource_columns(web_env) -> None:
+    base_url, _case_dir = web_env
+    status, body = _http_get(f"{base_url}/api/app_config")
+    assert status == 200
+    assert json.loads(body)["resource_columns"] == {"nprocs": "csauto_mpi", "nt": "csauto_omp"}

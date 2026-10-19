@@ -12,7 +12,7 @@ from ..execution import resolve_runtime
 from ..logs import find_case_file
 from ..maintenance import cleanup_runs
 from ..registry import STATUS_DONE, STATUS_FAILED, STATUS_PREPARED, STATUS_RUNNING, registry_transaction, update_case
-from ..runner import run_cases
+from ..runner import resolve_case_resources, run_cases
 from ..web_support import default_web_max_parallel, kill_case, log_case_action, normalize_convergence
 from .common import shared_models
 
@@ -499,18 +499,24 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
     ) -> dict[str, str]:
         ctx.require_auth(x_csauto_token, authorization)
         cases = normalize_cases(payload.cases)
-        if not cases or payload.n is None or payload.nt is None:
-            raise ctx.http_exception_cls(status_code=400, detail="Missing cases, n, nt parameters")
+        if not cases:
+            raise ctx.http_exception_cls(status_code=400, detail="Missing cases parameter")
         try:
             case_ids = [ctx.validate_case(case) for case in cases]
         except ValueError as exc:
             raise ctx.http_exception_cls(status_code=400, detail=str(exc)) from exc
 
-        if payload.n <= 0 or payload.nt <= 0:
+        if (payload.n is not None and payload.n <= 0) or (payload.nt is not None and payload.nt <= 0):
             raise ctx.http_exception_cls(status_code=400, detail="n, nt, and max_parallel must be integers > 0")
+        # n and nt may come from each case's DOE row (csauto_mpi, csauto_omp); every case must end up with both.
+        try:
+            resolved = [resolve_case_resources(ctx.runs_dir / case_id, payload.n, payload.nt) for case_id in case_ids]
+        except ValueError as exc:
+            raise ctx.http_exception_cls(status_code=400, detail=str(exc)) from exc
         if payload.max_parallel is None:
+            cores_per_case = max(n * nt for n, nt in resolved)
             max_parallel = default_web_max_parallel(
-                len(case_ids), ctx.runs_dir, STATUS_RUNNING, payload.n * payload.nt, ctx.use_slurm
+                len(case_ids), ctx.runs_dir, STATUS_RUNNING, cores_per_case, ctx.use_slurm
             )
         elif payload.max_parallel <= 0:
             raise ctx.http_exception_cls(status_code=400, detail="n, nt, and max_parallel must be integers > 0")

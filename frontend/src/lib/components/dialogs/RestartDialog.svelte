@@ -2,13 +2,15 @@
   RestartDialog: ranks, threads, the restart mode and its value (as declared
   by the solver adapter), and the run folder to restart from.
 
-  Pre-fills from localStorage settings.
+  Pre-fills from localStorage settings. Ranks or threads every selected case
+  takes from its DOE row are sent as null.
 -->
 <script lang="ts">
   import { onMount, untrack } from "svelte";
   import { closeDialog, appAlert } from "#lib/actions/dialog.svelte.ts";
   import DialogShell from "./DialogShell.svelte";
   import SetupWarnings from "./SetupWarnings.svelte";
+  import ResourceFields from "./ResourceFields.svelte";
   import Button from "#lib/components/shared/Button.svelte";
   import FormLabel from "#lib/components/shared/FormLabel.svelte";
   import {
@@ -18,6 +20,11 @@
   import { getAppConfig } from "#lib/stores/appConfig.svelte.ts";
   import { fetchResuDirs } from "#lib/api/endpoints.ts";
   import { optionValueError } from "#lib/utils/options.ts";
+  import {
+    coveredByDoe,
+    doeResourceCoverage,
+    resourceValueError,
+  } from "#lib/utils/resources.ts";
   import type { RestartParams } from "#lib/api/types.ts";
 
   interface Props {
@@ -32,6 +39,8 @@
   const defaultParallel = untrack(
     () => saved.maxParallel ?? (cases.length > 1 ? cases.length : 0),
   );
+  const coverageN = untrack(() => doeResourceCoverage(cases, "nprocs"));
+  const coverageNt = untrack(() => doeResourceCoverage(cases, "nt"));
   let n = $state(saved.n);
   let nt = $state(saved.nt);
   let maxParallel = $state(defaultParallel);
@@ -58,12 +67,11 @@
   });
 
   async function confirm() {
-    if (!Number.isFinite(n) || n <= 0) {
-      await appAlert("MPI ranks must be an integer > 0.", "Invalid value");
-      return;
-    }
-    if (!Number.isFinite(nt) || nt <= 0) {
-      await appAlert("Threads must be an integer > 0.", "Invalid value");
+    const resourceError =
+      resourceValueError("MPI ranks", n, coverageN) ||
+      resourceValueError("Threads", nt, coverageNt);
+    if (resourceError) {
+      await appAlert(resourceError, "Invalid value");
       return;
     }
     if (maxParallel && (!Number.isFinite(maxParallel) || maxParallel <= 0)) {
@@ -79,8 +87,8 @@
     }
 
     const params: RestartParams = {
-      n,
-      nt,
+      n: coveredByDoe(coverageN) ? null : n,
+      nt: coveredByDoe(coverageNt) ? null : nt,
       maxParallel: maxParallel || null,
       restartMode,
       restartValue: mode?.value_label ? restartValue : null,
@@ -103,17 +111,7 @@
   subtitle="{cases.length} case{cases.length > 1 ? 's' : ''} selected"
   onConfirm={confirm}
 >
-  <div class="grid grid-cols-3 gap-2.5 mb-3">
-    <FormLabel text="MPI Ranks (n)">
-      <input type="number" min="1" step="1" bind:value={n} />
-    </FormLabel>
-    <FormLabel text="OMP Threads (nt)">
-      <input type="number" min="1" step="1" bind:value={nt} />
-    </FormLabel>
-    <FormLabel text="Max Parallel">
-      <input type="number" min="0" step="1" bind:value={maxParallel} />
-    </FormLabel>
-  </div>
+  <ResourceFields bind:n bind:nt bind:maxParallel {coverageN} {coverageNt} />
 
   <div class="grid grid-cols-2 gap-2.5 mb-3">
     {#if modes.length > 0}
