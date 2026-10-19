@@ -384,13 +384,16 @@
           : inspectError || (inspection ? "" : "Checking your case…"),
   );
 
+  // Empty cells are fine: csauto prepare renders them as empty values (a parameter only
+  // used inside an IF block, say). A row with nothing in it is a mistake, though.
   const doeError = $derived(
-    needsCase &&
-      generate &&
-      columns.length > 0 &&
-      (rows.length === 0 || rows.some((row) => row.slice(0, variables.length).some((cell) => !cell.trim())))
-      ? "Fill every cell of the parameter table, or untick Generate the cases now."
-      : "",
+    !needsCase || !generate || columns.length === 0
+      ? ""
+      : rows.length === 0
+        ? "Add at least one case, or untick Generate the cases now."
+        : rows.some((row) => row.every((cell) => !cell.trim()))
+          ? "Fill or remove the empty rows of the parameter table, or untick Generate the cases now."
+          : "",
   );
 
   const runtimeError = $derived(
