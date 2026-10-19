@@ -34,6 +34,10 @@
   let inspectError = $state("");
   let fileWarnings = $state<string[]>([]);
   let rows = $state<string[][]>([]);
+  // Reserved columns an imported CSV brings along with the placeholders (case_id, csauto_mpi, csauto_omp).
+  let extraColumns = $state<string[]>([]);
+  let importNotes = $state<string[]>([]);
+  let importError = $state("");
 
   let name = $state("");
   let runtime = $state("");
@@ -53,7 +57,8 @@
   let createError = $state("");
 
   const solver = $derived(solvers.find((candidate) => candidate.name === solverName));
-  const columns = $derived(inspection?.variables ?? []);
+  const variables = $derived(inspection?.variables ?? []);
+  const columns = $derived([...variables, ...extraColumns]);
   const shownWarnings = $derived(start === "files" ? fileWarnings : (inspection?.warnings ?? []));
   const needsCase = $derived(start === "files" || start === "folder");
   const repository = $derived(solver ? repositoryOf(solver.default_docker_image) : "");
@@ -129,14 +134,23 @@
         break;
       case "inspected": {
         // Keep the rows typed so far when picking another file leaves the parameters as they were.
-        const same = message.inspection.variables.join("\n") === columns.join("\n");
+        const same = message.inspection.variables.join("\n") === variables.join("\n");
         inspection = message.inspection;
         inspectError = "";
         if (!same || rows.length === 0) {
+          extraColumns = [];
+          importNotes = [];
           rows = message.inspection.variables.length > 0 ? [message.inspection.variables.map(() => "")] : [];
         }
         break;
       }
+      case "csvPicked":
+        dialogOpen = false;
+        importError = message.error ?? "";
+        if (message.text) {
+          importRows(message.name, message.text);
+        }
+        break;
       case "fileWarnings":
         fileWarnings = message.warnings;
         break;
@@ -190,7 +204,7 @@
     folder = "";
     inspection = undefined;
     inspectError = "";
-    rows = [];
+    resetTable();
     runtime = chosen.found_runtimes[0] ?? chosen.runtimes[0] ?? "";
     images = [];
     imagesLoading = true;
@@ -204,8 +218,15 @@
     start = kind;
     inspection = undefined;
     inspectError = "";
-    rows = [];
+    resetTable();
     inspect();
+  }
+
+  function resetTable() {
+    rows = [];
+    extraColumns = [];
+    importNotes = [];
+    importError = "";
   }
 
   function removeFile(key: string, filePath: string) {
@@ -242,6 +263,93 @@
     rows = rows.filter((_, rowIndex) => rowIndex !== index);
   }
 
+  /** DOE columns csauto reads itself; an imported file may carry them next to the placeholders. */
+  const RESERVED_COLUMNS = ["case_id", "csauto_mpi", "csauto_omp"];
+
+  /**
+   * Split CSV or TSV text into trimmed cells. The delimiter is the one most used
+   * in the first line (tab, semicolon or comma); quoted cells may hold it, quotes
+   * and line breaks. Blank lines are dropped.
+   */
+  function parseDelimited(text: string): string[][] {
+    const firstLine = text.split(/\r?\n/, 1)[0] ?? "";
+    const delimiter = ["\t", ";", ","].reduce((best, candidate) =>
+      firstLine.split(candidate).length > firstLine.split(best).length ? candidate : best,
+    );
+    const table: string[][] = [];
+    let row: string[] = [];
+    let cell = "";
+    let quoted = false;
+    for (let index = 0; index < text.length; index += 1) {
+      const char = text[index];
+      if (quoted) {
+        if (char === '"' && text[index + 1] === '"') {
+          cell += '"';
+          index += 1;
+        } else if (char === '"') {
+          quoted = false;
+        } else {
+          cell += char;
+        }
+      } else if (char === '"' && cell === "") {
+        quoted = true;
+      } else if (char === delimiter) {
+        row.push(cell.trim());
+        cell = "";
+      } else if (char === "\n" || char === "\r") {
+        if (char === "\r" && text[index + 1] === "\n") {
+          index += 1;
+        }
+        row.push(cell.trim());
+        if (row.some((value) => value)) {
+          table.push(row);
+        }
+        row = [];
+        cell = "";
+      } else {
+        cell += char;
+      }
+    }
+    row.push(cell.trim());
+    if (row.some((value) => value)) {
+      table.push(row);
+    }
+    return table;
+  }
+
+  /** Fill the table from a CSV file: its header names the columns, which may include the reserved ones. */
+  function importRows(fileName: string, text: string) {
+    importNotes = [];
+    const parsed = parseDelimited(text);
+    if (parsed.length < 2) {
+      importError = `${fileName} needs a header line and at least one row.`;
+      return;
+    }
+    const header = parsed[0];
+    const reserved = header.filter((column) => RESERVED_COLUMNS.includes(column));
+    const ignored = header.filter((column) => !variables.includes(column) && !reserved.includes(column));
+    const missing = variables.filter((column) => !header.includes(column));
+    if (missing.length === variables.length && reserved.length === 0) {
+      importError =
+        variables.length > 0
+          ? `No column of ${fileName} matches the case's parameters (${variables.join(", ")}).`
+          : `${fileName} has no column csauto can use: the case has no parameters, so only ${RESERVED_COLUMNS.join(", ")} apply.`;
+      return;
+    }
+    importError = "";
+    extraColumns = reserved;
+    const order = [...variables, ...reserved].map((column) => header.indexOf(column));
+    rows = parsed.slice(1).map((cells) => order.map((index) => (index >= 0 ? (cells[index] ?? "") : "")));
+    const notes = [`${rows.length} case${rows.length === 1 ? "" : "s"} imported from ${fileName}.`];
+    if (ignored.length > 0) {
+      notes.push(`Ignored columns the case does not use: ${ignored.join(", ")}.`);
+    }
+    if (missing.length > 0) {
+      notes.push(`Columns missing from the file, left empty: ${missing.join(", ")}.`);
+    }
+    importNotes = notes;
+  }
+
   /** Paste rows copied from a spreadsheet or a CSV file into the table. */
   function pasteRows(event: ClipboardEvent) {
     const text = event.clipboardData?.getData("text") ?? "";
@@ -250,7 +358,7 @@
       return;
     }
     event.preventDefault();
-    const parsed = lines.map((line) => line.split(line.includes("\t") ? "\t" : ",").map((cell) => cell.trim()));
+    const parsed = parseDelimited(text);
     const header = parsed[0].every((cell) => columns.includes(cell)) ? parsed.shift() : undefined;
     const order = header ? columns.map((column) => header.indexOf(column)) : columns.map((_, index) => index);
     rows = [...rows.filter((row) => row.some((cell) => cell)), ...parsed.map((cells) => order.map((index) => cells[index] ?? ""))];
@@ -276,10 +384,16 @@
           : inspectError || (inspection ? "" : "Checking your case…"),
   );
 
+  // Empty cells are fine: csauto prepare renders them as empty values (a parameter only
+  // used inside an IF block, say). A row with nothing in it is a mistake, though.
   const doeError = $derived(
-    needsCase && generate && columns.length > 0 && (rows.length === 0 || rows.some((row) => row.some((cell) => !cell.trim())))
-      ? "Fill every cell of the parameter table, or untick Generate the cases now."
-      : "",
+    !needsCase || !generate || columns.length === 0
+      ? ""
+      : rows.length === 0
+        ? "Add at least one case, or untick Generate the cases now."
+        : rows.some((row) => row.every((cell) => !cell.trim()))
+          ? "Fill or remove the empty rows of the parameter table, or untick Generate the cases now."
+          : "",
   );
 
   const runtimeError = $derived(
@@ -328,6 +442,15 @@
 {#snippet warnings()}
   {#each shownWarnings as warning (warning)}
     <p class="mt-2 flex items-start gap-1.5 text-sm text-ui-warning"><Icon name="alert" size={14} /> {warning}</p>
+  {/each}
+{/snippet}
+
+{#snippet importMessages()}
+  {#if importError}
+    <p class="mt-2 flex items-start gap-1.5 text-sm text-ui-error"><Icon name="alert" size={14} /> {importError}</p>
+  {/if}
+  {#each importNotes as note (note)}
+    <p class="mt-1.5 text-xs text-ui-text-muted">{note}</p>
   {/each}
 {/snippet}
 
@@ -492,9 +615,15 @@
             <p class="mt-2 text-xs text-ui-text-muted">
               To vary a value across cases, replace it with <code>{"{name}"}</code> in your files (for example
               <code>{"E = {young}"}</code>), then add a <code>name</code> column to the campaign's <code>doe.csv</code>.
+              To run it several times with different resources, import a CSV with <code>case_id</code>,
+              <code>csauto_mpi</code> and <code>csauto_omp</code> columns.
             </p>
+            <button class="btn-ghost mt-2" onclick={() => openDialog({ type: "pickCsv" })} disabled={busy}><Icon name="file" size={13} /> Import a CSV…</button>
+            {@render importMessages()}
           {:else}
-            <p class="mb-2.5 text-xs text-ui-text-muted">One row per case. Paste rows from a spreadsheet or a CSV file into any cell.</p>
+            <p class="mb-2.5 text-xs text-ui-text-muted">
+              One row per case. Paste rows from a spreadsheet or a CSV file into any cell, or import a CSV file whose header names the columns.
+            </p>
             <div class="overflow-x-auto rounded border border-ui-border">
               <table class="w-full border-collapse text-sm">
                 <thead>
@@ -533,7 +662,11 @@
                 </tbody>
               </table>
             </div>
-            <button class="btn-ghost mt-2" onclick={addRow} disabled={busy}><Icon name="plus" size={13} /> Add a case</button>
+            <div class="mt-2 flex flex-wrap items-center gap-2">
+              <button class="btn-ghost" onclick={addRow} disabled={busy}><Icon name="plus" size={13} /> Add a case</button>
+              <button class="btn-ghost" onclick={() => openDialog({ type: "pickCsv" })} disabled={busy}><Icon name="file" size={13} /> Import a CSV…</button>
+            </div>
+            {@render importMessages()}
           {/if}
         </li>
       {/if}

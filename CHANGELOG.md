@@ -7,7 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ## [Unreleased]
 
 ### Added
+- New Campaign: **Import a CSV…** fills the parameter table from an existing file (comma, semicolon or tab separated, quoted cells supported). Header columns matching the case's placeholders fill their column, `case_id`, `csauto_mpi` and `csauto_omp` are kept as extra columns, and unused or missing columns are reported under the table. A case without placeholders can import a CSV of reserved columns only, to run it with several resource sizes
 - Reserved DOE columns `csauto_mpi` and `csauto_omp` set a case's number of MPI processes and OpenMP threads, for scaling studies. A case whose row sets them is launched with them; `csauto run --n/--nt` and the Run and Restart dialogs only apply to the cases that do not, and the dialogs read "From the DOE" when every selected case is covered. `prepare` checks the values are positive integers, exempts both columns from the unused-column warning, and rejects any other `csauto_*` column; `csauto doe` accepts them as parameters. `GET /api/app_config` names them in `resource_columns`
+
+### Fixed
+- New Campaign no longer requires every cell of the parameter table to be filled before creating the campaign: an empty cell is a valid value for `csauto prepare` (a parameter only used inside an `IF` block, as in the code_saturne example). Only a row with nothing in it blocks
 
 ## [1.0.0] - 2026-10-15
 

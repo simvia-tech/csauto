@@ -80,6 +80,8 @@ export type ToWebview =
   | { type: "fileWarnings"; warnings: string[] }
   | { type: "images"; solver: string; images: DockerImage[]; hubReachable: boolean }
   | { type: "pathPicked"; purpose: "native" | "singularity"; path: string }
+  /** The CSV picked for the parameter table; empty `text` when the pick was cancelled or the file unreadable. */
+  | { type: "csvPicked"; name: string; text: string; error?: string }
   | { type: "progress"; message: string }
   | { type: "createFailed"; message: string };
 
@@ -92,6 +94,8 @@ export type ToExtension =
   | { type: "checkFiles"; solver: string; files: Record<string, string[]> }
   | { type: "listImages"; solver: string }
   | { type: "pickPath"; purpose: "native" | "singularity"; solver: string }
+  /** Pick a CSV file and send its text back, to fill the parameter table. */
+  | { type: "pickCsv" }
   /** Close the open file dialog, as Escape would (the user clicked outside it). */
   | { type: "closeDialog" }
   | { type: "create"; request: CreateRequest }
