@@ -15,7 +15,8 @@ concurrency:
 
 jobs:
   release:
-    if: github.event.workflow_run.conclusion == 'success'
+    # A scheduled run of CI (quality dashboard) is not a push: nothing to release.
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
