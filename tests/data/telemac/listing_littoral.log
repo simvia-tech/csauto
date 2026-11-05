@@ -1,0 +1,795 @@
+# C:\openTELEMAC\9.1.1\external\python-3.12.10\python.exe C:\openTELEMAC\9.1.1\scripts\python3\telemac2d.py t2d_littoral.cas
+
+
+Loading configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   ___      __ 
+  / _ \    /_ |
+ | (_) |    | |
+  \__, |    | |
+    / /  _  | |
+   /_/  (_) |_|
+               
+               
+
+
+Running your CAS file(s) for:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    +> root:    C:\openTELEMAC\9.1.1
+    +> build:   C:\openTELEMAC\9.1.1
+    +> modules: api / artemis / bief / damocles
+                gaia  / gretel  / hermes  / khione
+                mascaret  / nestor  / parallel  / partel
+                postel3d  / special  / stbtel  / telemac2d
+                telemac3d / tomawac / waqtel
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+... processing the steering file
+  ~> Checking keyword/rubrique coherence
+  ~> Checking keyword/rubrique coherence
+  ~> Checking keyword/rubrique coherence
+
+... checking parallelisation
+
+... handling temporary directories
+         copying: t2d_littoral.cas -> C:\runs\runs\t2d_littoral_20261006-145332\t2d_littoral.cas_2026-10-06-14h53min53s\T2DCAS
+         copying: telemac2d.dico -> C:\runs\runs\t2d_littoral_20261006-145332\t2d_littoral.cas_2026-10-06-14h53min53s\T2DDICO
+         copying: geo_t2d_littoral.cli -> C:\runs\runs\t2d_littoral_20261006-145332\t2d_littoral.cas_2026-10-06-14h53min53s\T2DCLI
+         copying: geo_littoral.slf -> C:\runs\runs\t2d_littoral_20261006-145332\t2d_littoral.cas_2026-10-06-14h53min53s\T2DGEO
+         copying: coordinate_t2d.txt -> C:\runs\runs\t2d_littoral_20261006-145332\t2d_littoral.cas_2026-10-06-14h53min53s\T2DCO1
+         copying: tom_littoral.cas -> C:\runs\runs\t2d_littoral_20261006-145332\t2d_littoral.cas_2026-10-06-14h53min53s\WACCAS
+         copying: tomawac.dico -> C:\runs\runs\t2d_littoral_20261006-145332\t2d_littoral.cas_2026-10-06-14h53min53s\WACDICO
+         copying: geo_littoral.slf -> C:\runs\runs\t2d_littoral_20261006-145332\t2d_littoral.cas_2026-10-06-14h53min53s\WACGEO
+         copying: geo_tom_littoral.cli -> C:\runs\runs\t2d_littoral_20261006-145332\t2d_littoral.cas_2026-10-06-14h53min53s\WACCLI
+         copying: coordinate_tom.txt -> C:\runs\runs\t2d_littoral_20261006-145332\t2d_littoral.cas_2026-10-06-14h53min53s\WACCOO
+         copying: gai_littoral.cas -> C:\runs\runs\t2d_littoral_20261006-145332\t2d_littoral.cas_2026-10-06-14h53min53s\GAICAS
+         copying: gaia.dico -> C:\runs\runs\t2d_littoral_20261006-145332\t2d_littoral.cas_2026-10-06-14h53min53s\GAIDICO
+         copying: geo_littoral.slf -> C:\runs\runs\t2d_littoral_20261006-145332\t2d_littoral.cas_2026-10-06-14h53min53s\GAIGEO
+         copying: geo_gai_littoral.cli -> C:\runs\runs\t2d_littoral_20261006-145332\t2d_littoral.cas_2026-10-06-14h53min53s\GAICLI
+         copying: coordinate_gai.txt -> C:\runs\runs\t2d_littoral_20261006-145332\t2d_littoral.cas_2026-10-06-14h53min53s\GAICOO
+
+... checking the executable
+  ~> Compiling Fortran files
+         compiling: bord_wac.f ... completed
+         compiling: littoral_current.f ... completed
+         compiling: user_anacos.f ... completed
+         compiling: user_bord.f ... completed
+         compiling: user_limwac.f ... completed
+         created: libuser_fortran.dll
+
+
+Running your simulation(s) :
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+
+In C:\runs\runs\t2d_littoral_20261006-145332\t2d_littoral.cas_2026-10-06-14h53min53s:
+mpiexec -n 1 C:\runs\runs\t2d_littoral_20261006-145332\t2d_littoral.cas_2026-10-06-14h53min53s\telemac2d.exe
+
+
+ MASTER PROCESSOR NUMBER            0  OF THE GROUP OF            1
+ EXECUTABLE FILE: C:\runs\runs\t2d_littoral_20261006-145332\t2d_littoral.cas_2026-10-06-14h53min53s\A.EXE
+ LISTING OF TELEMAC2D------------------------------------------------------------------------------
+
+                TTTTT  EEEEE  L      EEEEE  M   M  AAAAA  CCCCC
+                  T    E      L      E      MM MM  A   A  C
+                  T    EEE    L      EEE    M M M  AAAAA  C
+                  T    E      L      E      M   M  A   A  C
+                  T    EEEEE  LLLLL  EEEEE  M   M  A   A  CCCCC
+
+                        2D    VERSION 9.1    FORTRAN 2003
+
+                        ~^~^~^~^~^~^~^~^~^~^~^^~^~^~^~^~^~
+                          ~                            ~
+                               \   '    o      '
+                               /\ o       \  o
+                             >=)'>    '   /\ '
+                               \/   \   >=)'>        ~
+                               /    /\    \/
+                        ~         >=)'>   /     .
+                                    \/                   )
+                                    /                   (
+                                          ~          )   )
+                          }     ~              (    (   (
+                         {                      )    )   )
+                          }  }         .       (    (   (
+                         {  {               /^^^^^^^^^^^^
+                        ^^^^^^^^^\         /
+                                  ^^^^^^^^^
+
+ DIFFERENT NUMBER OF PARALLEL PROCESSORS:
+ DECLARED BEFORE (CASE OF COUPLING ?):           1
+ TELEMAC-2D :           0
+ VALUE            1  IS KEPT
+
+                   ********************************************
+                   *               LECDON:                    *
+                   *        AFTER CALLING DAMOCLES            *
+                   *        CHECKING OF DATA  READ            *
+                   *         IN THE STEERING FILE             *
+                   ********************************************
+
+ EXITING LECDON. NAME OF THE STUDY:
+ LITTORAL
+
+ OPENING FILES FOR TELEMAC2D
+ OPENING: T2DGEO-geo_littoral.slf
+ OPENING: T2DCLI-geo_t2d_littoral.cli
+ OPENING: T2DCO1-coordinate_t2d.txt
+ OPENING: T2DRES-t2d_littoral.slf
+ OPENING: T2DHI1-t2d_littoral_hist.slf
+
+                          *****************************
+                          *    MEMORY ORGANIZATION    *
+                          *****************************
+
+ READ_MESH_INFO: TITLE= LITTORAL
+            NUMBER OF ELEMENTS:     4000
+            NUMBER OF POINTS:     2091
+
+            TYPE OF ELEMENT: TRIANGLE
+            TYPE OF BND ELEMENT: POINT
+
+            SINGLE PRECISION FORMAT (R4)
+
+ MXPTEL (BIEF) : MAXIMUM NUMBER OF ELEMENTS AROUND A POINT:   7
+                 MAXIMUM NUMBER OF POINTS AROUND A POINT:   7
+ USER_CORRXY (BIEF):NO MODIFICATION OF COORDINATES
+
+ MESH: MESH   ALLOCATED
+
+                     *************************************
+                     *    END OF MEMORY ORGANIZATION:    *
+                     *************************************
+
+ LISTING OF GAIA------------------------------------------------------------------------------
+                     COUPLED WITH TELEMAC2D INTERNALLY
+
+ DIFFERENT NUMBER OF PARALLEL PROCESSORS:
+ DECLARED BEFORE (CASE OF COUPLING ?):           1
+ GAIA :           0
+ VALUE            1  IS KEPT
+
+                   ********************************************
+                   *               LECDON:                    *
+                   *        AFTER CALLING DAMOCLES            *
+                   *        CHECKING OF DATA  READ            *
+                   *         IN THE STEERING FILE             *
+                   ********************************************
+
+ OPENING FILES FOR GAIA
+ OPENING: GAIGEO-geo_littoral.slf
+ OPENING: GAIRES-gai_littoral.slf
+ OPENING: GAIHI2-gai_littoral_hist.slf
+ OPENING: GAICLI-geo_gai_littoral.cli
+ OPENING: GAICOO-coordinate_gai.txt
+
+                     *******************************
+                     *     MEMORY ORGANISATION     *
+                     *******************************
+
+ READ_MESH_INFO: TITLE= LITTORAL
+            NUMBER OF ELEMENTS:     4000
+            NUMBER OF POINTS:     2091
+
+            TYPE OF ELEMENT: TRIANGLE
+            TYPE OF BND ELEMENT: POINT
+
+            SINGLE PRECISION FORMAT (R4)
+
+ MXPTEL (BIEF) : MAXIMUM NUMBER OF ELEMENTS AROUND A POINT:   7
+                 MAXIMUM NUMBER OF POINTS AROUND A POINT:   7
+ USER_CORRXY (BIEF):NO MODIFICATION OF COORDINATES
+
+ MESH: MESH_S ALLOCATED
+
+                     *************************************
+                     *    END OF MEMORY ORGANIZATION:    *
+                     *************************************
+
+ LISTING OF TOMAWAC------------------------------------------------------------------------------
+
+                TTTTT  OOOOO  M   M  AAAAA  W   W  AAAAA  CCCCC
+                  T    O   O  MM MM  A   A  W   W  A   A  C
+                  T    O   O  M W M  AAAAA  W W W  AAAAA  C
+                  T    O   O  M   M  A   A  WW WW  A   A  C
+                  T    OOOOO  M   M  A   A  W   W  A   A  CCCCC
+
+                         VERSION 9.1    FORTRAN 2003
+
+                              |    |    |
+                             )_)  )_)  )_) _
+                            )___))___))___)\
+                            )____)____)_____)\\
+                          _____|____|____|____\\\__
+                 ---------\                    /---------
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        ^^^^      ^^^^     ^^^    ^^
+                            ^^^^      ^^^
+
+                     COUPLED WITH TELEMAC2D INTERNALLY
+
+                   ********************************************
+                   *        SUBROUTINE LECDON_TOMAWAC         *
+                   *           CALL OF DAMOCLES               *
+                   *        VERIFICATION OF READ DATA         *
+                   *            ON STEERING FILE              *
+                   ********************************************
+
+ OPENING FILES FOR TOMAWAC
+ OPENING: WACGEO-geo_littoral.slf
+ OPENING: WACCLI-geo_tom_littoral.cli
+ OPENING: WACRES-tom_littoral.slf
+ OPENING: WACLEO-littoral2D.spe
+ OPENING: WACRBI-glob.slf
+ OPENING: WACCOO-coordinate_tom.txt
+ OPENING: WACHI2-tom_littoral_hist.slf
+
+                     *******************************
+                     *     MEMORY ORGANISATION     *
+                     *******************************
+
+ READ_MESH_INFO: TITLE= LITTORAL
+            NUMBER OF ELEMENTS:     4000
+            NUMBER OF POINTS:     2091
+
+            TYPE OF ELEMENT: TRIANGLE
+            TYPE OF BND ELEMENT: POINT
+
+            SINGLE PRECISION FORMAT (R4)
+
+ MXPTEL (BIEF) : MAXIMUM NUMBER OF ELEMENTS AROUND A POINT:   7
+                 MAXIMUM NUMBER OF POINTS AROUND A POINT:   7
+ USER_CORRXY (BIEF):NO MODIFICATION OF COORDINATES
+
+ MESH: MESH   ALLOCATED
+
+ READ_MESH_INFO: TITLE= LITTORAL
+            NUMBER OF ELEMENTS:     4000
+            NUMBER OF POINTS:     2091
+
+            TYPE OF ELEMENT: TRIANGLE
+            TYPE OF BND ELEMENT: POINT
+
+            SINGLE PRECISION FORMAT (R4)
+
+ MXPTEL (BIEF) : MAXIMUM NUMBER OF ELEMENTS AROUND A POINT:   7
+                 MAXIMUM NUMBER OF POINTS AROUND A POINT:   7
+ USER_CORRXY (BIEF):NO MODIFICATION OF COORDINATES
+
+ MESH: MESH3D ALLOCATED
+
+                     *************************************
+                     *    END OF MEMORY ORGANIZATION:    *
+                     *************************************
+
+ INITIALIZING TELEMAC2D FOR
+ INBIEF (BIEF): NOT A VECTOR MACHINE (ACCORDING TO YOUR DATA)
+ STRCHE (BIEF): NO MODIFICATION OF FRICTION
+
+ THERE IS     3 LIQUID BOUNDARIES:
+
+ BOUNDARY    1 :
+  BEGINS AT BOUNDARY POINT:        1 , WITH GLOBAL NUMBER:         1
+  AND COORDINATES:     0.000000           0.000000
+  ENDS AT BOUNDARY POINT:       51 , WITH GLOBAL NUMBER:        51
+  AND COORDINATES:     1000.000           0.000000
+
+ BOUNDARY    2 :
+  BEGINS AT BOUNDARY POINT:       52 , WITH GLOBAL NUMBER:        52
+  AND COORDINATES:     1000.000           5.000000
+  ENDS AT BOUNDARY POINT:       91 , WITH GLOBAL NUMBER:        91
+  AND COORDINATES:     1000.000           200.0000
+
+ BOUNDARY    3 :
+  BEGINS AT BOUNDARY POINT:      141 , WITH GLOBAL NUMBER:       141
+  AND COORDINATES:     0.000000           200.0000
+  ENDS AT BOUNDARY POINT:      180 , WITH GLOBAL NUMBER:       180
+  AND COORDINATES:     0.000000           5.000000
+
+ THERE IS     1 SOLID BOUNDARIES:
+
+ BOUNDARY    1 :
+  BEGINS AT BOUNDARY POINT:       91 , WITH GLOBAL NUMBER:        91
+  AND COORDINATES:     1000.000           200.0000
+  ENDS AT BOUNDARY POINT:      141 , WITH GLOBAL NUMBER:       141
+  AND COORDINATES:     0.000000           200.0000
+
+ USER_CORFON (TELEMAC2D): NO MODIFICATION OF BOTTOM
+
+ CORFON (TELEMAC2D): NO BOTTOM SMOOTHINGS
+
+================================================================================
+ ITERATION        0    TIME:   0.0000 S
+ TELEMAC2D COUPLED WITH: TOMAWAC,GAIA
+ TELEMAC-2D: INTERNAL COUPLING WITH TOMAWAC
+ INBIEF (BIEF): NOT A VECTOR MACHINE (ACCORDING TO YOUR DATA)
+ STRCHE (BIEF): NO MODIFICATION OF FRICTION
+
+ TOM_CORFON : NO MODIFICATION OF BOTTOM
+
+================================================================================
+  TEMPS :            0.0000 SECONDES                            0IEME  ITERATION
+--------------------------------------------------------------------------------
+
+ SOURCE POINT            1 PUT ON POINT
+   500.00000000000000       AND    100.00000000000000
+ LOCATED AT    0.0000000000000000       METRES
+
+--------------------------------------------------------------------------------
+       CALCUL DU CHAMP CONVECTEUR ET REMONTEE DES
+           CARACTERISTIQUES
+ USING STREAMLINE VERSION 9.1 FOR CHARACTERISTICS
+ NUMBER OF SUB-ITERATIONS :          28
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          26
+ NUMBER OF SUB-ITERATIONS :          26
+ NUMBER OF SUB-ITERATIONS :          25
+ NUMBER OF SUB-ITERATIONS :          24
+ NUMBER OF SUB-ITERATIONS :          23
+ NUMBER OF SUB-ITERATIONS :          22
+ NUMBER OF SUB-ITERATIONS :          20
+ NUMBER OF SUB-ITERATIONS :          19
+ TELEMAC-2D: INTERNAL COUPLING WITH GAIA
+ INBIEF (BIEF): NOT A VECTOR MACHINE (ACCORDING TO YOUR DATA)
+
+ THERE IS     2 LIQUID BOUNDARIES:
+
+ BOUNDARY    1 :
+  BEGINS AT BOUNDARY POINT:      141 , WITH GLOBAL NUMBER:       141
+  AND COORDINATES:     0.000000           200.0000
+  ENDS AT BOUNDARY POINT:       50 , WITH GLOBAL NUMBER:        50
+  AND COORDINATES:     980.0000           0.000000
+
+ BOUNDARY    2 :
+  BEGINS AT BOUNDARY POINT:       51 , WITH GLOBAL NUMBER:        51
+  AND COORDINATES:     1000.000           0.000000
+  ENDS AT BOUNDARY POINT:       91 , WITH GLOBAL NUMBER:        91
+  AND COORDINATES:     1000.000           200.0000
+
+ THERE IS     1 SOLID BOUNDARIES:
+
+ BOUNDARY    1 :
+  BEGINS AT BOUNDARY POINT:       91 , WITH GLOBAL NUMBER:        91
+  AND COORDINATES:     1000.000           200.0000
+  ENDS AT BOUNDARY POINT:      141 , WITH GLOBAL NUMBER:       141
+  AND COORDINATES:     0.000000           200.0000
+
+                    GAIA INITIAL MASS OF SEDIMENTS:
+ TOTAL MASS OF CLASS  1 =   0.3312500E+11( KG )
+ QSCL REINITIALISED IN INIT_TRANSPORT
+ FOR CLASS            1
+ QS REINITIALISED IN INIT_TRANSPORT
+
+================================================================================
+ ITERATION        0    TIME:   0.0000 S
+
+ GAIA COUPLED WITH: TELEMAC2D
+ TELEMAC2D INITIALIZED
+ NUMBER OF SUB-ITERATIONS :          28
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          26
+ NUMBER OF SUB-ITERATIONS :          26
+ NUMBER OF SUB-ITERATIONS :          25
+ NUMBER OF SUB-ITERATIONS :          24
+ NUMBER OF SUB-ITERATIONS :          23
+ NUMBER OF SUB-ITERATIONS :          22
+ NUMBER OF SUB-ITERATIONS :          20
+ NUMBER OF SUB-ITERATIONS :          19
+ NUMBER OF SUB-ITERATIONS :          28
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          26
+ NUMBER OF SUB-ITERATIONS :          26
+ NUMBER OF SUB-ITERATIONS :          25
+ NUMBER OF SUB-ITERATIONS :          24
+ NUMBER OF SUB-ITERATIONS :          23
+ NUMBER OF SUB-ITERATIONS :          22
+ NUMBER OF SUB-ITERATIONS :          20
+ NUMBER OF SUB-ITERATIONS :          19
+
+================================================================================
+  TEMPS :          200.0000 SECONDES                           20IEME  ITERATION
+--------------------------------------------------------------------------------
+       INTERPOLATION AUX PIEDS DES CARACTERISTIQUES
+--------------------------------------------------------------------------------
+       PRISE EN COMPTE DES TERMES SOURCES EN  1 SOUS-ITERATION(S)
+
+================================================================================
+ ITERATION       20    TIME:  3 MN  20.0000 S   (      200.0000 S)
+--------------------------------------------------------------------------------
+                          ADVECTION STEP
+--------------------------------------------------------------------------------
+                    DIFFUSION-PROPAGATION STEP
+ GMRES (BIEF) :       45 ITERATIONS, RELATIVE PRECISION:   0.9767005E-05
+
+================================================================================
+ ITERATION       20    TIME:  3 MN  20.0000 S     (    200.0000 S)
+
+ BEDLOAD EQUATION SOLVED IN     1 ITERATIONS
+
+                    GAIA MASS-BALANCE OF SEDIMENTS PER CLASS:
+     SEDIMENT CLASS NUMBER                     =        1
+     TOTAL BED EVOLUTIONS                      =     109.8950      ( KG )
+     BOUNDARIES BEDLOAD FLUX                   =     10.98950      ( KG/S  >0 = ENTERING )
+     BEDLOAD FLUX BOUNDARY    1                =     41.07250      ( KG/S  >0 = ENTERING )
+     BEDLOAD FLUX BOUNDARY    2                =    -30.08300      ( KG/S  >0 = ENTERING )
+     EROSION FLUX                              =     0.000000      ( KG/S )
+     DEPOSITION FLUX                           =     0.000000      ( KG/S )
+     TOTAL MASS                                =    0.3312500E+11  ( KG )
+     LOST MASS                                 =    0.1433094E-07  ( KG )
+     RELATIVE ERROR TO INITIAL ACT LAYER MASS  =    0.4326320E-18
+     RELATIVE ERROR 0N MASS                    =    0.1304057E-09
+
+ MAXIMAL EVOLUTION (M)    :    0.1230958E-03 NODE  :   328
+ MINIMAL EVOLUTION (M)    :   -0.2793474E-03 NODE  :    84
+ TOTAL MAXIMAL EVOLUTION  :    0.1994058E-02 NODE  :   251
+ TOTAL MINIMAL EVOLUTION  :   -0.5795781E-02 NODE  :    84
+--------------------------------------------------------------------------------
+                       BALANCE OF WATER VOLUME
+     VOLUME IN THE DOMAIN :    1000247.     M3
+     FLUX BOUNDARY    1:    -0.000000     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     FLUX BOUNDARY    2:    -43.82774     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     FLUX BOUNDARY    3:     51.46311     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     RELATIVE ERROR IN VOLUME AT T =        200.0     S :    0.2973621E-03
+ NUMBER OF SUB-ITERATIONS :          28
+ NUMBER OF SUB-ITERATIONS :          30
+ NUMBER OF SUB-ITERATIONS :          30
+ NUMBER OF SUB-ITERATIONS :          30
+ NUMBER OF SUB-ITERATIONS :          30
+ NUMBER OF SUB-ITERATIONS :          30
+ NUMBER OF SUB-ITERATIONS :          30
+ NUMBER OF SUB-ITERATIONS :          30
+ NUMBER OF SUB-ITERATIONS :          30
+ NUMBER OF SUB-ITERATIONS :          30
+ NUMBER OF SUB-ITERATIONS :          30
+ NUMBER OF SUB-ITERATIONS :          30
+ NUMBER OF SUB-ITERATIONS :          28
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          26
+ NUMBER OF SUB-ITERATIONS :          26
+ NUMBER OF SUB-ITERATIONS :          25
+ NUMBER OF SUB-ITERATIONS :          24
+ NUMBER OF SUB-ITERATIONS :          23
+ NUMBER OF SUB-ITERATIONS :          22
+ NUMBER OF SUB-ITERATIONS :          20
+ NUMBER OF SUB-ITERATIONS :          19
+
+================================================================================
+  TEMPS :          400.0000 SECONDES                           40IEME  ITERATION
+--------------------------------------------------------------------------------
+       INTERPOLATION AUX PIEDS DES CARACTERISTIQUES
+--------------------------------------------------------------------------------
+       PRISE EN COMPTE DES TERMES SOURCES EN  1 SOUS-ITERATION(S)
+
+================================================================================
+ ITERATION       40    TIME:  6 MN  40.0000 S   (      400.0000 S)
+--------------------------------------------------------------------------------
+                          ADVECTION STEP
+--------------------------------------------------------------------------------
+                    DIFFUSION-PROPAGATION STEP
+ GMRES (BIEF) :       42 ITERATIONS, RELATIVE PRECISION:   0.9391637E-05
+
+================================================================================
+ ITERATION       40    TIME:  6 MN  40.0000 S     (    400.0000 S)
+
+ BEDLOAD EQUATION SOLVED IN     1 ITERATIONS
+
+                    GAIA MASS-BALANCE OF SEDIMENTS PER CLASS:
+     SEDIMENT CLASS NUMBER                     =        1
+     TOTAL BED EVOLUTIONS                      =     81.66254      ( KG )
+     BOUNDARIES BEDLOAD FLUX                   =     8.166254      ( KG/S  >0 = ENTERING )
+     BEDLOAD FLUX BOUNDARY    1                =     39.33815      ( KG/S  >0 = ENTERING )
+     BEDLOAD FLUX BOUNDARY    2                =    -31.17189      ( KG/S  >0 = ENTERING )
+     EROSION FLUX                              =     0.000000      ( KG/S )
+     DEPOSITION FLUX                           =     0.000000      ( KG/S )
+     TOTAL MASS                                =    0.3312500E+11  ( KG )
+     LOST MASS                                 =   -0.1270211E-06  ( KG )
+     RELATIVE ERROR TO INITIAL ACT LAYER MASS  =   -0.3834598E-17
+     RELATIVE ERROR 0N MASS                    =   -0.1555439E-08
+
+ MAXIMAL EVOLUTION (M)    :    0.9408661E-04 NODE  :   484
+ MINIMAL EVOLUTION (M)    :   -0.2083175E-03 NODE  :    84
+ TOTAL MAXIMAL EVOLUTION  :    0.1758082E-02 NODE  :   444
+ TOTAL MINIMAL EVOLUTION  :   -0.1083081E-01 NODE  :    84
+--------------------------------------------------------------------------------
+                       BALANCE OF WATER VOLUME
+     VOLUME IN THE DOMAIN :    1000903.     M3
+     FLUX BOUNDARY    1:    -0.000000     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     FLUX BOUNDARY    2:    -44.22302     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     FLUX BOUNDARY    3:     49.58268     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     RELATIVE ERROR IN VOLUME AT T =        400.0     S :    0.2801336E-03
+ NUMBER OF SUB-ITERATIONS :          28
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          26
+ NUMBER OF SUB-ITERATIONS :          26
+ NUMBER OF SUB-ITERATIONS :          25
+ NUMBER OF SUB-ITERATIONS :          24
+ NUMBER OF SUB-ITERATIONS :          23
+ NUMBER OF SUB-ITERATIONS :          22
+ NUMBER OF SUB-ITERATIONS :          20
+ NUMBER OF SUB-ITERATIONS :          19
+ NUMBER OF SUB-ITERATIONS :          28
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          26
+ NUMBER OF SUB-ITERATIONS :          26
+ NUMBER OF SUB-ITERATIONS :          25
+ NUMBER OF SUB-ITERATIONS :          24
+ NUMBER OF SUB-ITERATIONS :          23
+ NUMBER OF SUB-ITERATIONS :          22
+ NUMBER OF SUB-ITERATIONS :          20
+ NUMBER OF SUB-ITERATIONS :          19
+
+================================================================================
+  TEMPS :          600.0000 SECONDES                           60IEME  ITERATION
+--------------------------------------------------------------------------------
+       INTERPOLATION AUX PIEDS DES CARACTERISTIQUES
+--------------------------------------------------------------------------------
+       PRISE EN COMPTE DES TERMES SOURCES EN  1 SOUS-ITERATION(S)
+
+================================================================================
+ ITERATION       60    TIME: 10 MN   0.0000 S   (      600.0000 S)
+--------------------------------------------------------------------------------
+                          ADVECTION STEP
+--------------------------------------------------------------------------------
+                    DIFFUSION-PROPAGATION STEP
+ GMRES (BIEF) :       40 ITERATIONS, RELATIVE PRECISION:   0.9528095E-05
+
+================================================================================
+ ITERATION       60    TIME: 10 MN   0.0000 S     (    600.0000 S)
+
+ BEDLOAD EQUATION SOLVED IN     1 ITERATIONS
+
+                    GAIA MASS-BALANCE OF SEDIMENTS PER CLASS:
+     SEDIMENT CLASS NUMBER                     =        1
+     TOTAL BED EVOLUTIONS                      =     28.44265      ( KG )
+     BOUNDARIES BEDLOAD FLUX                   =     2.844265      ( KG/S  >0 = ENTERING )
+     BEDLOAD FLUX BOUNDARY    1                =     38.40765      ( KG/S  >0 = ENTERING )
+     BEDLOAD FLUX BOUNDARY    2                =    -35.56338      ( KG/S  >0 = ENTERING )
+     EROSION FLUX                              =     0.000000      ( KG/S )
+     DEPOSITION FLUX                           =     0.000000      ( KG/S )
+     TOTAL MASS                                =    0.3312500E+11  ( KG )
+     LOST MASS                                 =    0.3675025E-07  ( KG )
+     RELATIVE ERROR TO INITIAL ACT LAYER MASS  =    0.1109442E-17
+     RELATIVE ERROR 0N MASS                    =    0.1292083E-08
+
+ MAXIMAL EVOLUTION (M)    :    0.4074236E-04 NODE  :   717
+ MINIMAL EVOLUTION (M)    :   -0.1460415E-03 NODE  :    83
+ TOTAL MAXIMAL EVOLUTION  :    0.2117152E-02 NODE  :   211
+ TOTAL MINIMAL EVOLUTION  :   -0.1382596E-01 NODE  :    84
+--------------------------------------------------------------------------------
+                       BALANCE OF WATER VOLUME
+     VOLUME IN THE DOMAIN :    1001167.     M3
+     FLUX BOUNDARY    1:    -0.000000     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     FLUX BOUNDARY    2:    -47.27845     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     FLUX BOUNDARY    3:     48.89561     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     RELATIVE ERROR IN VOLUME AT T =        600.0     S :    0.4985887E-04
+ NUMBER OF SUB-ITERATIONS :          28
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          26
+ NUMBER OF SUB-ITERATIONS :          26
+ NUMBER OF SUB-ITERATIONS :          25
+ NUMBER OF SUB-ITERATIONS :          24
+ NUMBER OF SUB-ITERATIONS :          23
+ NUMBER OF SUB-ITERATIONS :          22
+ NUMBER OF SUB-ITERATIONS :          20
+ NUMBER OF SUB-ITERATIONS :          19
+ NUMBER OF SUB-ITERATIONS :          28
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          26
+ NUMBER OF SUB-ITERATIONS :          26
+ NUMBER OF SUB-ITERATIONS :          25
+ NUMBER OF SUB-ITERATIONS :          24
+ NUMBER OF SUB-ITERATIONS :          23
+ NUMBER OF SUB-ITERATIONS :          22
+ NUMBER OF SUB-ITERATIONS :          20
+ NUMBER OF SUB-ITERATIONS :          19
+
+================================================================================
+  TEMPS :          800.0000 SECONDES                           80IEME  ITERATION
+--------------------------------------------------------------------------------
+       INTERPOLATION AUX PIEDS DES CARACTERISTIQUES
+--------------------------------------------------------------------------------
+       PRISE EN COMPTE DES TERMES SOURCES EN  1 SOUS-ITERATION(S)
+
+================================================================================
+ ITERATION       80    TIME: 13 MN  20.0000 S   (      800.0000 S)
+--------------------------------------------------------------------------------
+                          ADVECTION STEP
+--------------------------------------------------------------------------------
+                    DIFFUSION-PROPAGATION STEP
+ GMRES (BIEF) :       40 ITERATIONS, RELATIVE PRECISION:   0.8385846E-05
+
+================================================================================
+ ITERATION       80    TIME: 13 MN  20.0000 S     (    800.0000 S)
+
+ BEDLOAD EQUATION SOLVED IN     1 ITERATIONS
+
+                    GAIA MASS-BALANCE OF SEDIMENTS PER CLASS:
+     SEDIMENT CLASS NUMBER                     =        1
+     TOTAL BED EVOLUTIONS                      =    -2.310284      ( KG )
+     BOUNDARIES BEDLOAD FLUX                   =   -0.2310283      ( KG/S  >0 = ENTERING )
+     BEDLOAD FLUX BOUNDARY    1                =     37.95490      ( KG/S  >0 = ENTERING )
+     BEDLOAD FLUX BOUNDARY    2                =    -38.18593      ( KG/S  >0 = ENTERING )
+     EROSION FLUX                              =     0.000000      ( KG/S )
+     DEPOSITION FLUX                           =     0.000000      ( KG/S )
+     TOTAL MASS                                =    0.3312500E+11  ( KG )
+     LOST MASS                                 =   -0.1046264E-06  ( KG )
+     RELATIVE ERROR TO INITIAL ACT LAYER MASS  =   -0.3158532E-17
+
+ MAXIMAL EVOLUTION (M)    :    0.3340252E-04 NODE  :   248
+ MINIMAL EVOLUTION (M)    :   -0.1012505E-03 NODE  :    83
+ TOTAL MAXIMAL EVOLUTION  :    0.2932080E-02 NODE  :   210
+ TOTAL MINIMAL EVOLUTION  :   -0.1530256E-01 NODE  :    84
+--------------------------------------------------------------------------------
+                       BALANCE OF WATER VOLUME
+     VOLUME IN THE DOMAIN :    1001035.     M3
+     FLUX BOUNDARY    1:    -0.000000     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     FLUX BOUNDARY    2:    -49.30285     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     FLUX BOUNDARY    3:     48.82292     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     RELATIVE ERROR IN VOLUME AT T =        800.0     S :   -0.8385108E-04
+ NUMBER OF SUB-ITERATIONS :          28
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          26
+ NUMBER OF SUB-ITERATIONS :          26
+ NUMBER OF SUB-ITERATIONS :          25
+ NUMBER OF SUB-ITERATIONS :          24
+ NUMBER OF SUB-ITERATIONS :          23
+ NUMBER OF SUB-ITERATIONS :          22
+ NUMBER OF SUB-ITERATIONS :          20
+ NUMBER OF SUB-ITERATIONS :          19
+ NUMBER OF SUB-ITERATIONS :          28
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          27
+ NUMBER OF SUB-ITERATIONS :          26
+ NUMBER OF SUB-ITERATIONS :          26
+ NUMBER OF SUB-ITERATIONS :          25
+ NUMBER OF SUB-ITERATIONS :          24
+ NUMBER OF SUB-ITERATIONS :          23
+ NUMBER OF SUB-ITERATIONS :          22
+ NUMBER OF SUB-ITERATIONS :          20
+ NUMBER OF SUB-ITERATIONS :          19
+
+================================================================================
+  TEMPS :         1000.0000 SECONDES                          100IEME  ITERATION
+--------------------------------------------------------------------------------
+       INTERPOLATION AUX PIEDS DES CARACTERISTIQUES
+--------------------------------------------------------------------------------
+       PRISE EN COMPTE DES TERMES SOURCES EN  1 SOUS-ITERATION(S)
+--------------------------------------------------------------------------------
+       SAUVEGARDE DE L'ETAT FINAL A T=    1000.0000 SECONDES
+
+================================================================================
+
+================================================================================
+ ITERATION      100    TIME: 16 MN  40.0000 S   (     1000.0000 S)
+--------------------------------------------------------------------------------
+                          ADVECTION STEP
+--------------------------------------------------------------------------------
+                    DIFFUSION-PROPAGATION STEP
+ GMRES (BIEF) :       40 ITERATIONS, RELATIVE PRECISION:   0.8429311E-05
+
+================================================================================
+ ITERATION      100    TIME: 16 MN  40.0000 S     (   1000.0000 S)
+
+ BEDLOAD EQUATION SOLVED IN     1 ITERATIONS
+
+                    GAIA MASS-BALANCE OF SEDIMENTS PER CLASS:
+     SEDIMENT CLASS NUMBER                     =        1
+     TOTAL BED EVOLUTIONS                      =    -25.99243      ( KG )
+     BOUNDARIES BEDLOAD FLUX                   =    -2.599243      ( KG/S  >0 = ENTERING )
+     BEDLOAD FLUX BOUNDARY    1                =     38.60747      ( KG/S  >0 = ENTERING )
+     BEDLOAD FLUX BOUNDARY    2                =    -41.20672      ( KG/S  >0 = ENTERING )
+     EROSION FLUX                              =     0.000000      ( KG/S )
+     DEPOSITION FLUX                           =     0.000000      ( KG/S )
+     TOTAL MASS                                =    0.3312500E+11  ( KG )
+     LOST MASS                                 =   -0.2729340E-06  ( KG )
+     RELATIVE ERROR TO INITIAL ACT LAYER MASS  =   -0.8239518E-17
+
+                    FINAL MASS-BALANCE OF SEDIMENTS:
+
+                    GAIA MASS-BALANCE OF SEDIMENTS PER CLASS:
+     SEDIMENT CLASS NUMBER                     =        1
+     CUMULATED BED EVOLUTIONS                  =     3875.339      ( KG )
+     CUMULATED BOUNDARIES BEDLOAD MASS         =     3875.339      ( KG )
+     CUMULATED BEDLOAD BOUNDARY    1           =     39146.92      ( KG )
+     CUMULATED BEDLOAD BOUNDARY    2           =    -35271.59      ( KG )
+     CUMULATED EROSION                         =     0.000000      ( KG )
+     CUMULATED DEPOSITION                      =     0.000000      ( KG )
+     INITIAL MASS                              =    0.3312500E+11  ( KG )
+     INITIAL MASS ACTIVE LAYER                 =    0.3312500E+11  ( KG )
+     TOTAL MASS                                =    0.3312500E+11  ( KG )
+     CUMULATED LOST MASS                       =   -0.6876157E-06  ( KG )
+     RELATIVE ERROR TO INITIAL ACT LAYER MASS  =   -0.2075821E-16
+     CUMULATED LOST MASS (INI-FINAL+FLUXES)    =   -0.2895250E-04  ( KG )
+     RELATIVE ERROR TO TOTAL INITIAL MASS      =   -0.8740377E-15
+
+ MAXIMAL EVOLUTION (M)    :    0.3312118E-04 NODE  :   248
+ MINIMAL EVOLUTION (M)    :   -0.7236657E-04 NODE  :    83
+ TOTAL MAXIMAL EVOLUTION  :    0.3922943E-02 NODE  :   210
+ TOTAL MINIMAL EVOLUTION  :   -0.1620250E-01 NODE  :    84
+--------------------------------------------------------------------------------
+                       BALANCE OF WATER VOLUME
+     VOLUME IN THE DOMAIN :    1000861.     M3
+     FLUX BOUNDARY    1:    -0.000000     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     FLUX BOUNDARY    2:    -51.20705     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     FLUX BOUNDARY    3:     49.31683     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     RELATIVE ERROR IN VOLUME AT T =        1000.     S :   -0.6969201E-04
+--------------------------------------------------------------------------------
+                   FINAL BALANCE OF WATER VOLUME
+
+     RELATIVE ERROR CUMULATED ON VOLUME:    0.1960819E-02
+
+     INITIAL VOLUME              :     1000250.     M3
+     FINAL VOLUME                :     1000861.     M3
+     VOLUME THAT ENTERED THE DOMAIN:     2573.603     M3  ( IF <0 EXIT )
+     TOTAL VOLUME LOST             :     1962.507     M3
+
+ END OF TIME LOOP
+
+ EXITING MPI
+
+                     *********************************
+                     *       MEMORY CLEANUP          *
+                     *********************************
+
+                     *************************************
+                     *    END OF MEMORY ORGANIZATION:    *
+                     *************************************
+
+                     *************************************
+                     *    END OF MEMORY ORGANIZATION:    *
+                     *************************************
+
+ CORRECT END OF RUN
+
+ ELAPSE TIME :
+                             13  SECONDS
+Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG
+STOP 0
+... merging separated result files
+
+... handling result files
+
+        moving: t2d_littoral.slf
+        moving: t2d_littoral_hist.slf
+        moving: tom_littoral.slf
+        moving: glob.slf
+        moving: littoral2D.spe
+        moving: tom_littoral_hist.slf
+        moving: gai_littoral.slf
+        moving: gai_littoral_hist.slf
+... deleting working dir
+
+
+
+My work is done
+
+

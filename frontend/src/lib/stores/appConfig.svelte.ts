@@ -49,7 +49,7 @@ export function hasPanel(name: string): boolean {
 
 /**
  * Whether the solver supports a capability (residuals, probes, performance,
- * compare, control, restart, gui). False until the config is loaded.
+ * compare, control, restart, gui, setup). False until the config is loaded.
  */
 export function hasCapability(name: string): boolean {
   return config?.capabilities.includes(name) ?? false;

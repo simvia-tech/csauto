@@ -17,6 +17,7 @@ from typing import Any
 
 from .doe import collect_template_variables
 from .execution import RUNTIME_DOCKER, RUNTIME_NATIVE, RUNTIME_SINGULARITY
+from .registry import write_campaign_settings, write_campaign_solver
 from .solvers import available_solvers, get_solver_adapter
 from .solvers.base import SolverAdapter
 
@@ -63,6 +64,7 @@ def list_solvers() -> list[dict[str, Any]]:
                 "found_runtimes": _found_runtimes(adapter),
                 "has_example": example_path(adapter) is not None,
                 "inputs": [spec._asdict() for spec in adapter.case_inputs],
+                "options": [option._asdict() for option in adapter.case_options],
                 "icon_file": str(adapter.icon_file) if adapter.icon_file else "",
             }
         )
@@ -73,10 +75,11 @@ def _ignore_runs(_directory: str, names: list[str]) -> list[str]:
     return [name for name in names if name == "RUNS"]
 
 
-def case_info(template: Path, solver: str) -> dict[str, Any]:
-    """What csauto sees in a case folder: its main input file and its DOE variables."""
+def case_info(template: Path, solver: str, options: Mapping[str, str] | None = None) -> dict[str, Any]:
+    """What csauto sees in a case folder: its main input file, its DOE variables and notes about it."""
     adapter = get_solver_adapter(solver)
     template = template.resolve()
+    settings = _chosen(adapter, options)
     try:
         setup_file = adapter.find_setup_file(template)
     except FileNotFoundError as exc:
@@ -85,16 +88,24 @@ def case_info(template: Path, solver: str) -> dict[str, Any]:
         "setup_file": setup_file.relative_to(template).as_posix(),
         "variables": sorted(collect_template_variables(template, adapter=adapter)),
         "warnings": adapter.setup_warnings(setup_file),
+        "notes": [note._asdict() for note in adapter.setup_notes(setup_file, settings)],
     }
 
 
-def inspect_inputs(solver: str, files: Mapping[str, Sequence[Path]]) -> dict[str, Any]:
-    """Assemble picked files in a scratch folder: the files the case gets and its DOE variables."""
+def _chosen(adapter, options: Mapping[str, str] | None) -> dict[str, str]:
+    """The case options given a value (the others stay automatic)."""
+    return {key: value for key, value in adapter.check_case_options(options).items() if value}
+
+
+def inspect_inputs(
+    solver: str, files: Mapping[str, Sequence[Path]], options: Mapping[str, str] | None = None
+) -> dict[str, Any]:
+    """Assemble picked files in a scratch folder: the files the case gets, its DOE variables and notes."""
     adapter = get_solver_adapter(solver)
     with tempfile.TemporaryDirectory() as scratch:
         root = Path(scratch)
         adapter.assemble_case(root, files)
-        info = case_info(root / "TEMPLATE", solver)
+        info = case_info(root / "TEMPLATE", solver, options)
         info["files"] = sorted(path.relative_to(root).as_posix() for path in root.rglob("*") if path.is_file())
     return info
 
@@ -124,6 +135,7 @@ def create_campaign(
     *,
     empty: bool = False,
     files: Mapping[str, Sequence[Path]] | None = None,
+    options: Mapping[str, str] | None = None,
 ) -> Path:
     """Create the campaign folder `target`: from `template`, from picked `files`, empty, or else the example.
 
@@ -135,8 +147,11 @@ def create_campaign(
     template variable, ready for the user to add rows; a template without
     variables gives a doe.csv with one `baseline` case that runs it as is.
     An empty campaign has an empty TEMPLATE/ for the user's files.
+    The chosen `options` (the adapter's case options) are saved in
+    RUNS/campaign.json, which `csauto prepare` keeps.
     """
     adapter = get_solver_adapter(solver)
+    chosen = _chosen(adapter, options)
     if runtime not in adapter.supported_runtimes:
         choices = ", ".join(sorted(adapter.supported_runtimes))
         raise ValueError(f"{adapter.name} does not run with {runtime} (supported: {choices}).")
@@ -170,5 +185,9 @@ def create_campaign(
                 (target / shared_name).symlink_to(source.resolve(), target_is_directory=True)
         _write_doe(target / "doe.csv", sorted(collect_template_variables(target / "TEMPLATE", adapter=adapter)))
 
+    if chosen:
+        # Kept by csauto with the cases it generates (RUNS/campaign.json), never written in the solver's files.
+        write_campaign_solver(target / "RUNS", adapter.name)
+        write_campaign_settings(target / "RUNS", chosen)
     (target / "csauto.toml").write_text(f'solver = "{adapter.name}"\nruntime = "{runtime}"\n', encoding="utf-8")
     return target

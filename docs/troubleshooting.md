@@ -246,7 +246,8 @@ code_aster), or the exit status in `.csauto.exitcode`.
 
 ### Missing residuals, probes, or profiles in the UI
 
-These panels exist for code_saturne only.
+These panels exist for code_saturne only, except Probes, which openTELEMAC also
+has (see its section in [config.md](./config.md#opentelemac)).
 
 - **Residuals**: check `RESU/<run_id>/residuals.csv`; if missing, csauto falls
   back to parsing `run_solver.log`

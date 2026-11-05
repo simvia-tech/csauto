@@ -1,0 +1,614 @@
+
+
+Loading configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   ___      __ 
+  / _ \    /_ |
+ | (_) |    | |
+  \__, |    | |
+    / /  _  | |
+   /_/  (_) |_|
+               
+               
+
+
+Running your CAS file(s) for:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    +> root:    /opt/open_telemac
+    +> build:   /opt/open_telemac/build
+    +> modules: api / artemis / bief / damocles
+                gaia  / gretel  / hermes  / khione
+                mascaret  / nestor  / parallel  / partel
+                postel3d  / special  / stbtel  / telemac2d
+                telemac3d / tomawac / waqtel
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+... processing the steering file
+  ~> Checking keyword/rubrique coherence
+
+... checking parallelisation
+
+... handling temporary directories
+         copying: t2d_node_by_node_bdy.cas -> /csauto/case0001/t2d_node_by_node_bdy.cas_2026-10-22-09h22min32s/T2DCAS
+         copying: telemac2d.dico -> /csauto/case0001/t2d_node_by_node_bdy.cas_2026-10-22-09h22min32s/T2DDICO
+         copying: geo_node_by_node_bdy.cli -> /csauto/case0001/t2d_node_by_node_bdy.cas_2026-10-22-09h22min32s/T2DCLI
+         copying: geo_node_by_node_bdy.slf -> /csauto/case0001/t2d_node_by_node_bdy.cas_2026-10-22-09h22min32s/T2DGEO
+         copying: liq_node_by_node_bdy.txt -> /csauto/case0001/t2d_node_by_node_bdy.cas_2026-10-22-09h22min32s/T2DIMP
+
+... checking the executable
+
+
+Running your simulation(s) :
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+
+In /csauto/case0001/t2d_node_by_node_bdy.cas_2026-10-22-09h22min32s:
+mpiexec -n 1 /csauto/case0001/t2d_node_by_node_bdy.cas_2026-10-22-09h22min32s/telemac2d
+
+
+ MASTER PROCESSOR NUMBER            0  OF THE GROUP OF            1
+ EXECUTABLE FILE: /csauto/case0001/t2d_node_by_node_bdy.cas_2026-10-22-09h22min32s/A.EXE
+ LISTING OF TELEMAC2D------------------------------------------------------------------------------
+
+                TTTTT  EEEEE  L      EEEEE  M   M  AAAAA  CCCCC
+                  T    E      L      E      MM MM  A   A  C
+                  T    EEE    L      EEE    M M M  AAAAA  C
+                  T    E      L      E      M   M  A   A  C
+                  T    EEEEE  LLLLL  EEEEE  M   M  A   A  CCCCC
+
+                        2D    VERSION 9.1    FORTRAN 2003
+
+                        ~^~^~^~^~^~^~^~^~^~^~^^~^~^~^~^~^~
+                          ~                            ~
+                               \   '    o      '
+                               /\ o       \  o
+                             >=)'>    '   /\ '
+                               \/   \   >=)'>        ~
+                               /    /\    \/
+                        ~         >=)'>   /     .
+                                    \/                   )
+                                    /                   (
+                                          ~          )   )
+                          }     ~              (    (   (
+                         {                      )    )   )
+                          }  }         .       (    (   (
+                         {  {               /^^^^^^^^^^^^
+                        ^^^^^^^^^\         /
+                                  ^^^^^^^^^
+
+ DIFFERENT NUMBER OF PARALLEL PROCESSORS:
+ DECLARED BEFORE (CASE OF COUPLING ?):           1
+ TELEMAC-2D :           0
+ VALUE            1  IS KEPT
+
+                   ********************************************
+                   *               LECDON:                    *
+                   *        AFTER CALLING DAMOCLES            *
+                   *        CHECKING OF DATA  READ            *
+                   *         IN THE STEERING FILE             *
+                   ********************************************
+
+ TREATMENT OF NEGATIVE DEPTHS =           2
+ MASS-LUMPING ON H AUTOMATICALLY SET TO 1.D0
+ CONTINUITY CORRECTION AUTOMATICALLY SET TO YES
+ SUPG OPTION AUTOMATICALLY SET TO 0 FOR H
+ LECDON: DISTRIBUTIVE SCHEME ON THE TRACER      1
+ IMPOSED VALUE: IMPLICITATION = 0.
+
+ EXITING LECDON. NAME OF THE STUDY:
+ NODE BY NODE BOUNDARY
+
+ OPENING FILES FOR TELEMAC2D
+ OPENING: T2DGEO-../MESH/geo_node_by_node_bdy.slf
+ OPENING: T2DCLI-../MESH/geo_node_by_node_bdy.cli
+ OPENING: T2DRES-RESU/r2d_node_by_node_bdy.slf
+ OPENING: T2DIMP-liq_node_by_node_bdy.txt
+
+                          *****************************
+                          *    MEMORY ORGANIZATION    *
+                          *****************************
+
+ READ_MESH_INFO: TITLE= mesh_bump0
+            NUMBER OF ELEMENTS:     1280
+            NUMBER OF POINTS:      729
+
+            TYPE OF ELEMENT: TRIANGLE
+            TYPE OF BND ELEMENT: POINT
+
+            SINGLE PRECISION FORMAT (R4)
+
+ MXPTEL (BIEF) : MAXIMUM NUMBER OF ELEMENTS AROUND A POINT:   8
+                 MAXIMUM NUMBER OF POINTS AROUND A POINT:   8
+ USER_CORRXY (BIEF):NO MODIFICATION OF COORDINATES
+
+ MESH: MESH   ALLOCATED
+
+                     *************************************
+                     *    END OF MEMORY ORGANIZATION:    *
+                     *************************************
+
+ INITIALIZING TELEMAC2D FOR
+ INBIEF (BIEF): NOT A VECTOR MACHINE (ACCORDING TO YOUR DATA)
+ STRCHE (BIEF): NO MODIFICATION OF FRICTION
+
+ THERE IS     2 LIQUID BOUNDARIES:
+
+ BOUNDARY    1 :
+  BEGINS AT BOUNDARY POINT:       81 , WITH GLOBAL NUMBER:        21
+  AND COORDINATES:     20.00000           0.000000
+  ENDS AT BOUNDARY POINT:       89 , WITH GLOBAL NUMBER:        63
+  AND COORDINATES:     20.00000           2.000000
+
+ BOUNDARY    2 :
+  BEGINS AT BOUNDARY POINT:      169 , WITH GLOBAL NUMBER:        43
+  AND COORDINATES:     0.000000           2.000000
+  ENDS AT BOUNDARY POINT:        1 , WITH GLOBAL NUMBER:         1
+  AND COORDINATES:     0.000000           0.000000
+
+ THERE IS     2 SOLID BOUNDARIES:
+
+ BOUNDARY    1 :
+  BEGINS AT BOUNDARY POINT:        1 , WITH GLOBAL NUMBER:         1
+  AND COORDINATES:     0.000000           0.000000
+  ENDS AT BOUNDARY POINT:       81 , WITH GLOBAL NUMBER:        21
+  AND COORDINATES:     20.00000           0.000000
+
+ BOUNDARY    2 :
+  BEGINS AT BOUNDARY POINT:       89 , WITH GLOBAL NUMBER:        63
+  AND COORDINATES:     20.00000           2.000000
+  ENDS AT BOUNDARY POINT:      169 , WITH GLOBAL NUMBER:        43
+  AND COORDINATES:     0.000000           2.000000
+
+ USER_CORFON (TELEMAC2D): NO MODIFICATION OF BOTTOM
+
+ CORFON (TELEMAC2D): NO BOTTOM SMOOTHINGS
+
+================================================================================
+ ITERATION        0    TIME:   0.0000 S
+
+                            BALANCE OF TRACER 1 (UNIT: ?? * M3)
+     INITIAL QUANTITY OF TRACER   :    0.000000
+
+                            BALANCE OF TRACER 2 (UNIT: ?? * M3)
+     INITIAL QUANTITY OF TRACER   :    0.000000
+ TELEMAC2D INITIALIZED
+ THE LIQUID BOUNDARIES FILE CONTAINS
+          11  LINES WITH:
+ SL(21)        SL(620)       SL(143)       SL(710)       SL(42)        SL(667)       SL(203)       SL(557)       SL(63)        U(43)         U(622)        U(146)        U(709)        U(22)         U(210)        U(67)         U(406)        U(1)          V(43)         V(622)        V(146)        V(709)        V(22)         V(210)        V(67)         V(406)        V(1)          TR(43,1)      TR(622,1)     TR(146,1)     TR(709,1)     TR(22,1)      TR(210,1)     TR(67,1)      TR(406,1)     TR(1,1)       TR(43,2)      TR(622,2)     TR(146,2)     TR(709,2)     TR(22,2)      TR(210,2)     TR(67,2)      TR(406,2)     TR(1,2)
+ USING STREAMLINE VERSION 9.1 FOR CHARACTERISTICS
+
+================================================================================
+ ITERATION       50    TIME:   5.0000 S
+ ILL-POSED PROBLEM, ENTERING FREE VELOCITY
+ FOR EXAMPLE AT BOUNDARY POINT NUMBER           89
+--------------------------------------------------------------------------------
+                          ADVECTION STEP
+--------------------------------------------------------------------------------
+                    DIFFUSION-PROPAGATION STEP
+ EQUNOR (BIEF) :        6 ITERATIONS, ABSOLUTE PRECISION:   0.7992347E-04
+ POSITIVE DEPTHS OBTAINED IN     1 ITERATIONS
+--------------------------------------------------------------------------------
+                     DIFFUSION OF TRACERS STEP
+CVTRVF_NERD (SCHEME NERD, 13 OR 14):   1 ITERATIONS
+
+                            BALANCE OF TRACER 1 (UNIT: ?? * M3)
+
+     INITIAL QUANTITY                  :    0.6594867
+     FINAL QUANTITY                    :    0.7013456
+     BOUNDARY   1 FLUX:            -0.000000     ( >0 : ENTERING  <0 : EXITING )
+     BOUNDARY   2 FLUX:            0.4185896     ( >0 : ENTERING  <0 : EXITING )
+     TOTAL QUANTITY LOST               :   -0.1526557E-15
+     RELATIVE ERROR                    :   -0.2176611E-15
+CVTRVF_NERD (SCHEME NERD, 13 OR 14):   1 ITERATIONS
+
+                            BALANCE OF TRACER 2 (UNIT: ?? * M3)
+
+     INITIAL QUANTITY                  :     1.318973
+     FINAL QUANTITY                    :     1.402691
+     BOUNDARY   1 FLUX:            -0.000000     ( >0 : ENTERING  <0 : EXITING )
+     BOUNDARY   2 FLUX:            0.8371791     ( >0 : ENTERING  <0 : EXITING )
+     TOTAL QUANTITY LOST               :   -0.3053113E-15
+     RELATIVE ERROR                    :   -0.2176611E-15
+--------------------------------------------------------------------------------
+                       BALANCE OF WATER VOLUME
+     VOLUME IN THE DOMAIN :    83.13300     M3
+     FLUX BOUNDARY    1:    0.3380774E-01 M3/S  ( >0 : ENTERING  <0 : EXITING )
+     FLUX BOUNDARY    2:     1.237664     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     RELATIVE ERROR IN VOLUME AT T =        5.000     S :    0.5729201E-15
+
+================================================================================
+ ITERATION      100    TIME:  10.0000 S
+--------------------------------------------------------------------------------
+                          ADVECTION STEP
+--------------------------------------------------------------------------------
+                    DIFFUSION-PROPAGATION STEP
+ EQUNOR (BIEF) :        6 ITERATIONS, ABSOLUTE PRECISION:   0.9721033E-04
+ POSITIVE DEPTHS OBTAINED IN     1 ITERATIONS
+--------------------------------------------------------------------------------
+                     DIFFUSION OF TRACERS STEP
+CVTRVF_NERD (SCHEME NERD, 13 OR 14):   1 ITERATIONS
+
+                            BALANCE OF TRACER 1 (UNIT: ?? * M3)
+
+     INITIAL QUANTITY                  :     4.459777
+     FINAL QUANTITY                    :     4.578817
+     BOUNDARY   1 FLUX:           -0.8497685E-80 ( >0 : ENTERING  <0 : EXITING )
+     BOUNDARY   2 FLUX:             1.190394     ( >0 : ENTERING  <0 : EXITING )
+     TOTAL QUANTITY LOST               :   -0.1776357E-14
+     RELATIVE ERROR                    :   -0.3879511E-15
+CVTRVF_NERD (SCHEME NERD, 13 OR 14):   1 ITERATIONS
+
+                            BALANCE OF TRACER 2 (UNIT: ?? * M3)
+
+     INITIAL QUANTITY                  :     8.919554
+     FINAL QUANTITY                    :     9.157633
+     BOUNDARY   1 FLUX:           -0.1699537E-79 ( >0 : ENTERING  <0 : EXITING )
+     BOUNDARY   2 FLUX:             2.380788     ( >0 : ENTERING  <0 : EXITING )
+     TOTAL QUANTITY LOST               :   -0.3552714E-14
+     RELATIVE ERROR                    :   -0.3879511E-15
+--------------------------------------------------------------------------------
+                       BALANCE OF WATER VOLUME
+     VOLUME IN THE DOMAIN :    87.36627     M3
+     FLUX BOUNDARY    1:    -2.142792     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     FLUX BOUNDARY    2:     2.239391     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     RELATIVE ERROR IN VOLUME AT T =        10.00     S :    0.3121127E-15
+
+================================================================================
+ ITERATION      150    TIME:  15.0000 S
+--------------------------------------------------------------------------------
+                          ADVECTION STEP
+--------------------------------------------------------------------------------
+                    DIFFUSION-PROPAGATION STEP
+ EQUNOR (BIEF) :        6 ITERATIONS, ABSOLUTE PRECISION:   0.8162343E-04
+ POSITIVE DEPTHS OBTAINED IN     1 ITERATIONS
+--------------------------------------------------------------------------------
+                     DIFFUSION OF TRACERS STEP
+CVTRVF_NERD (SCHEME NERD, 13 OR 14):   1 ITERATIONS
+
+                            BALANCE OF TRACER 1 (UNIT: ?? * M3)
+
+     INITIAL QUANTITY                  :     12.95793
+     FINAL QUANTITY                    :     13.18004
+     BOUNDARY   1 FLUX:           -0.1597014E-29 ( >0 : ENTERING  <0 : EXITING )
+     BOUNDARY   2 FLUX:             2.221118     ( >0 : ENTERING  <0 : EXITING )
+     TOTAL QUANTITY LOST               :   -0.8215650E-14
+     RELATIVE ERROR                    :   -0.6233404E-15
+CVTRVF_NERD (SCHEME NERD, 13 OR 14):   1 ITERATIONS
+
+                            BALANCE OF TRACER 2 (UNIT: ?? * M3)
+
+     INITIAL QUANTITY                  :     25.91585
+     FINAL QUANTITY                    :     26.36007
+     BOUNDARY   1 FLUX:           -0.3194028E-29 ( >0 : ENTERING  <0 : EXITING )
+     BOUNDARY   2 FLUX:             4.442236     ( >0 : ENTERING  <0 : EXITING )
+     TOTAL QUANTITY LOST               :   -0.1643130E-13
+     RELATIVE ERROR                    :   -0.6233404E-15
+--------------------------------------------------------------------------------
+                       BALANCE OF WATER VOLUME
+     VOLUME IN THE DOMAIN :    85.24393     M3
+     FLUX BOUNDARY    1:    -4.045603     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     FLUX BOUNDARY    2:     3.047720     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     RELATIVE ERROR IN VOLUME AT T =        15.00     S :   -0.9409891E-15
+
+================================================================================
+ ITERATION      200    TIME:  20.0000 S
+--------------------------------------------------------------------------------
+                          ADVECTION STEP
+--------------------------------------------------------------------------------
+                    DIFFUSION-PROPAGATION STEP
+ EQUNOR (BIEF) :        5 ITERATIONS, ABSOLUTE PRECISION:   0.5973216E-04
+ POSITIVE DEPTHS OBTAINED IN     1 ITERATIONS
+--------------------------------------------------------------------------------
+                     DIFFUSION OF TRACERS STEP
+CVTRVF_NERD (SCHEME NERD, 13 OR 14):   1 ITERATIONS
+
+                            BALANCE OF TRACER 1 (UNIT: ?? * M3)
+
+     INITIAL QUANTITY                  :     26.82844
+     FINAL QUANTITY                    :     27.16865
+     BOUNDARY   1 FLUX:           -0.3433495E-09 ( >0 : ENTERING  <0 : EXITING )
+     BOUNDARY   2 FLUX:             3.402100     ( >0 : ENTERING  <0 : EXITING )
+     TOTAL QUANTITY LOST               :   -0.3713696E-13
+     RELATIVE ERROR                    :   -0.1366905E-14
+CVTRVF_NERD (SCHEME NERD, 13 OR 14):   1 ITERATIONS
+
+                            BALANCE OF TRACER 2 (UNIT: ?? * M3)
+
+     INITIAL QUANTITY                  :     53.65688
+     FINAL QUANTITY                    :     54.33730
+     BOUNDARY   1 FLUX:           -0.6866990E-09 ( >0 : ENTERING  <0 : EXITING )
+     BOUNDARY   2 FLUX:             6.804200     ( >0 : ENTERING  <0 : EXITING )
+     TOTAL QUANTITY LOST               :   -0.7427392E-13
+     RELATIVE ERROR                    :   -0.1366905E-14
+--------------------------------------------------------------------------------
+                       BALANCE OF WATER VOLUME
+     VOLUME IN THE DOMAIN :    80.40042     M3
+     FLUX BOUNDARY    1:    -4.114146     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     FLUX BOUNDARY    2:     3.669002     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     RELATIVE ERROR IN VOLUME AT T =        20.00     S :    0.8533759E-15
+
+================================================================================
+ ITERATION      250    TIME:  25.0000 S
+--------------------------------------------------------------------------------
+                          ADVECTION STEP
+--------------------------------------------------------------------------------
+                    DIFFUSION-PROPAGATION STEP
+ EQUNOR (BIEF) :        5 ITERATIONS, ABSOLUTE PRECISION:   0.6876470E-04
+ POSITIVE DEPTHS OBTAINED IN     1 ITERATIONS
+--------------------------------------------------------------------------------
+                     DIFFUSION OF TRACERS STEP
+CVTRVF_NERD (SCHEME NERD, 13 OR 14):   1 ITERATIONS
+
+                            BALANCE OF TRACER 1 (UNIT: ?? * M3)
+
+     INITIAL QUANTITY                  :     47.27134
+     FINAL QUANTITY                    :     47.76438
+     BOUNDARY   1 FLUX:           -0.4019379E-02 ( >0 : ENTERING  <0 : EXITING )
+     BOUNDARY   2 FLUX:             4.934406     ( >0 : ENTERING  <0 : EXITING )
+     TOTAL QUANTITY LOST               :   -0.4135581E-13
+     RELATIVE ERROR                    :   -0.8658295E-15
+CVTRVF_NERD (SCHEME NERD, 13 OR 14):   1 ITERATIONS
+
+                            BALANCE OF TRACER 2 (UNIT: ?? * M3)
+
+     INITIAL QUANTITY                  :     94.54268
+     FINAL QUANTITY                    :     95.52876
+     BOUNDARY   1 FLUX:           -0.8038759E-02 ( >0 : ENTERING  <0 : EXITING )
+     BOUNDARY   2 FLUX:             9.868812     ( >0 : ENTERING  <0 : EXITING )
+     TOTAL QUANTITY LOST               :   -0.8271162E-13
+     RELATIVE ERROR                    :   -0.8658295E-15
+--------------------------------------------------------------------------------
+                       BALANCE OF WATER VOLUME
+     VOLUME IN THE DOMAIN :    80.73030     M3
+     FLUX BOUNDARY    1:    -3.870694     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     FLUX BOUNDARY    2:     4.381109     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     RELATIVE ERROR IN VOLUME AT T =        25.00     S :   -0.1158971E-14
+
+================================================================================
+ ITERATION      300    TIME:  30.0000 S
+--------------------------------------------------------------------------------
+                          ADVECTION STEP
+--------------------------------------------------------------------------------
+                    DIFFUSION-PROPAGATION STEP
+ EQUNOR (BIEF) :        9 ITERATIONS, ABSOLUTE PRECISION:   0.8907425E-04
+ POSITIVE DEPTHS OBTAINED IN     1 ITERATIONS
+--------------------------------------------------------------------------------
+                     DIFFUSION OF TRACERS STEP
+CVTRVF_NERD (SCHEME NERD, 13 OR 14):   1 ITERATIONS
+
+                            BALANCE OF TRACER 1 (UNIT: ?? * M3)
+
+     INITIAL QUANTITY                  :     71.48925
+     FINAL QUANTITY                    :     71.91318
+     BOUNDARY   1 FLUX:           -0.9673537     ( >0 : ENTERING  <0 : EXITING )
+     BOUNDARY   2 FLUX:             5.206650     ( >0 : ENTERING  <0 : EXITING )
+     TOTAL QUANTITY LOST               :   -0.9547918E-14
+     RELATIVE ERROR                    :   -0.1327701E-15
+CVTRVF_NERD (SCHEME NERD, 13 OR 14):   1 ITERATIONS
+
+                            BALANCE OF TRACER 2 (UNIT: ?? * M3)
+
+     INITIAL QUANTITY                  :     142.9785
+     FINAL QUANTITY                    :     143.8264
+     BOUNDARY   1 FLUX:            -1.934707     ( >0 : ENTERING  <0 : EXITING )
+     BOUNDARY   2 FLUX:             10.41330     ( >0 : ENTERING  <0 : EXITING )
+     TOTAL QUANTITY LOST               :   -0.1909584E-13
+     RELATIVE ERROR                    :   -0.1327701E-15
+--------------------------------------------------------------------------------
+                       BALANCE OF WATER VOLUME
+     VOLUME IN THE DOMAIN :    83.61340     M3
+     FLUX BOUNDARY    1:    -4.376457     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     FLUX BOUNDARY    2:     4.650483     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     RELATIVE ERROR IN VOLUME AT T =        30.00     S :    0.2315775E-15
+
+================================================================================
+ ITERATION      350    TIME:  35.0000 S
+--------------------------------------------------------------------------------
+                          ADVECTION STEP
+--------------------------------------------------------------------------------
+                    DIFFUSION-PROPAGATION STEP
+ EQUNOR (BIEF) :        9 ITERATIONS, ABSOLUTE PRECISION:   0.8560228E-04
+ POSITIVE DEPTHS OBTAINED IN     1 ITERATIONS
+--------------------------------------------------------------------------------
+                     DIFFUSION OF TRACERS STEP
+CVTRVF_NERD (SCHEME NERD, 13 OR 14):   1 ITERATIONS
+
+                            BALANCE OF TRACER 1 (UNIT: ?? * M3)
+
+     INITIAL QUANTITY                  :     85.85624
+     FINAL QUANTITY                    :     86.01920
+     BOUNDARY   1 FLUX:            -3.603932     ( >0 : ENTERING  <0 : EXITING )
+     BOUNDARY   2 FLUX:             5.233620     ( >0 : ENTERING  <0 : EXITING )
+     TOTAL QUANTITY LOST               :    0.2331468E-13
+     RELATIVE ERROR                    :    0.2710404E-15
+CVTRVF_NERD (SCHEME NERD, 13 OR 14):   1 ITERATIONS
+
+                            BALANCE OF TRACER 2 (UNIT: ?? * M3)
+
+     INITIAL QUANTITY                  :     171.7125
+     FINAL QUANTITY                    :     172.0384
+     BOUNDARY   1 FLUX:            -7.207864     ( >0 : ENTERING  <0 : EXITING )
+     BOUNDARY   2 FLUX:             10.46724     ( >0 : ENTERING  <0 : EXITING )
+     TOTAL QUANTITY LOST               :    0.4662937E-13
+     RELATIVE ERROR                    :    0.2710404E-15
+--------------------------------------------------------------------------------
+                       BALANCE OF WATER VOLUME
+     VOLUME IN THE DOMAIN :    83.09880     M3
+     FLUX BOUNDARY    1:    -5.041200     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     FLUX BOUNDARY    2:     4.674303     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     RELATIVE ERROR IN VOLUME AT T =        35.00     S :    0.9758012E-15
+
+================================================================================
+ ITERATION      400    TIME:  40.0000 S
+--------------------------------------------------------------------------------
+                          ADVECTION STEP
+--------------------------------------------------------------------------------
+                    DIFFUSION-PROPAGATION STEP
+ EQUNOR (BIEF) :        5 ITERATIONS, ABSOLUTE PRECISION:   0.9140077E-04
+ POSITIVE DEPTHS OBTAINED IN     1 ITERATIONS
+--------------------------------------------------------------------------------
+                     DIFFUSION OF TRACERS STEP
+CVTRVF_NERD (SCHEME NERD, 13 OR 14):   1 ITERATIONS
+
+                            BALANCE OF TRACER 1 (UNIT: ?? * M3)
+
+     INITIAL QUANTITY                  :     89.34847
+     FINAL QUANTITY                    :     89.33426
+     BOUNDARY   1 FLUX:            -5.075897     ( >0 : ENTERING  <0 : EXITING )
+     BOUNDARY   2 FLUX:             4.933722     ( >0 : ENTERING  <0 : EXITING )
+     TOTAL QUANTITY LOST               :    0.4671784E-13
+     RELATIVE ERROR                    :    0.5228723E-15
+CVTRVF_NERD (SCHEME NERD, 13 OR 14):   1 ITERATIONS
+
+                            BALANCE OF TRACER 2 (UNIT: ?? * M3)
+
+     INITIAL QUANTITY                  :     178.6969
+     FINAL QUANTITY                    :     178.6685
+     BOUNDARY   1 FLUX:            -10.15179     ( >0 : ENTERING  <0 : EXITING )
+     BOUNDARY   2 FLUX:             9.867444     ( >0 : ENTERING  <0 : EXITING )
+     TOTAL QUANTITY LOST               :    0.9343568E-13
+     RELATIVE ERROR                    :    0.5228723E-15
+--------------------------------------------------------------------------------
+                       BALANCE OF WATER VOLUME
+     VOLUME IN THE DOMAIN :    80.46641     M3
+     FLUX BOUNDARY    1:    -5.027145     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     FLUX BOUNDARY    2:     4.406169     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     RELATIVE ERROR IN VOLUME AT T =        40.00     S :    0.1022039E-14
+
+================================================================================
+ ITERATION      450    TIME:  45.0000 S
+--------------------------------------------------------------------------------
+                          ADVECTION STEP
+--------------------------------------------------------------------------------
+                    DIFFUSION-PROPAGATION STEP
+ EQUNOR (BIEF) :        5 ITERATIONS, ABSOLUTE PRECISION:   0.9395941E-04
+ POSITIVE DEPTHS OBTAINED IN     1 ITERATIONS
+--------------------------------------------------------------------------------
+                     DIFFUSION OF TRACERS STEP
+CVTRVF_NERD (SCHEME NERD, 13 OR 14):   1 ITERATIONS
+
+                            BALANCE OF TRACER 1 (UNIT: ?? * M3)
+
+     INITIAL QUANTITY                  :     88.97726
+     FINAL QUANTITY                    :     89.00368
+     BOUNDARY   1 FLUX:            -4.559912     ( >0 : ENTERING  <0 : EXITING )
+     BOUNDARY   2 FLUX:             4.824131     ( >0 : ENTERING  <0 : EXITING )
+     TOTAL QUANTITY LOST               :    0.1492209E-13
+     RELATIVE ERROR                    :    0.1676570E-15
+CVTRVF_NERD (SCHEME NERD, 13 OR 14):   1 ITERATIONS
+
+                            BALANCE OF TRACER 2 (UNIT: ?? * M3)
+
+     INITIAL QUANTITY                  :     177.9545
+     FINAL QUANTITY                    :     178.0074
+     BOUNDARY   1 FLUX:            -9.119823     ( >0 : ENTERING  <0 : EXITING )
+     BOUNDARY   2 FLUX:             9.648262     ( >0 : ENTERING  <0 : EXITING )
+     TOTAL QUANTITY LOST               :    0.2984418E-13
+     RELATIVE ERROR                    :    0.1676570E-15
+--------------------------------------------------------------------------------
+                       BALANCE OF WATER VOLUME
+     VOLUME IN THE DOMAIN :    79.51810     M3
+     FLUX BOUNDARY    1:    -4.065345     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     FLUX BOUNDARY    2:     4.308088     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     RELATIVE ERROR IN VOLUME AT T =        45.00     S :   -0.1105607E-15
+
+================================================================================
+ ITERATION      500    TIME:  50.0000 S
+--------------------------------------------------------------------------------
+                          ADVECTION STEP
+--------------------------------------------------------------------------------
+                    DIFFUSION-PROPAGATION STEP
+ EQUNOR (BIEF) :        6 ITERATIONS, ABSOLUTE PRECISION:   0.5882693E-04
+ POSITIVE DEPTHS OBTAINED IN     1 ITERATIONS
+--------------------------------------------------------------------------------
+                     DIFFUSION OF TRACERS STEP
+CVTRVF_NERD (SCHEME NERD, 13 OR 14):   1 ITERATIONS
+
+                            BALANCE OF TRACER 1 (UNIT: ?? * M3)
+
+     INITIAL QUANTITY                  :     91.75416
+     FINAL QUANTITY                    :     91.83545
+     BOUNDARY   1 FLUX:            -4.221197     ( >0 : ENTERING  <0 : EXITING )
+     BOUNDARY   2 FLUX:             5.034064     ( >0 : ENTERING  <0 : EXITING )
+     TOTAL QUANTITY LOST               :    0.1422890E-12
+     RELATIVE ERROR                    :    0.1549390E-14
+
+                      FINAL BALANCE OF TRACER 1 (UNIT: ?? * M3)
+
+     INITIAL QUANTITY                  :     0.000000
+     FINAL QUANTITY                    :     91.83545
+     QUANTITY ENTERED THROUGH LIQ. BND.:     91.83545      ( IF <0 EXIT )
+     TOTAL QUANTITY LOST               :    0.1705303E-12
+     RELATIVE ERROR                    :    0.1856911E-14
+
+CVTRVF_NERD (SCHEME NERD, 13 OR 14):   1 ITERATIONS
+
+                            BALANCE OF TRACER 2 (UNIT: ?? * M3)
+
+     INITIAL QUANTITY                  :     183.5083
+     FINAL QUANTITY                    :     183.6709
+     BOUNDARY   1 FLUX:            -8.442395     ( >0 : ENTERING  <0 : EXITING )
+     BOUNDARY   2 FLUX:             10.06813     ( >0 : ENTERING  <0 : EXITING )
+     TOTAL QUANTITY LOST               :    0.2845779E-12
+     RELATIVE ERROR                    :    0.1549390E-14
+
+                      FINAL BALANCE OF TRACER 2 (UNIT: ?? * M3)
+
+     INITIAL QUANTITY                  :     0.000000
+     FINAL QUANTITY                    :     183.6709
+     QUANTITY ENTERED THROUGH LIQ. BND.:     183.6709      ( IF <0 EXIT )
+     TOTAL QUANTITY LOST               :    0.3410605E-12
+     RELATIVE ERROR                    :    0.1856911E-14
+
+--------------------------------------------------------------------------------
+                       BALANCE OF WATER VOLUME
+     VOLUME IN THE DOMAIN :    82.07218     M3
+     FLUX BOUNDARY    1:    -3.768394     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     FLUX BOUNDARY    2:     4.495563     M3/S  ( >0 : ENTERING  <0 : EXITING )
+     RELATIVE ERROR IN VOLUME AT T =        50.00     S :   -0.2742680E-15
+--------------------------------------------------------------------------------
+                   FINAL BALANCE OF WATER VOLUME
+
+     RELATIVE ERROR CUMULATED ON VOLUME:    0.1038904E-14
+
+     INITIAL VOLUME              :     80.00000     M3
+     FINAL VOLUME                :     82.07218     M3
+     VOLUME THAT ENTERED THE DOMAIN:     2.072181     M3  ( IF <0 EXIT )
+     TOTAL VOLUME LOST             :    0.8526513E-13 M3
+
+ END OF TIME LOOP
+
+ EXITING MPI
+
+                     *************************************Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG
+STOP 0
+
+                     *    END OF MEMORY ORGANIZATION:    *
+                     *************************************
+
+ CORRECT END OF RUN
+
+ ELAPSE TIME :
+                              1  SECONDS
+... merging separated result files
+
+... handling result files
+
+        moving: r2d_node_by_node_bdy.slf
+... deleting working dir
+
+
+
+My work is done
+
+

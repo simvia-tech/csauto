@@ -76,6 +76,8 @@ export class CampaignsViewProvider implements vscode.TreeDataProvider<Item>, vsc
     const generated = isGenerated(runsDir);
     const running = this.server.get(runsDir) !== undefined;
     const doctor = generated ? lastDoctorResult(runsDir) : undefined;
+    // Warnings about a case ("[WARN] case0003: ..."), unlike those about the machine (DISPLAY not set...).
+    const caseWarnings = doctor?.warns.filter((line) => /^\[WARN\] [^\s:]+: /.test(line)) ?? [];
 
     const item = new Item(path.basename(root), vscode.TreeItemCollapsibleState.Collapsed);
     item.runsDir = runsDir;
@@ -83,7 +85,7 @@ export class CampaignsViewProvider implements vscode.TreeDataProvider<Item>, vsc
     item.description = solverSetup;
     item.tooltip = `${root}${running ? "\nDashboard server running" : ""}`;
     item.iconPath =
-      doctor && doctor.fails.length > 0
+      doctor && (doctor.fails.length > 0 || caseWarnings.length > 0)
         ? new vscode.ThemeIcon("warning", new vscode.ThemeColor("list.warningForeground"))
         : new vscode.ThemeIcon(running ? "folder-active" : "folder");
 
@@ -96,6 +98,10 @@ export class CampaignsViewProvider implements vscode.TreeDataProvider<Item>, vsc
       vscode.Uri.file(path.join(root, "TEMPLATE")),
     ]);
     templateItem.tooltip = "The case copied for every DOE row, with its {placeholders} filled in.";
+    if (caseWarnings.length > 0) {
+      templateItem.iconPath = new vscode.ThemeIcon("warning", new vscode.ThemeColor("list.warningForeground"));
+      templateItem.tooltip = `${caseWarnings.join("\n")}\n${templateItem.tooltip}`;
+    }
 
     const solverItem = actionItem("Solver", "settings-gear", "csauto.changeSolverFor", solverSetup, [runsDir]);
     if (doctor && doctor.fails.length > 0) {

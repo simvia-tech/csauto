@@ -15,6 +15,9 @@ export interface StatusRow {
   nprocs: number | null;
   nt: number | null;
   last_iter: number | null;
+  /** How far the run has got, as the solver says (simulated time against its target); absent otherwise. */
+  progress?: string | null;
+  progress_fraction?: number | null;
   duration_s: number | null;
   duration: string | null;
   last_mod: string | null;
@@ -63,6 +66,30 @@ export interface SolverOption {
   /** Label of the value field; empty when it takes no value. */
   value_label: string;
   value_kind: "int" | "float";
+}
+
+/** A line about some cases' main input file (GET /api/setup_notes). */
+export interface SetupNote {
+  level: "info" | "warn" | "error";
+  text: string;
+  cases: string[];
+  /** True when the note is about every case of the campaign. */
+  all_cases: boolean;
+}
+
+/** A choice the solver offers for the cases (the openTELEMAC module), with its current value ("" = automatic). */
+export interface CaseOption {
+  key: string;
+  label: string;
+  choices: string[];
+  hint: string;
+  automatic_label: string;
+  value: string;
+}
+
+/** What POST /api/case_options saved: every case option the campaign now sets. */
+export interface CaseOptionsResult {
+  settings: Record<string, string>;
 }
 
 export interface AppConfig {

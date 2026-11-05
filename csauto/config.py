@@ -89,9 +89,10 @@ def _parse_solver(value: Any, *, config_path: Path) -> str:
 
     solver = _coerce_str(value, DEFAULT_SOLVER).strip().lower()
     choices = available_solvers()
-    if solver not in choices:
+    matches = [choice for choice in choices if choice.lower() == solver]  # "opentelemac" is "openTELEMAC"
+    if not matches:
         raise ValueError(f"Invalid solver in {config_path}: {solver!r} (expected {', '.join(choices)})")
-    return solver
+    return matches[0]
 
 
 def _parse_runtime(value: Any, *, config_path: Path) -> str:

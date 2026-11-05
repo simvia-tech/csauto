@@ -74,11 +74,13 @@ RUNS/campaign.json
 Written by `csauto prepare`:
 
 ```json
-{ "solver": "code_aster" }
+{ "solver": "openTELEMAC", "settings": { "module": "telemac3d" } }
 ```
 
 Every later command on the campaign uses this solver, whatever directory it
-runs from.
+runs from. `settings` holds what was chosen for the campaign's cases in the
+dashboard or New Campaign (the solver's case options, such as the openTELEMAC
+module); `prepare` keeps it.
 
 ## `registry.json` (global state)
 

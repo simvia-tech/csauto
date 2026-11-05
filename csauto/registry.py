@@ -173,8 +173,31 @@ def read_campaign_solver(runs_dir: Path) -> str | None:
 
 
 def write_campaign_solver(runs_dir: Path, solver: str) -> None:
+    """Record the campaign's solver, keeping the settings chosen for its cases."""
+    _write_campaign_file(runs_dir, solver, read_campaign_settings(runs_dir))
+
+
+def read_campaign_settings(runs_dir: Path) -> dict[str, str]:
+    """What was chosen for a campaign's cases (its solver's case options): RUNS/campaign.json's "settings"."""
+    try:
+        data = json.loads((runs_dir / CAMPAIGN_FILENAME).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    settings = data.get("settings") if isinstance(data, dict) else None
+    return {str(key): str(value) for key, value in settings.items()} if isinstance(settings, dict) else {}
+
+
+def write_campaign_settings(runs_dir: Path, updates: Mapping[str, str]) -> dict[str, str]:
+    """Merge `updates` into the campaign's settings ("" removes one); return them all."""
+    settings = {key: value for key, value in {**read_campaign_settings(runs_dir), **updates}.items() if value}
+    _write_campaign_file(runs_dir, read_campaign_solver(runs_dir), settings)
+    return settings
+
+
+def _write_campaign_file(runs_dir: Path, solver: str | None, settings: Mapping[str, str]) -> None:
+    data = {**({"solver": solver} if solver else {}), **({"settings": dict(settings)} if settings else {})}
     runs_dir.mkdir(parents=True, exist_ok=True)
-    (runs_dir / CAMPAIGN_FILENAME).write_text(json.dumps({"solver": solver}, indent=2) + "\n", encoding="utf-8")
+    (runs_dir / CAMPAIGN_FILENAME).write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
 
 def history_path(case_dir: Path) -> Path:

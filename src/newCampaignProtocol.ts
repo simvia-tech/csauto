@@ -12,6 +12,22 @@ export interface CaseInputSpec {
   hint: string;
 }
 
+/** A choice offered for the case; "" (automatic) is always offered first. */
+export interface CaseOptionSpec {
+  key: string;
+  label: string;
+  choices: string[];
+  hint: string;
+  automatic_label: string;
+}
+
+/** A line about the case's main input file: what csauto read from it ("info"), what is worth knowing ("warn"),
+ *  or what stops the case from running ("error", which blocks Create). */
+export interface SetupNote {
+  level: "info" | "warn" | "error";
+  text: string;
+}
+
 export interface SolverSpec {
   name: string;
   description: string;
@@ -21,6 +37,7 @@ export interface SolverSpec {
   default_docker_image: string;
   native_bin_name: string;
   inputs: CaseInputSpec[];
+  options: CaseOptionSpec[];
   /** Path of the solver's icon (SVG), empty when it has none. */
   icon_file: string;
 }
@@ -39,6 +56,7 @@ export interface Inspection {
   variables: string[];
   files?: string[];
   warnings?: string[];
+  notes?: SetupNote[];
 }
 
 export interface DockerImage {
@@ -81,6 +99,8 @@ export interface CreateRequest {
   name: string;
   files: Record<string, string[]>;
   folder?: string;
+  /** The chosen case options, by key; "" or absent keeps one automatic. */
+  options: Record<string, string>;
   /** The DOE table to write, when the campaign has variables or rows. */
   doe?: { columns: string[]; rows: string[][] };
   setup: SolverSetup;
@@ -107,7 +127,14 @@ export type ToExtension =
   | { type: "ready" }
   | { type: "pickFiles"; key: string; label: string; extensions: string[]; multiple: boolean }
   | { type: "pickFolder"; solver: string }
-  | { type: "inspect"; solver: string; start: StartKind; files: Record<string, string[]>; folder?: string }
+  | {
+      type: "inspect";
+      solver: string;
+      start: StartKind;
+      files: Record<string, string[]>;
+      folder?: string;
+      options: Record<string, string>;
+    }
   /** Problems in the picked files, asked for before every required file is picked. */
   | { type: "checkFiles"; solver: string; files: Record<string, string[]> }
   | { type: "listImages"; solver: string }

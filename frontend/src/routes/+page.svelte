@@ -21,6 +21,7 @@
   import CompareCard from "#lib/components/compare/CompareCard.svelte";
   import RecentErrorsCard from "#lib/components/errors/RecentErrorsCard.svelte";
   import SectionNav from "#lib/components/shared/SectionNav.svelte";
+  import SetupNotes from "#lib/components/setup/SetupNotes.svelte";
 
   import { fetchStatus, solverIconUrl } from "#lib/api/endpoints.ts";
   import {
@@ -116,6 +117,7 @@
 </div>
 
 <main class="grid grid-cols-12 gap-4 w-[min(1200px,94vw)] mx-auto pt-5 pb-12">
+  <SetupNotes allCases={allCaseIds} />
   {#if hasPanel("status")}
     <div id="panel-status" class="col-span-12 scroll-mt-28">
       <StatusCard onRefresh={loadStatus} />

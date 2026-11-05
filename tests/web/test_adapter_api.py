@@ -223,3 +223,69 @@ def test_gui_command_passes_gui_env_only_to_overrides_that_accept_it(tmp_path) -
     env = {"QT_SCALE_FACTOR": "1.50"}
     assert gui_command(Current(), tmp_path, None, env) == ["gui", "1.50"]
     assert gui_command(Legacy(), tmp_path, None, env) == ["gui"]
+
+
+def _telemac_case(runs_dir: Path, case_id: str, cas_text: str) -> None:
+    case_dir = runs_dir / case_id
+    case_dir.mkdir(parents=True)
+    (case_dir / "study.cas").write_text(cas_text, encoding="utf-8")
+    (case_dir / "doe_row.csv").write_text(f"case_id\n{case_id}\n", encoding="utf-8")
+
+
+def test_setup_notes_are_merged_across_cases(client_for, runs_dir: Path) -> None:
+    from csauto.solvers.telemac import TelemacAdapter
+
+    _telemac_case(runs_dir, "case0001", "VELOCITY DIFFUSIVITY = 1.\n")
+    _telemac_case(runs_dir, "case0002", "VELOCITY DIFFUSIVITY = 2.\n")
+    _telemac_case(runs_dir, "case0003", "TITLE = 'NOTHING TELLS'\n")
+    client = client_for(TelemacAdapter())
+
+    notes = client.get("/api/setup_notes").json()["notes"]
+    assert [(note["level"], note["cases"], note["all_cases"]) for note in notes] == [
+        ("error", ["case0003"], False),  # errors first
+        ("info", ["case0001", "case0002"], False),
+    ]
+    assert "not detected" in notes[0]["text"] and "telemac2d (detected automatically" in notes[1]["text"]
+    warnings = client.post("/api/setup_warnings", json={"cases": ["case0003"]}).json()["warnings"]
+    assert any("not detected" in warning for warning in warnings)  # shown by the Run and Restart dialogs
+
+
+def test_run_dialog_repeats_only_what_stops_the_run(client_for, runs_dir: Path) -> None:
+    from csauto.solvers.telemac import TelemacAdapter
+
+    _telemac_case(runs_dir, "case0001", "VELOCITY DIFFUSIVITY = 1.\nRESULTS FILE = 'r2d.slf'\n")
+    client = client_for(TelemacAdapter())
+    assert any("outside RESU/" in note["text"] for note in client.get("/api/setup_notes").json()["notes"])
+    assert client.post("/api/setup_warnings", json={"cases": ["case0001"]}).json()["warnings"] == []
+
+
+def test_case_options_are_kept_by_csauto(client_for, runs_dir: Path, tmp_path: Path) -> None:
+    from csauto.doe import generate_cases
+    from csauto.registry import read_campaign_settings
+    from csauto.solvers.telemac import TelemacAdapter
+
+    adapter = TelemacAdapter()
+    template = tmp_path / "TEMPLATE"
+    template.mkdir()
+    (template / "study.cas").write_text("TITLE = 'NOTHING TELLS'\nFRICTION COEFFICIENT = {k}\n", encoding="utf-8")
+    rows = [{"case_id": f"case000{i}", "k": str(i)} for i in (1, 2)]
+    generate_cases(["case_id", "k"], rows, template, runs_dir, adapter=adapter)
+    client = client_for(adapter)
+
+    [option] = client.get("/api/case_options").json()["options"]
+    assert (option["key"], option["value"]) == ("module", "")
+    assert client.get("/api/setup_notes").json()["notes"][0]["level"] == "error"
+
+    saved = client.post("/api/case_options", json={"options": {"module": "telemac3d"}}).json()
+    assert saved["settings"] == {"module": "telemac3d"}
+    assert read_campaign_settings(runs_dir) == saved["settings"]
+    assert "csauto" not in (runs_dir / "case0001" / "study.cas").read_text(encoding="utf-8")  # files untouched
+    assert client.get("/api/setup_notes").json()["notes"][0]["text"] == "TELEMAC module: telemac3d (chosen)."
+    # prepare keeps them, and still sees the cases as made from the template.
+    generate_cases(["case_id", "k"], rows, template, runs_dir, adapter=adapter)
+    assert read_campaign_settings(runs_dir)["module"] == "telemac3d"
+
+    client.post("/api/case_options", json={"options": {"module": ""}})  # back to automatic
+    assert read_campaign_settings(runs_dir) == {}
+    assert client.post("/api/case_options", json={"options": {"module": "gaia"}}).status_code == 400
+    assert client.post("/api/case_options", json={"options": {"points": "80"}}).status_code == 400

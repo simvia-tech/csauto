@@ -72,6 +72,8 @@ def print_status_table(rows: Sequence[Mapping[str, Any]]) -> None:
         "last_mod",
         "resu_size_mb",
     )
+    if any(row.get("progress") for row in rows):
+        headers = (*headers[:5], "progress", *headers[5:])
     col_widths = {h: len(h) for h in headers}
     for row in rows:
         for h in headers:
@@ -398,13 +400,16 @@ def parse_arguments(
     new_campaign_parser.add_argument("--template", type=Path, default=None)
     new_campaign_parser.add_argument("--empty", action="store_true")
     new_campaign_parser.add_argument("--input", action="append", default=[], metavar="KEY=PATH")
+    new_campaign_parser.add_argument("--option", action="append", default=[], metavar="KEY=VALUE")
     inspect_parser = subparsers.add_parser("_inspect-inputs")
     inspect_parser.add_argument("--solver", required=True)
     inspect_parser.add_argument("--input", action="append", default=[], metavar="KEY=PATH")
+    inspect_parser.add_argument("--option", action="append", default=[], metavar="KEY=VALUE")
     inspect_parser.add_argument("--warnings-only", action="store_true", help="Only check the picked files.")
     case_info_parser = subparsers.add_parser("_case-info")
     case_info_parser.add_argument("template", type=Path)
     case_info_parser.add_argument("--solver", required=True)
+    case_info_parser.add_argument("--option", action="append", default=[], metavar="KEY=VALUE")
     doe_generate_parser = subparsers.add_parser("_doe-generate")
     doe_generate_parser.add_argument("request", help="JSON: parameters, method, samples, seed, round")
 
@@ -490,6 +495,17 @@ def _parse_inputs(pairs: Sequence[str]) -> dict[str, list[Path]]:
             raise ValueError(f"Expected KEY=PATH, got {pair!r}.")
         files.setdefault(key, []).append(Path(path))
     return files
+
+
+def _parse_options(pairs: Sequence[str]) -> dict[str, str]:
+    """`KEY=VALUE` arguments; an empty VALUE keeps the option automatic."""
+    options: dict[str, str] = {}
+    for pair in pairs:
+        key, sep, value = pair.partition("=")
+        if not sep or not key:
+            raise ValueError(f"Expected KEY=VALUE, got {pair!r}.")
+        options[key] = value
+    return options
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -722,7 +738,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             from .new_campaign import create_campaign
 
             files = _parse_inputs(args.input)
-            print(create_campaign(args.target, args.solver, args.runtime, args.template, empty=args.empty, files=files))
+            options = _parse_options(args.option)
+            print(
+                create_campaign(
+                    args.target,
+                    args.solver,
+                    args.runtime,
+                    args.template,
+                    empty=args.empty,
+                    files=files,
+                    options=options,
+                )
+            )
         elif args.command == "_inspect-inputs":
             from .new_campaign import input_warnings, inspect_inputs
 
@@ -730,11 +757,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             if args.warnings_only:
                 print(json.dumps({"warnings": input_warnings(args.solver, picked)}))
             else:
-                print(json.dumps(inspect_inputs(args.solver, picked)))
+                print(json.dumps(inspect_inputs(args.solver, picked, _parse_options(args.option))))
         elif args.command == "_case-info":
             from .new_campaign import case_info
 
-            print(json.dumps(case_info(args.template, args.solver)))
+            print(json.dumps(case_info(args.template, args.solver, _parse_options(args.option))))
         elif args.command == "_doe-generate":
             from .doe_generate import generate_from_request
 

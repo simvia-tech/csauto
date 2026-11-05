@@ -15,7 +15,7 @@ import functools
 from .base import SolverAdapter
 
 DEFAULT_SOLVER = "code_saturne"
-_SOLVER_NAMES = ("code_saturne", "stub", "code_aster")
+_SOLVER_NAMES = ("code_saturne", "stub", "code_aster", "openTELEMAC")
 
 
 def available_solvers() -> tuple[str, ...]:
@@ -41,6 +41,10 @@ def _adapter_for(normalized: str) -> SolverAdapter:
         from .code_aster import CodeAsterAdapter
 
         return CodeAsterAdapter()
+    if normalized == "opentelemac":
+        from .telemac import TelemacAdapter
+
+        return TelemacAdapter()
     choices = ", ".join(available_solvers())
     raise ValueError(f"Unknown solver: {normalized!r}. Choices: {choices}")
 
