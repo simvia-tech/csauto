@@ -181,8 +181,8 @@ Rules:
   language (Python f-strings or sets in a code_aster `.comm` file, C/C++ code).
   csauto removes the backslash when it generates the cases
 - Placeholders work in every text file of the template: the solver's setup file
-  (`setup.xml`, or the code_aster `.export`), `run.cfg`, user sources such as
-  `SRC/*.cpp`, code_aster `.comm` files. Binary files, hidden files and editor
+  (`setup.xml`, the code_aster `.export`, the openTELEMAC `.cas`), `run.cfg`,
+  user sources such as `SRC/*.cpp`, code_aster `.comm` files. Binary files, hidden files and editor
   backup files are copied without rendering
 - Rendered files keep their bytes: text in another encoding than UTF-8 (a
   comment in Latin-1, say) comes out unchanged

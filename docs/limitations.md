@@ -6,6 +6,10 @@ The dashboard shows what the campaign's solver supports. Residuals, probes,
 timings, restart, live control and the GUI are available for code_saturne.
 code_aster campaigns get Status, Compare, Log Tail and Recent Errors; each
 code_aster case holds one run, and a new run replaces its results.
+openTELEMAC campaigns get Status, Probes, Timing Snapshot, Compare, Log Tail
+and Recent Errors, and Restart for TELEMAC-2D and TELEMAC-3D cases; TELEMAC
+prints no equation residuals and has no live control actions (see
+[config.md](./config.md#opentelemac)).
 
 ## Completion detection
 

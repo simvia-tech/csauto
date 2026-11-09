@@ -125,8 +125,8 @@ Kill discards in-flight work.
 finished cases. A popup lets you keep the latest N runs, delete them all, or,
 with a single case selected, pick the run folders to keep or delete (run
 folders are named per case). Clean only deletes the folders the solver reports
-as runs (code_saturne: each `RESU/<run>`; code_aster: `RESU` itself, its single
-run) and never touches running or queued cases; a notice lists the ones it
+as runs (code_saturne: each `RESU/<run>`; code_aster and openTELEMAC: `RESU`
+itself, their single run) and never touches running or queued cases; a notice lists the ones it
 skipped. A case whose runs were all deleted returns to `PREPARED`. Clean
 also shortens logs larger than 50 MB to their last 50 MB and removes the
 docker container id file (`.csauto.cid`).
@@ -232,7 +232,7 @@ Steps:
 3. Choose a **File** to compare: the list comes from the solver, and its first
    entry is the default (code_saturne: `setup.xml`, `doe_row.csv`,
    `run_solver.log`, `performance.log`; code_aster: the export file and
-   `doe_row.csv`)
+   `doe_row.csv`; openTELEMAC: the steering file and `doe_row.csv`)
 4. Use the **Search** bar to filter lines
 
 The output shows a side-by-side diff with line numbers. Differing lines are
@@ -253,7 +253,7 @@ default.
 
 | Situation | File to use |
 |---|---|
-| Solver running, check progress | the solver's main log (code_saturne: `run_solver.log`; code_aster: `csauto.stdout`) |
+| Solver running, check progress | the solver's main log (code_saturne: `run_solver.log`; code_aster and openTELEMAC: `csauto.stdout`) |
 | Launch issue (the solver did not start) | `csauto.stderr` / `csauto.stdout` |
 | Slurm submission issue | `csauto.stdout` |
 

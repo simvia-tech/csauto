@@ -63,14 +63,14 @@ Arguments:
 
 - `<doe.csv>`: parameter table with header row (see [doe-format.md](./doe-format.md))
 - `<template_dir>`: base case root containing the solver's setup file (code_saturne:
-  `setup.xml`, at the root or under `DATA/`; code_aster: a single `.export` file)
+  `setup.xml`, at the root or under `DATA/`; code_aster: a single `.export` file; openTELEMAC: the main `.cas` steering file)
 - `<output_dir>`: destination root where the case folders are created (`case0001/`,
   ..., or the DOE's `case_id` values)
 
 Options:
 
 - `--mesh-mode {copy,symlink}`: how to place the solver's shared dirs (siblings of
-  `<template_dir>`: `MESH` and `POST` for code_saturne, `MESH` for code_aster) into
+  `<template_dir>`: `MESH` and `POST` for code_saturne, `MESH` for code_aster and openTELEMAC) into
   `<output_dir>`. Defaults to `mesh_mode` in `csauto.toml` (itself defaulting to
   `symlink`; container runtimes bind-mount the symlink targets automatically). See
   [concepts.md](./concepts.md#shared-meshpost-directories) for the tradeoffs.
@@ -120,8 +120,8 @@ Common errors:
 > for interactive use). Use this CLI command for scripting or when the UI is not running.
 
 Launches cases: by default every case of the campaign that is not `RUNNING`,
-finished ones included (a code_saturne case gets a new run, a code_aster case
-replaces its results). `--case` limits the launch to the named cases, `--resume`
+finished ones included (a code_saturne case gets a new run, a code_aster or
+openTELEMAC case replaces its results). `--case` limits the launch to the named cases, `--resume`
 to `FAILED` ones. Cases run as background processes (local) or Slurm batch jobs
 depending on the configuration.
 
@@ -145,7 +145,7 @@ Options:
 - `--resume`: launch only cases currently in `FAILED` status
 - `--runtime auto|docker|singularity|native`: override runtime from config
 - `--docker-image IMAGE`: Docker image (default: `docker_image` from config, else the solver's own image)
-- `--solver-bin PATH`: the native solver executable (`code_saturne`, or `run_aster` for code_aster)
+- `--solver-bin PATH`: the native solver executable (`code_saturne`, `run_aster` for code_aster, `runcode.py` for openTELEMAC)
 - `--singularity-image PATH`: override Singularity image
 - `--singularity-bin PATH`: override Singularity/Apptainer binary path
 - `--no-doctor`: skip pre-launch environment checks
@@ -159,7 +159,8 @@ Notes:
 - How `--n` and `--nt` are used depends on the solver: code_saturne receives
   them as `-n` and `--nt`; code_aster runs `.csauto.export`, a copy of the case's
   export with `mpi_nbcpu` set from `--n` and `ncpus` from `--nt`. `mpi_nbcpu` and
-  `ncpus` lines already in the case's export are ignored, with a warning on stderr (New Campaign and the dashboard's Run and Restart dialogs show it too)
+  `ncpus` lines already in the case's export are ignored, with a warning on stderr (New Campaign and the dashboard's Run and Restart dialogs show it too);
+  openTELEMAC runs `runcode.py <module> --ncsize <n> --mpi <cas>` and ignores `--nt`
 - A case the solver refuses to launch keeps its status, the other cases still
   launch, and the command ends with an error naming the refused cases
 - Slurm submission is controlled by `use_slurm` in `csauto.toml` or `CSAUTO_USE_SLURM`.
@@ -259,7 +260,7 @@ Options:
 - `--case CASE_ID`: case to inspect (required)
 - `--file FILE`: log file to read. By default, the first file the Log Tail
   offers for the case, usually the solver's main log (`run_solver.log` for
-  code_saturne, `csauto.stdout` for code_aster). Other common values:
+  code_saturne, `csauto.stdout` for code_aster and openTELEMAC). Other common values:
   - `csauto.stdout`: the run command's output (useful if the solver didn't start)
   - `csauto.stderr`: the run command's errors
   - `listing`: code_saturne's main log on older versions
@@ -317,7 +318,7 @@ current step cleanly instead of being interrupted mid-iteration. Its actions:
 
 The case must be `RUNNING`. An action that takes a value refuses to run
 without one, and the others refuse a value. Each action is logged to the
-case's `.csauto.history.jsonl`. code_aster has no live control actions.
+case's `.csauto.history.jsonl`. code_aster and openTELEMAC have no live control actions.
 
 Examples:
 
@@ -414,7 +415,7 @@ csauto doctor <runs_dir>
 Checks performed:
 - `RUNS/` directory is writable
 - At least one case exists (a folder listed in `registry.json` or holding a `doe_row.csv`)
-- The solver's setup file is present in each case (`setup.xml`, or the `.export` for code_aster)
+- The solver's setup file is present in each case (`setup.xml`, the `.export` for code_aster, the main `.cas` for openTELEMAC)
 - What the solver offers: dashboard panels, capabilities, live control actions, and supported runtimes
 - The runtime is usable (reads `csauto.toml`): the native executable, the Singularity
   binary and image, or the `docker` command (the Docker image itself is not checked)
@@ -434,7 +435,7 @@ Each check prints `[OK]`, `[WARN]` or `[FAIL]`. Fix all failures before running.
 
 Removes old run folders and truncates oversized logs. `--prune-resu` deletes
 only the run folders the solver reports: each `RESU/<run>` for code_saturne,
-`RESU` itself for code_aster (one run per case). Statuses are refreshed first,
+`RESU` itself for code_aster and openTELEMAC (one run per case). Statuses are refreshed first,
 as `csauto status` does, so a run that has ended is not taken for a running
 one; `RUNNING` and `PENDING` cases are then skipped and listed. Unlike the
 dashboard's Clean, this command never resets a case to `PREPARED`.

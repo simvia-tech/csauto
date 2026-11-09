@@ -130,7 +130,7 @@ csauto status RUNS
 ### Stream a case log in real time
 
 In the **Log Tail** tab: select the case and file (the solver's main log comes
-first: `run_solver.log` for code_saturne, `csauto.stdout` for code_aster), set
+first: `run_solver.log` for code_saturne, `csauto.stdout` for code_aster and openTELEMAC), set
 line count, enable auto-scroll.
 
 CLI alternative:
@@ -263,7 +263,7 @@ curl -s -X POST "http://127.0.0.1:8000/api/kill_case" \
 
 In the **Status** panel: select cases → **Clean**. The popup lets you choose
 which runs to keep or delete. Of the results, Clean deletes only the solver's
-run folders (each `RESU/<run>` for code_saturne, `RESU` itself for code_aster).
+run folders (each `RESU/<run>` for code_saturne, `RESU` itself for code_aster and openTELEMAC).
 It also cuts the solver's logs over 50 MB down to their last 50 MB and removes
 `.csauto.cid`. It skips running and pending cases, and returns a finished case
 to `PREPARED` once all its runs are gone.
@@ -289,7 +289,8 @@ In the **Compare** panel:
 
 1. Pick the **First case** and the **Second case** (the arrows button swaps them)
 2. Pick the **File** (code_saturne: `setup.xml`, `doe_row.csv`, `run_solver.log`,
-   `performance.log`; code_aster: the export file, `doe_row.csv`)
+   `performance.log`; code_aster: the export file, `doe_row.csv`;
+   openTELEMAC: the steering file, `doe_row.csv`)
 
 The DOE values that differ and the side-by-side diff appear at once; type in
 the **Search** box to jump between matching lines. A regex filter is available

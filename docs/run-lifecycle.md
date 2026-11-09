@@ -43,7 +43,7 @@ the dashboard's Clean deletes all its runs.
 
 Relevant files:
 - `RUNS/caseXXXX/DATA/setup.xml`: rendered from template (code_saturne; the
-  `.export` and `.comm` files for code_aster)
+  `.export` and `.comm` files for code_aster, the `.cas` files for openTELEMAC)
 - `RUNS/caseXXXX/doe_row.csv`: DOE values used for this case
 - `RUNS/registry.json`: registry entry with `status: PREPARED`
 - `RUNS/campaign.json`: the solver of the campaign
@@ -84,7 +84,8 @@ cannot tell does a verdict (or a recorded exit status) end the run early.
 
 The run ended and the solver reported success: code_saturne wrote a normal
 completion message to its log, code_aster printed `DIAGNOSTIC JOB : OK` (or
-`<A>_ALARM`) in `csauto.stdout`. When the logs give no verdict, an exit status
+`<A>_ALARM`) in `csauto.stdout`, openTELEMAC printed `My work is done`
+in `csauto.stdout`. When the logs give no verdict, an exit status
 of 0 in `.csauto.exitcode` means `DONE`.
 
 Relevant files (code_saturne, in `RESU/<timestamp>/`):
@@ -94,13 +95,15 @@ Relevant files (code_saturne, in `RESU/<timestamp>/`):
 - `monitoring/*.csv`: probe output files (if configured)
 - `profiles/*.csv`: profile output files (if configured)
 
-code_aster writes its results straight into `RESU/`.
+code_aster writes its results straight into `RESU/`, openTELEMAC where its
+steering file says (`RESU/` by convention).
 
 ### `FAILED`
 
 The run ended abnormally: the solver reported a failure (code_saturne: an error
 in its log or a failure marker in its run folder; code_aster: any other
-`DIAGNOSTIC JOB` verdict), or, with no verdict, the run command exited with
+`DIAGNOSTIC JOB` verdict; openTELEMAC: `PLANTE: PROGRAM STOPPED`,
+`could not complete my work` or a `TelemacException`), or, with no verdict, the run command exited with
 another status or recorded none (a cancelled Slurm job, say).
 
 ---
@@ -138,7 +141,10 @@ the previous one. The Residuals Plot always includes every run of the case; set
 **Start from** to **Zero** to see the full history from iteration 0.
 
 code_aster writes everything into `RESU/` itself, so a case holds one run and a
-new run replaces it.
+new run replaces it. openTELEMAC also keeps one run per case; its Restart runs
+`.csauto.restart.cas`, a copy of the steering file that continues from the last
+results, and never changes the case's `.cas` (see
+[config.md](./config.md#opentelemac)).
 
 While a code_saturne case is `RUNNING`, `csauto control` (CLI) and the Control
 menu (web UI) drop a `control_file` into the active `RESU/<timestamp>/`
@@ -152,7 +158,7 @@ persisted RESU output.
 
 Clean (dashboard) and `csauto cleanup --prune-resu` (CLI) delete only the run
 folders the solver reports: each `RESU/<timestamp>/` for code_saturne, `RESU`
-itself for code_aster. Clean also cuts the solver's logs over 50 MB down to
+itself for code_aster and openTELEMAC. Clean also cuts the solver's logs over 50 MB down to
 their last 50 MB and removes `.csauto.cid` (`csauto cleanup` does so with
 `--max-log-mb` and `--clear-cid`). Neither touches `RUNNING` or `PENDING`
 cases. The dashboard's Clean returns a `DONE` or `FAILED` case to `PREPARED`

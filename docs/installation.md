@@ -73,9 +73,9 @@ You need at least one runtime for your solver:
 
 | Runtime       | Requirement                                                                                              |
 |---------------|----------------------------------------------------------------------------------------------------------|
-| `native`      | The solver's executable (`code_saturne`, or `run_aster` for code_aster) in PATH or set via `solver_bin`  |
+| `native`      | The solver's executable (`code_saturne`, `run_aster` for code_aster, `runcode.py` for openTELEMAC) in PATH or set via `solver_bin` |
 | `singularity` | Apptainer/Singularity and a `.sif` image                                                                 |
-| `docker`      | Docker engine; the image defaults to the solver's own (`simvia/code_saturne`, `simvia/code_aster:17.4.0`) |
+| `docker`      | Docker engine; the image defaults to the solver's own (`simvia/code_saturne`, `simvia/code_aster:17.4.0`, `simvia/opentelemac:v9.1.0`) |
 
 ## Next steps
 

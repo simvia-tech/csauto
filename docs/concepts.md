@@ -9,7 +9,8 @@ When you run a code_saturne simulation study, you typically need to explore many
 parameter combinations: different inlet velocities, turbulence models, mesh
 refinements, boundary conditions. Setting up each case by hand (copying
 directories, editing XML files, launching processes, tracking outcomes) does not
-scale beyond a handful of cases. The same holds for a code_aster study.
+scale beyond a handful of cases. The same holds for a code_aster or an
+openTELEMAC study.
 
 csauto automates this entire loop:
 
@@ -56,8 +57,8 @@ The `case_id` column is optional. If absent, csauto auto-generates IDs:
 
 ### Solver
 
-The **solver** is set by `solver` in `csauto.toml`: `code_saturne` (the default)
-or `code_aster`. csauto knows each solver through an adapter that says how to
+The **solver** is set by `solver` in `csauto.toml`: `code_saturne` (the default),
+`code_aster` or `openTELEMAC`. csauto knows each solver through an adapter that says how to
 start it, where its files are, and how to read its output, so the dashboard
 shows what that solver offers. `csauto prepare` records the solver in
 `RUNS/campaign.json`; every later command on that `RUNS` folder uses it, from
@@ -68,7 +69,9 @@ any directory.
 The **template** is your reference case directory. It contains all the files
 needed to run one simulation. For code_saturne: `setup.xml`, optionally
 `run.cfg`, optionally user source files under `SRC/`. For code_aster: one
-`.export` file and the command files it lists.
+`.export` file and the command files it lists. For openTELEMAC: the main `.cas`
+steering file, the steering files of coupled modules, and the files they name
+(geometry, boundary conditions, liquid boundaries, user Fortran).
 
 Instead of hard-coded values, the template uses **placeholders**:
 
@@ -147,7 +150,7 @@ A **runtime** is the execution backend csauto uses to actually run the solver:
 
 | Runtime | When to use |
 |---|---|
-| `native` | the solver installed directly on the machine (`code_saturne`, or `run_aster` for code_aster) |
+| `native` | the solver installed directly on the machine (`code_saturne`, `run_aster` for code_aster, `runcode.py` for openTELEMAC) |
 | `docker` | the solver inside a Docker container (the image defaults to the solver's own) |
 | `singularity` | the solver inside a Singularity/Apptainer image (common on HPC) |
 | `auto` | csauto picks the first available among the runtimes the solver supports |
@@ -177,7 +180,8 @@ Each run attempt gets a timestamped directory. If you restart a case, a new
 
 code_aster writes its results straight into `RESU/` (the paths its `.export`
 gives, such as `RESU/myresults.rmed`), so each case holds one run and a new run
-replaces it.
+replaces it. openTELEMAC does the same with the result files its steering file
+names under `RESU/` (`RESULTS FILE = 'RESU/r2d.slf'`).
 
 ### Checkpoint and restart
 
@@ -220,9 +224,9 @@ For finished cases, you can set a convergence label (`Converged` /
 ## Shared MESH/POST directories
 
 `prepare` places the solver's shared folders (code_saturne: `MESH/` and `POST/`;
-code_aster: `MESH/`) directly under `RUNS/` (not per-case) so every case can
+code_aster and openTELEMAC: `MESH/`) directly under `RUNS/` (not per-case) so every case can
 reference the mesh with a relative `../MESH` path (a code_aster `.export` lists
-`../MESH/<file>`). How that folder gets there is controlled by `mesh_mode` in
+`../MESH/<file>`, an openTELEMAC `.cas` names `'../MESH/<file>'`). How that folder gets there is controlled by `mesh_mode` in
 `csauto.toml` (or `--mesh-mode` on `csauto prepare`):
 
 - `symlink` (default): `RUNS/MESH` and `RUNS/POST` become symlinks to the

@@ -32,7 +32,7 @@ const footerLink = "flex items-center gap-1.5 text-sm leading-5 text-edf-noir ho
 const faq = [
   {
     q: "What is csauto?",
-    a: "An open-source tool (VS Code extension plus Python CLI) that automates simulation campaigns for code_saturne and code_aster. It generates cases from a parameter table and a template, runs them locally or on Slurm, and follows residuals, probes, errors and timings in a dashboard.",
+    a: "An open-source tool (VS Code extension plus Python CLI) that automates simulation campaigns for code_saturne, code_aster and openTELEMAC. It generates cases from a parameter table and a template, runs them locally or on Slurm, and follows residuals, probes, errors and timings in a dashboard.",
   },
   {
     q: "Do I need VS Code?",
@@ -40,7 +40,7 @@ const faq = [
   },
   {
     q: "Which solvers are supported?",
-    a: "code_saturne and code_aster. Each solver is one adapter class that the CLI and the dashboard read everything solver-specific from, so adding another is a contained job (see the guide in the docs).",
+    a: "code_saturne, code_aster and openTELEMAC. Each solver is one adapter class that the CLI and the dashboard read everything solver-specific from, so adding another is a contained job (see the guide in the docs).",
   },
   {
     q: "Where do my simulations run?",
@@ -48,7 +48,7 @@ const faq = [
   },
   {
     q: "Can I stop or extend a running case?",
-    a: "For code_saturne, yes: stop gracefully, extend the run or write a checkpoint while it runs, then restart any case from its last checkpoint. No kill, no start from scratch.",
+    a: "For code_saturne, yes: stop gracefully, extend the run or write a checkpoint while it runs, then restart any case from its last checkpoint. No kill, no start from scratch. A finished openTELEMAC case (TELEMAC-2D or TELEMAC-3D) can also be continued for an additional simulated time or number of time steps.",
   },
   {
     q: "What do I need installed?",
@@ -101,7 +101,7 @@ export default function Home() {
         downloadUrl: MARKETPLACE,
         publisher: { "@type": "Organization", name: "Simvia", url: "https://simvia.tech" },
         description:
-          "Generate, run and monitor code_saturne and code_aster simulation campaigns from VS Code or the command line.",
+          "Generate, run and monitor code_saturne, code_aster and openTELEMAC simulation campaigns from VS Code or the command line.",
       },
       {
         "@type": "FAQPage",
@@ -147,7 +147,7 @@ export default function Home() {
           <p className="mt-6 max-w-2xl text-lg text-balance text-edf-noir">
             Describe a parameter study in one table. csauto generates every case from your template, runs them
             locally or on Slurm, and follows convergence, errors and timings in a dashboard inside your editor. For
-            code_saturne and code_aster.
+            code_saturne, code_aster and openTELEMAC.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-6">
             <LinkButton href={MARKETPLACE} external>Install from the Marketplace</LinkButton>
@@ -270,8 +270,8 @@ export default function Home() {
         </section>
 
         <section id="solvers" className="mx-auto max-w-6xl px-6 pb-20">
-          <PartTitle>Two solvers, each one an adapter</PartTitle>
-          <div className="grid gap-6 md:grid-cols-2">
+          <PartTitle>Three solvers, each one an adapter</PartTitle>
+          <div className="grid gap-6 md:grid-cols-3">
             {[
               {
                 logo: "code_saturne.svg",
@@ -286,6 +286,13 @@ export default function Home() {
                 href: "https://www.code-aster.org/",
                 label: "code-aster.org",
                 text: "Open-source finite-element solver for structural and thermal mechanics. Campaigns run from an export file, with status tracking, live logs, error detection and comparison.",
+              },
+              {
+                logo: "opentelemac.svg",
+                name: "openTELEMAC",
+                href: "https://www.opentelemac.org/",
+                label: "opentelemac.org",
+                text: "Open-source suite for free-surface flows: hydrodynamics, sediment transport, waves and water quality. csauto detects the module from the steering file, plots TELEMAC's own probes and listing balances against the simulated time, and continues finished cases.",
               },
             ].map((s) => (
               <a
