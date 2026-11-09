@@ -1,0 +1,533 @@
+# C:\openTELEMAC\9.1.1\external\python-3.12.10\python.exe C:\openTELEMAC\9.1.1\scripts\python3\telemac3d.py t3d_gouttedo.cas --ncsize=2
+
+
+Loading configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   ___      __ 
+  / _ \    /_ |
+ | (_) |    | |
+  \__, |    | |
+    / /  _  | |
+   /_/  (_) |_|
+               
+               
+
+
+Running your CAS file(s) for:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    +> root:    C:\openTELEMAC\9.1.1
+    +> build:   C:\openTELEMAC\9.1.1
+    +> modules: api / artemis / bief / damocles
+                gaia  / gretel  / hermes  / khione
+                mascaret  / nestor  / parallel  / partel
+                postel3d  / special  / stbtel  / telemac2d
+                telemac3d / tomawac / waqtel
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+... processing the steering file
+  ~> Checking keyword/rubrique coherence
+
+... checking parallelisation
+
+... handling temporary directories
+         copying: t3d_gouttedo.cas -> C:\runs\runs\t3d_gouttedo_20261006-144821\t3d_gouttedo.cas_2026-10-06-14h48min25s\T3DCAS
+         copying: telemac3d.dico -> C:\runs\runs\t3d_gouttedo_20261006-144821\t3d_gouttedo.cas_2026-10-06-14h48min25s\T3DDICO
+         copying: geo_gouttedo.cli -> C:\runs\runs\t3d_gouttedo_20261006-144821\t3d_gouttedo.cas_2026-10-06-14h48min25s\T3DCLI
+         copying: geo_gouttedo.slf -> C:\runs\runs\t3d_gouttedo_20261006-144821\t3d_gouttedo.cas_2026-10-06-14h48min25s\T3DGEO
+
+... partitioning base files (geo, conlim, sections, zones and weirs)
+     +> C:\openTELEMAC\9.1.1\bin\partel.exe < partel_T3DGEO.par >> partel_T3DGEO.log
+STOP 0
+
+... splitting / copying other input files
+
+... checking the executable
+  ~> Compiling Fortran files
+         compiling: user_condi3d_h.f ... completed
+         created: libuser_fortran.dll
+
+
+Running your simulation(s) :
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+
+In C:\runs\runs\t3d_gouttedo_20261006-144821\t3d_gouttedo.cas_2026-10-06-14h48min25s:
+mpiexec -n 2 C:\runs\runs\t3d_gouttedo_20261006-144821\t3d_gouttedo.cas_2026-10-06-14h48min25s\telemac3d.exe
+
+
+ MASTER PROCESSOR NUMBER            0  OF THE GROUP OF            2
+ EXECUTABLE FILE: C:\runs\runs\t3d_gouttedo_20261006-144821\t3d_gouttedo.cas_2026-10-06-14h48min25s\A.EXE
+ LISTING OF TELEMAC3D------------------------------------------------------------------------------
+
+                TTTTT  EEEEE  L      EEEEE  M   M  AAAAA  CCCCC
+                  T    E      L      E      MM MM  A   A  C
+                  T    EEE    L      EEE    M M M  AAAAA  C
+                  T    E      L      E      M   M  A   A  C
+                  T    EEEEE  LLLLL  EEEEE  M   M  A   A  CCCCC
+
+                        3D   VERSION 9.1    FORTRAN 2003
+
+                        ~^~^~^~^~^~^~^~^~^~^~^^~^~^~^~^~^~
+                          ~                            ~
+                               \   '    o      '
+                               /\ o       \  o
+                             >=)'>    '   /\ '
+                               \/   \   >=)'>        ~
+                               /    /\    \/
+                        ~         >=)'>   /     .
+                                    \/                   )
+                                    /                   (
+                                          ~          )   )
+                          }     ~              (    (   (
+                         {                      )    )   )
+                          }  }         .       (    (   (
+                         {  {               /^^^^^^^^^^^^
+                        ^^^^^^^^^\         /
+                                  ^^^^^^^^^
+
+                   ********************************************
+                   *               LECDON:                    *
+                   *        BEFORE CALLING DAMOCLES           *
+                   ********************************************
+
+ DIFFERENT NUMBER OF PARALLEL PROCESSORS:
+ DECLARED BEFORE (CASE OF COUPLING ?):           2
+ TELEMAC-3D :           0
+ VALUE            2  IS KEPT
+
+                   ********************************************
+                   *               LECDON:                    *
+                   *        AFTER CALLING DAMOCLES            *
+                   *        CHECKING OF DATA  READ            *
+                   *         IN THE STEERING FILE             *
+                   ********************************************
+
+ TREATMENT OF NEGATIVE DEPTHS = 2
+ MASS-LUMPING FOR DEPTH AUTOMATICALLY SET TO 1.D0
+
+ EXITING LECDON. NAME OF THE STUDY:
+ TELEMAC 3D : GOUTTE D EAU DANS UN BASSIN$
+
+ OPENING FILES FOR TELEMAC3D
+ OPENING: T3DGEO-geo_gouttedo.slf
+ OPENING: T3DCLI-geo_gouttedo.cli
+ OPENING: T3DRES-r3d_gouttedo.slf
+ OPENING: T3DHYD-r2d_gouttedo.slf
+
+ POINT_TELEMAC3D: MEMORY ALLOCATION
+
+ READ_MESH_INFO: TITLE= TELEMAC 2D : GOUTTE D'EAU DANS UN BASSIN$
+            NUMBER OF ELEMENTS:     4478
+            NUMBER OF POINTS:     2343
+
+            TYPE OF ELEMENT: TRIANGLE
+            TYPE OF BND ELEMENT: POINT
+
+            SINGLE PRECISION FORMAT (R4)
+
+ MXPTEL (BIEF) : MAXIMUM NUMBER OF ELEMENTS AROUND A POINT:   7
+                 MAXIMUM NUMBER OF POINTS AROUND A POINT:   8
+ (GLOBAL MESH)
+ SEGBOR (BIEF) : NUMBER OF BOUNDARY SEGMENTS =    206
+ INCLUDING THOSE DUE TO DOMAIN DECOMPOSITION
+ USER_CORRXY (BIEF):NO MODIFICATION OF COORDINATES
+
+ MESH: MESH2D ALLOCATED
+
+ READ_MESH_INFO: TITLE= TELEMAC 2D : GOUTTE D'EAU DANS UN BASSIN$
+            NUMBER OF ELEMENTS:     4478
+            NUMBER OF POINTS:     2343
+
+            TYPE OF ELEMENT: TRIANGLE
+            TYPE OF BND ELEMENT: POINT
+
+            SINGLE PRECISION FORMAT (R4)
+
+ MXPTEL (BIEF) : MAXIMUM NUMBER OF ELEMENTS AROUND A POINT:   7
+                 MAXIMUM NUMBER OF POINTS AROUND A POINT:   8
+ (GLOBAL MESH)
+ SEGBOR (BIEF) : NUMBER OF BOUNDARY SEGMENTS =    206
+ INCLUDING THOSE DUE TO DOMAIN DECOMPOSITION
+ USER_CORRXY (BIEF):NO MODIFICATION OF COORDINATES
+
+ MESH: MESH3D ALLOCATED
+
+ 2D MESH
+ -------
+
+ 2D ELEMENT TYPE                :       10
+ NUMBER OF 2D NODES             :     2343
+ NUMBER OF 2D ELEMENTS          :     4478
+ NUMBER OF 2D BOUNDARY NODES    :      138
+
+ 3D MESH
+ -------
+
+ 3D ELEMENT TYPE                :       40
+ NUMBER OF 3D NODES             :     7029
+ NUMBER OF 3D ELEMENTS          :     8956
+ NUMBER OF LEVELS               :        3
+ NUMBER OF BOUNDARY ELEMENTS    :      276
+ TOTAL NUMBER OF BOUNDARY NODES :     5100
+ INCLUDING   LATERAL BOUNDARIES :      414
+                        SURFACE :     2343
+                         BOTTOM :     2343
+
+ END OF MEMORY ALLOCATION
+
+ INBIEF (BIEF): NOT A VECTOR MACHINE (ACCORDING TO YOUR DATA)
+ CHECK: NO ERROR HAS BEEN DETECTED
+
+ FONSTR (BIEF): NO BATHYMETRY IN THE GEOMETRY FILE
+                AND NO BATHYMETRY FILE. THE BOTTOM
+                LEVEL IS FIXED TO ZERO BUT STILL
+                CAN BE MODIFIED IN CORFON.
+
+ STRCHE (BIEF): NO MODIFICATION OF FRICTION
+
+ USER_T3D_CORFON: NO MODIFICATION OF BOTTOM
+
+ NUMBER OF LIQUID BOUNDARIES:           0
+ CONDIM: DYNAMIC PRESSURE INITIALISED TO ZERO
+         HYDROSTATIC PRESSURE INITIALISED TO ZERO.
+
+================================================================================
+ITERATION        0 TIME    0 D  0 H  0 MN   0.0000 S   (          0.0000 S)
+================================================================================
+--------------------------------------------------------------------------------
+                MASS BALANCE
+ INITIAL VOLUME OF WATER IN THE DOMAIN :   999.78387796668005
+
+================================================================================
+ITERATION       10 TIME    0 D  0 H  0 MN   0.4000 S   (          0.4000 S)
+================================================================================
+--------------------------------------------------------------------------------
+                    ADVECTION STEP
+ MURD3D OPTION:  5       1 ITERATIONS
+ MURD3D OPTION:  5       1 ITERATIONS
+ MURD3D OPTION:  5       1 ITERATIONS
+ DIFFUSION OF WN
+ GRACJG (BIEF) :        2 ITERATIONS, RELATIVE PRECISION:   0.8297086E-14
+--------------------------------------------------------------------------------
+       PROPAGATION AND DIFFUSION WITH WAVE EQUATION
+ GMRES (BIEF) :        3 ITERATIONS, RELATIVE PRECISION:   0.2018867E-09
+ POSITIVE DEPTHS OBTAINED IN     1 ITERATIONS
+--------------------------------------------------------------------------------
+                DYNAMIC PRESSURE STAGE
+ GRACJG (BIEF) :       34 ITERATIONS, ABSOLUTE PRECISION:   0.6331065E-08
+--------------------------------------------------------------------------------
+                VELOCITY PROJECTION STEP
+--------------------------------------------------------------------------------
+                MASS BALANCE
+
+  WATER
+VOLUME AT THE PREVIOUS TIME STEP              :     999.7839
+VOLUME AT THE PRESENT TIME STEP               :     999.7839
+VOLUME LEAVING DOMAIN DURING THIS TIME STEP   :     0.000000
+ERROR ON THE VOLUME DURING THIS TIME STEP     :   -0.1591616E-11
+
+================================================================================
+ITERATION       20 TIME    0 D  0 H  0 MN   0.8000 S   (          0.8000 S)
+================================================================================
+--------------------------------------------------------------------------------
+                    ADVECTION STEP
+ MURD3D OPTION:  5       1 ITERATIONS
+ MURD3D OPTION:  5       1 ITERATIONS
+ MURD3D OPTION:  5       1 ITERATIONS
+ DIFFUSION OF WN
+ GRACJG (BIEF) :        2 ITERATIONS, RELATIVE PRECISION:   0.4847755E-14
+--------------------------------------------------------------------------------
+       PROPAGATION AND DIFFUSION WITH WAVE EQUATION
+ GMRES (BIEF) :        3 ITERATIONS, RELATIVE PRECISION:   0.4619173E-10
+ POSITIVE DEPTHS OBTAINED IN     1 ITERATIONS
+--------------------------------------------------------------------------------
+                DYNAMIC PRESSURE STAGE
+ GRACJG (BIEF) :       31 ITERATIONS, ABSOLUTE PRECISION:   0.9823073E-08
+--------------------------------------------------------------------------------
+                VELOCITY PROJECTION STEP
+--------------------------------------------------------------------------------
+                MASS BALANCE
+
+  WATER
+VOLUME AT THE PREVIOUS TIME STEP              :     999.7839
+VOLUME AT THE PRESENT TIME STEP               :     999.7839
+VOLUME LEAVING DOMAIN DURING THIS TIME STEP   :     0.000000
+ERROR ON THE VOLUME DURING THIS TIME STEP     :    0.3410605E-12
+
+================================================================================
+ITERATION       30 TIME    0 D  0 H  0 MN   1.2000 S   (          1.2000 S)
+================================================================================
+--------------------------------------------------------------------------------
+                    ADVECTION STEP
+ MURD3D OPTION:  5       1 ITERATIONS
+ MURD3D OPTION:  5       1 ITERATIONS
+ MURD3D OPTION:  5       1 ITERATIONS
+ DIFFUSION OF WN
+ GRACJG (BIEF) :        2 ITERATIONS, RELATIVE PRECISION:   0.6741742E-14
+--------------------------------------------------------------------------------
+       PROPAGATION AND DIFFUSION WITH WAVE EQUATION
+ GMRES (BIEF) :        3 ITERATIONS, ABSOLUTE PRECISION:   0.4379652E-10
+ POSITIVE DEPTHS OBTAINED IN     1 ITERATIONS
+--------------------------------------------------------------------------------
+                DYNAMIC PRESSURE STAGE
+ GRACJG (BIEF) :       30 ITERATIONS, ABSOLUTE PRECISION:   0.8668837E-08
+--------------------------------------------------------------------------------
+                VELOCITY PROJECTION STEP
+--------------------------------------------------------------------------------
+                MASS BALANCE
+
+  WATER
+VOLUME AT THE PREVIOUS TIME STEP              :     999.7839
+VOLUME AT THE PRESENT TIME STEP               :     999.7839
+VOLUME LEAVING DOMAIN DURING THIS TIME STEP   :     0.000000
+ERROR ON THE VOLUME DURING THIS TIME STEP     :    0.4547474E-12
+
+================================================================================
+ITERATION       40 TIME    0 D  0 H  0 MN   1.6000 S   (          1.6000 S)
+================================================================================
+--------------------------------------------------------------------------------
+                    ADVECTION STEP
+ MURD3D OPTION:  5       1 ITERATIONS
+ MURD3D OPTION:  5       1 ITERATIONS
+ MURD3D OPTION:  5       1 ITERATIONS
+ DIFFUSION OF WN
+ GRACJG (BIEF) :        2 ITERATIONS, RELATIVE PRECISION:   0.6030183E-14
+--------------------------------------------------------------------------------
+       PROPAGATION AND DIFFUSION WITH WAVE EQUATION
+ GMRES (BIEF) :        3 ITERATIONS, ABSOLUTE PRECISION:   0.4505368E-10
+ POSITIVE DEPTHS OBTAINED IN     1 ITERATIONS
+--------------------------------------------------------------------------------
+                DYNAMIC PRESSURE STAGE
+ GRACJG (BIEF) :       29 ITERATIONS, ABSOLUTE PRECISION:   0.8329298E-08
+--------------------------------------------------------------------------------
+                VELOCITY PROJECTION STEP
+--------------------------------------------------------------------------------
+                MASS BALANCE
+
+  WATER
+VOLUME AT THE PREVIOUS TIME STEP              :     999.7839
+VOLUME AT THE PRESENT TIME STEP               :     999.7839
+VOLUME LEAVING DOMAIN DURING THIS TIME STEP   :     0.000000
+ERROR ON THE VOLUME DURING THIS TIME STEP     :    0.3410605E-12
+
+================================================================================
+ITERATION       50 TIME    0 D  0 H  0 MN   2.0000 S   (          2.0000 S)
+================================================================================
+--------------------------------------------------------------------------------
+                    ADVECTION STEP
+ MURD3D OPTION:  5       1 ITERATIONS
+ MURD3D OPTION:  5       1 ITERATIONS
+ MURD3D OPTION:  5       1 ITERATIONS
+ DIFFUSION OF WN
+ GRACJG (BIEF) :        2 ITERATIONS, RELATIVE PRECISION:   0.7476194E-14
+--------------------------------------------------------------------------------
+       PROPAGATION AND DIFFUSION WITH WAVE EQUATION
+ GMRES (BIEF) :        3 ITERATIONS, ABSOLUTE PRECISION:   0.4189384E-10
+ POSITIVE DEPTHS OBTAINED IN     1 ITERATIONS
+--------------------------------------------------------------------------------
+                DYNAMIC PRESSURE STAGE
+ GRACJG (BIEF) :       28 ITERATIONS, ABSOLUTE PRECISION:   0.7111991E-08
+--------------------------------------------------------------------------------
+                VELOCITY PROJECTION STEP
+--------------------------------------------------------------------------------
+                MASS BALANCE
+
+  WATER
+VOLUME AT THE PREVIOUS TIME STEP              :     999.7839
+VOLUME AT THE PRESENT TIME STEP               :     999.7839
+VOLUME LEAVING DOMAIN DURING THIS TIME STEP   :     0.000000
+ERROR ON THE VOLUME DURING THIS TIME STEP     :   -0.1705303E-11
+
+================================================================================
+ITERATION       60 TIME    0 D  0 H  0 MN   2.4000 S   (          2.4000 S)
+================================================================================
+--------------------------------------------------------------------------------
+                    ADVECTION STEP
+ MURD3D OPTION:  5       1 ITERATIONS
+ MURD3D OPTION:  5       1 ITERATIONS
+ MURD3D OPTION:  5       1 ITERATIONS
+ DIFFUSION OF WN
+ GRACJG (BIEF) :        2 ITERATIONS, RELATIVE PRECISION:   0.7695297E-14
+--------------------------------------------------------------------------------
+       PROPAGATION AND DIFFUSION WITH WAVE EQUATION
+ GMRES (BIEF) :        3 ITERATIONS, ABSOLUTE PRECISION:   0.7394814E-10
+ POSITIVE DEPTHS OBTAINED IN     1 ITERATIONS
+--------------------------------------------------------------------------------
+                DYNAMIC PRESSURE STAGE
+ GRACJG (BIEF) :       28 ITERATIONS, ABSOLUTE PRECISION:   0.7162868E-08
+--------------------------------------------------------------------------------
+                VELOCITY PROJECTION STEP
+--------------------------------------------------------------------------------
+                MASS BALANCE
+
+  WATER
+VOLUME AT THE PREVIOUS TIME STEP              :     999.7839
+VOLUME AT THE PRESENT TIME STEP               :     999.7839
+VOLUME LEAVING DOMAIN DURING THIS TIME STEP   :     0.000000
+ERROR ON THE VOLUME DURING THIS TIME STEP     :    0.3410605E-12
+
+================================================================================
+ITERATION       70 TIME    0 D  0 H  0 MN   2.8000 S   (          2.8000 S)
+================================================================================
+--------------------------------------------------------------------------------
+                    ADVECTION STEP
+ MURD3D OPTION:  5       1 ITERATIONS
+ MURD3D OPTION:  5       1 ITERATIONS
+ MURD3D OPTION:  5       1 ITERATIONS
+ DIFFUSION OF WN
+ GRACJG (BIEF) :        2 ITERATIONS, RELATIVE PRECISION:   0.8344090E-14
+--------------------------------------------------------------------------------
+       PROPAGATION AND DIFFUSION WITH WAVE EQUATION
+ GMRES (BIEF) :        3 ITERATIONS, ABSOLUTE PRECISION:   0.1105156E-09
+ POSITIVE DEPTHS OBTAINED IN     1 ITERATIONS
+--------------------------------------------------------------------------------
+                DYNAMIC PRESSURE STAGE
+ GRACJG (BIEF) :       27 ITERATIONS, ABSOLUTE PRECISION:   0.7927474E-08
+--------------------------------------------------------------------------------
+                VELOCITY PROJECTION STEP
+--------------------------------------------------------------------------------
+                MASS BALANCE
+
+  WATER
+VOLUME AT THE PREVIOUS TIME STEP              :     999.7839
+VOLUME AT THE PRESENT TIME STEP               :     999.7839
+VOLUME LEAVING DOMAIN DURING THIS TIME STEP   :     0.000000
+ERROR ON THE VOLUME DURING THIS TIME STEP     :    0.6821210E-12
+
+================================================================================
+ITERATION       80 TIME    0 D  0 H  0 MN   3.2000 S   (          3.2000 S)
+================================================================================
+--------------------------------------------------------------------------------
+                    ADVECTION STEP
+ MURD3D OPTION:  5       1 ITERATIONS
+ MURD3D OPTION:  5       1 ITERATIONS
+ MURD3D OPTION:  5       1 ITERATIONS
+ DIFFUSION OF WN
+ GRACJG (BIEF) :        2 ITERATIONS, RELATIVE PRECISION:   0.9509078E-14
+--------------------------------------------------------------------------------
+       PROPAGATION AND DIFFUSION WITH WAVE EQUATION
+ GMRES (BIEF) :        3 ITERATIONS, ABSOLUTE PRECISION:   0.3465036E-10
+ POSITIVE DEPTHS OBTAINED IN     1 ITERATIONS
+--------------------------------------------------------------------------------
+                DYNAMIC PRESSURE STAGE
+ GRACJG (BIEF) :       27 ITERATIONS, ABSOLUTE PRECISION:   0.7047711E-08
+--------------------------------------------------------------------------------
+                VELOCITY PROJECTION STEP
+--------------------------------------------------------------------------------
+                MASS BALANCE
+
+  WATER
+VOLUME AT THE PREVIOUS TIME STEP              :     999.7839
+VOLUME AT THE PRESENT TIME STEP               :     999.7839
+VOLUME LEAVING DOMAIN DURING THIS TIME STEP   :     0.000000
+ERROR ON THE VOLUME DURING THIS TIME STEP     :    0.5684342E-12
+
+================================================================================
+ITERATION       90 TIME    0 D  0 H  0 MN   3.6000 S   (          3.6000 S)
+================================================================================
+--------------------------------------------------------------------------------
+                    ADVECTION STEP
+ MURD3D OPTION:  5       1 ITERATIONS
+ MURD3D OPTION:  5       1 ITERATIONS
+ MURD3D OPTION:  5       1 ITERATIONS
+ DIFFUSION OF WN
+ GRACJG (BIEF) :        2 ITERATIONS, RELATIVE PRECISION:   0.6399126E-14
+--------------------------------------------------------------------------------
+       PROPAGATION AND DIFFUSION WITH WAVE EQUATION
+ GMRES (BIEF) :        2 ITERATIONS, ABSOLUTE PRECISION:   0.6021421E-08
+ POSITIVE DEPTHS OBTAINED IN     1 ITERATIONS
+--------------------------------------------------------------------------------
+                DYNAMIC PRESSURE STAGE
+ GRACJG (BIEF) :       27 ITERATIONS, ABSOLUTE PRECISION:   0.6712609E-08
+--------------------------------------------------------------------------------
+                VELOCITY PROJECTION STEP
+--------------------------------------------------------------------------------
+                MASS BALANCE
+
+  WATER
+VOLUME AT THE PREVIOUS TIME STEP              :     999.7839
+VOLUME AT THE PRESENT TIME STEP               :     999.7839
+VOLUME LEAVING DOMAIN DURING THIS TIME STEP   :     0.000000
+ERROR ON THE VOLUME DURING THIS TIME STEP     :   -0.3410605E-12
+
+================================================================================
+ITERATION      100 TIME    0 D  0 H  0 MN   4.0000 S   (          4.0000 S)
+================================================================================
+--------------------------------------------------------------------------------
+                    ADVECTION STEP
+ MURD3D OPTION:  5       1 ITERATIONS
+ MURD3D OPTION:  5       1 ITERATIONS
+ MURD3D OPTION:  5       1 ITERATIONS
+ DIFFUSION OF WN
+ GRACJG (BIEF) :        2 ITERATIONS, RELATIVE PRECISION:   0.3990503E-14
+--------------------------------------------------------------------------------
+       PROPAGATION AND DIFFUSION WITH WAVE EQUATION
+ GMRES (BIEF) :        3 ITERATIONS, ABSOLUTE PRECISION:   0.3202108E-10
+ POSITIVE DEPTHS OBTAINED IN     1 ITERATIONS
+--------------------------------------------------------------------------------
+                DYNAMIC PRESSURE STAGE
+ GRACJG (BIEF) :       26 ITERATIONS, ABSOLUTE PRECISION:   0.8456799E-08
+--------------------------------------------------------------------------------
+                VELOCITY PROJECTION STEP
+--------------------------------------------------------------------------------
+                MASS BALANCE
+
+  WATER
+VOLUME AT THE PREVIOUS TIME STEP              :     999.7839
+VOLUME AT THE PRESENT TIME STEP               :     999.7839
+VOLUME LEAVING DOMAIN DURING THIS TIME STEP   :     0.000000
+ERROR ON THE VOLUME DURING THIS TIME STEP     :   -0.2273737E-12
+
+--------------------------------------------------------------------------------
+                FINAL MASS BALANCE
+T =           4.0000
+
+--- WATER ---
+INITIAL VOLUME                      :     999.7839
+FINAL VOLUME                        :     999.7839
+VOLUME EXITING (BOUNDARY OR SOURCE) :     0.000000
+TOTAL VOLUME LOST                   :   -0.5684342E-12
+
+ END OF TIME LOOP
+
+ EXITING MPI
+
+STOP 0
+                     *************************************
+                     *    END OF MEMORY ORGANIZATION:    *
+                     *************************************
+
+ CORRECT END OF RUN
+
+ ELAPSE TIME :
+                              1  SECONDS
+STOP 0
+... merging separated result files
+
+     collecting: T3DRES
+     +> C:\openTELEMAC\9.1.1\bin\gretel.exe < gretel_T3DRES.par >> gretel_T3DRES.log
+STOP 0
+     collecting: T3DHYD
+     +> C:\openTELEMAC\9.1.1\bin\gretel.exe < gretel_T3DHYD.par >> gretel_T3DHYD.log
+STOP 0
+... handling result files
+
+        moving: r3d_gouttedo.slf
+        moving: r2d_gouttedo.slf
+... deleting working dir
+
+
+
+My work is done
+
+

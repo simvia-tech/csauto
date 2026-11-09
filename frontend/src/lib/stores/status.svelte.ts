@@ -20,6 +20,7 @@ export const BASE_COLUMNS: { key: string; label: string }[] = [
   { key: "nprocs", label: "MPI Ranks" },
   { key: "nt", label: "Thread Count" },
   { key: "last_iter", label: "Last Iter" },
+  { key: "progress", label: "Progress" },
   { key: "duration", label: "Duration" },
   { key: "last_mod", label: "Last Modified" },
   { key: "resu_size_mb", label: "Results (MB)" },
@@ -209,6 +210,7 @@ function getSortValue(row: StatusRow, key: string): string | number {
   if (key === "nprocs") return row.nprocs ?? 0;
   if (key === "nt") return row.nt ?? 0;
   if (key === "last_iter") return row.last_iter ?? 0;
+  if (key === "progress") return row.progress_fraction ?? -1;
   if (key === "duration") return row.duration_s ?? 0;
   if (key === "last_mod") return row.last_mod ?? "";
   if (key === "resu_size_mb") return row.resu_size_mb ?? 0;

@@ -1,0 +1,225 @@
+# C:\openTELEMAC\9.1.1\external\python-3.12.10\python.exe C:\openTELEMAC\9.1.1\scripts\python3\tomawac.py tom_shoal.cas
+
+
+Loading configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   ___      __ 
+  / _ \    /_ |
+ | (_) |    | |
+  \__, |    | |
+    / /  _  | |
+   /_/  (_) |_|
+               
+               
+
+
+Running your CAS file(s) for:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    +> root:    C:\openTELEMAC\9.1.1
+    +> build:   C:\openTELEMAC\9.1.1
+    +> modules: api / artemis / bief / damocles
+                gaia  / gretel  / hermes  / khione
+                mascaret  / nestor  / parallel  / partel
+                postel3d  / special  / stbtel  / telemac2d
+                telemac3d / tomawac / waqtel
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+... processing the steering file
+  ~> Checking keyword/rubrique coherence
+
+... checking parallelisation
+
+... handling temporary directories
+         copying: tom_shoal.cas -> C:\runs\runs\tom_shoal_20261006-144828\tom_shoal.cas_2026-10-06-14h48min31s\WACCAS
+         copying: tomawac.dico -> C:\runs\runs\tom_shoal_20261006-144828\tom_shoal.cas_2026-10-06-14h48min31s\WACDICO
+         copying: geo_shoal.slf -> C:\runs\runs\tom_shoal_20261006-144828\tom_shoal.cas_2026-10-06-14h48min31s\WACGEO
+         copying: geo_shoal.cli -> C:\runs\runs\tom_shoal_20261006-144828\tom_shoal.cas_2026-10-06-14h48min31s\WACCLI
+
+... checking the executable
+
+
+Running your simulation(s) :
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+
+In C:\runs\runs\tom_shoal_20261006-144828\tom_shoal.cas_2026-10-06-14h48min31s:
+mpiexec -n 1 C:\runs\runs\tom_shoal_20261006-144828\tom_shoal.cas_2026-10-06-14h48min31s\tomawac.exe
+
+
+ MASTER PROCESSOR NUMBER            0  OF THE GROUP OF            1
+ EXECUTABLE FILE: C:\runs\runs\tom_shoal_20261006-144828\tom_shoal.cas_2026-10-06-14h48min31s\A.EXE
+ LISTING OF TOMAWAC------------------------------------------------------------------------------
+
+                TTTTT  OOOOO  M   M  AAAAA  W   W  AAAAA  CCCCC
+                  T    O   O  MM MM  A   A  W   W  A   A  C
+                  T    O   O  M W M  AAAAA  W W W  AAAAA  C
+                  T    O   O  M   M  A   A  WW WW  A   A  C
+                  T    OOOOO  M   M  A   A  W   W  A   A  CCCCC
+
+                         VERSION 9.1    FORTRAN 2003
+
+                              |    |    |
+                             )_)  )_)  )_) _
+                            )___))___))___)\
+                            )____)____)_____)\\
+                          _____|____|____|____\\\__
+                 ---------\                    /---------
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        ^^^^      ^^^^     ^^^    ^^
+                            ^^^^      ^^^
+
+                   ********************************************
+                   *        SUBROUTINE LECDON_TOMAWAC         *
+                   *           CALL OF DAMOCLES               *
+                   *        VERIFICATION OF READ DATA         *
+                   *            ON STEERING FILE              *
+                   ********************************************
+
+ OPENING FILES FOR TOMAWAC
+ OPENING: WACGEO-geo_shoal.slf
+ OPENING: WACCLI-geo_shoal.cli
+ OPENING: WACRES-r2d_shoal.slf
+ OPENING: WACLEO-tom_shoal.spe
+
+                     *******************************
+                     *     MEMORY ORGANISATION     *
+                     *******************************
+
+ READ_MESH_INFO: TITLE= TELEMAC BINAER DATEI
+            NUMBER OF ELEMENTS:     2450
+            NUMBER OF POINTS:     1291
+
+            TYPE OF ELEMENT: TRIANGLE
+            TYPE OF BND ELEMENT: POINT
+
+            SINGLE PRECISION FORMAT (R4)
+
+ MXPTEL (BIEF) : MAXIMUM NUMBER OF ELEMENTS AROUND A POINT:   7
+                 MAXIMUM NUMBER OF POINTS AROUND A POINT:   7
+ USER_CORRXY (BIEF):NO MODIFICATION OF COORDINATES
+
+ MESH: MESH   ALLOCATED
+
+ READ_MESH_INFO: TITLE= TELEMAC BINAER DATEI
+            NUMBER OF ELEMENTS:     2450
+            NUMBER OF POINTS:     1291
+
+            TYPE OF ELEMENT: TRIANGLE
+            TYPE OF BND ELEMENT: POINT
+
+            SINGLE PRECISION FORMAT (R4)
+
+ MXPTEL (BIEF) : MAXIMUM NUMBER OF ELEMENTS AROUND A POINT:   7
+                 MAXIMUM NUMBER OF POINTS AROUND A POINT:   7
+ USER_CORRXY (BIEF):NO MODIFICATION OF COORDINATES
+
+ MESH: MESH3D ALLOCATED
+
+                     *************************************
+                     *    END OF MEMORY ORGANIZATION:    *
+                     *************************************
+
+ INBIEF (BIEF): NOT A VECTOR MACHINE (ACCORDING TO YOUR DATA)
+ STRCHE (BIEF): NO MODIFICATION OF FRICTION
+
+ TOM_CORFON : NO MODIFICATION OF BOTTOM
+
+================================================================================
+  TEMPS :            0.0000 SECONDES                            0IEME  ITERATION
+--------------------------------------------------------------------------------
+
+ SOURCE POINT            1 PUT ON POINT
+   9.7767724990844727       AND    17.074281692504883
+ LOCATED AT    5.3618702768803471E-003  METRES
+
+--------------------------------------------------------------------------------
+       CALCUL DU CHAMP CONVECTEUR ET REMONTEE DES
+           CARACTERISTIQUES
+ FREQUENCE :           1
+ USING STREAMLINE VERSION 9.1 FOR CHARACTERISTICS
+ FREQUENCE :           2
+ FREQUENCE :           3
+ FREQUENCE :           4
+ FREQUENCE :           5
+ FREQUENCE :           6
+ FREQUENCE :           7
+ FREQUENCE :           8
+ FREQUENCE :           9
+ FREQUENCE :          10
+ FREQUENCE :          11
+ FREQUENCE :          12
+ FREQUENCE :          13
+ FREQUENCE :          14
+ FREQUENCE :          15
+ FREQUENCE :          16
+ FREQUENCE :          17
+ FREQUENCE :          18
+ FREQUENCE :          19
+ FREQUENCE :          20
+ FREQUENCE :          21
+ FREQUENCE :          22
+
+================================================================================
+  TEMPS :          300.0000 SECONDES                         3000IEME  ITERATION
+--------------------------------------------------------------------------------
+       INTERPOLATION AUX PIEDS DES CARACTERISTIQUES
+--------------------------------------------------------------------------------
+
+================================================================================
+  TEMPS :          600.0000 SECONDES                         6000IEME  ITERATION
+--------------------------------------------------------------------------------
+       INTERPOLATION AUX PIEDS DES CARACTERISTIQUES
+--------------------------------------------------------------------------------
+
+================================================================================
+  TEMPS :          900.0000 SECONDES                         9000IEME  ITERATION
+--------------------------------------------------------------------------------
+       INTERPOLATION AUX PIEDS DES CARACTERISTIQUES
+--------------------------------------------------------------------------------
+
+================================================================================
+  TEMPS :         1200.0000 SECONDES                        12000IEME  ITERATION
+--------------------------------------------------------------------------------
+       INTERPOLATION AUX PIEDS DES CARACTERISTIQUES
+--------------------------------------------------------------------------------
+
+ EXITING MPI
+
+                     *********************************
+                     *       MEMORY CLEANUP          *
+                     *********************************
+
+                     *************************************
+                     *    END OF MEMORY ORGANIZATION:    *
+                     *************************************
+
+ CORRECT END OF RUN
+
+ ELAPSE TIME :
+                              1  MINUTES
+                              8  SECONDS
+Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG
+STOP 0
+... merging separated result files
+
+... handling result files
+
+        moving: r2d_shoal.slf
+        moving: tom_shoal.spe
+... deleting working dir
+
+
+
+My work is done
+
+

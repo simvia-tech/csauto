@@ -144,8 +144,8 @@ export class NewCampaignPanel {
         }
         const args =
           message.start === "folder"
-            ? ["_case-info", message.folder ?? "", "--solver", message.solver]
-            : ["_inspect-inputs", "--solver", message.solver, ...inputArgs(message.files)];
+            ? ["_case-info", message.folder ?? "", "--solver", message.solver, ...optionArgs(message.options)]
+            : ["_inspect-inputs", "--solver", message.solver, ...inputArgs(message.files), ...optionArgs(message.options)];
         const result = await runCsauto(python, args, this.workspaceRoot, this.output);
         this.post(
           result.ok
@@ -268,9 +268,9 @@ export class NewCampaignPanel {
     this.post({ type: "progress", message: "Creating the campaign…" });
     const args = ["_new-campaign", target, "--solver", request.solver, "--runtime", request.setup.runtime];
     if (request.start === "files") {
-      args.push(...inputArgs(request.files));
+      args.push(...inputArgs(request.files), ...optionArgs(request.options));
     } else if (request.start === "folder" && request.folder) {
-      args.push("--template", request.folder);
+      args.push("--template", request.folder, ...optionArgs(request.options));
     } else if (request.start === "empty") {
       args.push("--empty");
     }
@@ -303,6 +303,12 @@ function svgDataUri(file: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function optionArgs(options: Record<string, string> | undefined): string[] {
+  return Object.entries(options ?? {})
+    .filter(([, value]) => value)
+    .flatMap(([key, value]) => ["--option", `${key}=${value}`]);
 }
 
 function inputArgs(files: Record<string, string[]>): string[] {

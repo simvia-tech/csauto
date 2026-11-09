@@ -34,6 +34,8 @@
   let inspection = $state<Inspection | undefined>();
   let inspectError = $state("");
   let fileWarnings = $state<string[]>([]);
+  // The solver's case options (a TELEMAC module, say), by key: "" keeps one automatic.
+  let caseOptions = $state<Record<string, string>>({});
   let rows = $state<string[][]>([]);
   // Reserved columns an imported CSV brings along with the placeholders (case_id, csauto_mpi, csauto_omp).
   let extraColumns = $state<string[]>([]);
@@ -87,6 +89,8 @@
     { value: "ccd", label: "Central composite", detail: "corners, axes and center of the ranges" },
   ];
   const shownWarnings = $derived(start === "files" ? fileWarnings : (inspection?.warnings ?? []));
+  const setupNotes = $derived(inspection?.notes ?? []);
+  const noteErrors = $derived(setupNotes.filter((note) => note.level === "error"));
   const needsCase = $derived(start === "files" || start === "folder");
   const repository = $derived(solver ? repositoryOf(solver.default_docker_image) : "");
 
@@ -244,6 +248,7 @@
     start = chosen.has_example ? "example" : "files";
     files = {};
     folder = "";
+    caseOptions = {};
     inspection = undefined;
     inspectError = "";
     resetTable();
@@ -373,6 +378,11 @@
     post({ type: "generateDoe", spec });
   }
 
+  function chooseOption(key: string, value: string) {
+    caseOptions = { ...caseOptions, [key]: value };
+    inspect();
+  }
+
   function removeFile(key: string, filePath: string) {
     files = { ...files, [key]: (files[key] ?? []).filter((p) => p !== filePath) };
     inspect();
@@ -390,10 +400,11 @@
     if (start === "files" && Object.values(files).some((paths) => paths.length > 0)) {
       post({ type: "checkFiles", solver: solver.name, files: $state.snapshot(files) });
     }
+    const options = $state.snapshot(caseOptions);
     if (start === "files" && missingInputs.length === 0) {
-      post({ type: "inspect", solver: solver.name, start, files: $state.snapshot(files) });
+      post({ type: "inspect", solver: solver.name, start, files: $state.snapshot(files), options });
     } else if (start === "folder" && folder) {
-      post({ type: "inspect", solver: solver.name, start, files: {}, folder });
+      post({ type: "inspect", solver: solver.name, start, files: {}, folder, options });
     } else {
       inspection = undefined;
     }
@@ -525,7 +536,12 @@
         ? `Pick: ${missingInputs.map((input) => input.label.toLowerCase()).join(", ")}.`
         : start === "folder" && !folder
           ? "Choose the folder of your case."
-          : inspectError || (inspection ? "" : "Checking your case…"),
+          : inspectError ||
+            (!inspection
+              ? "Checking your case…"
+              : noteErrors.length > 0
+                ? "csauto cannot run this case yet: see the warning about it above."
+                : ""),
   );
 
   // Empty cells are fine: csauto prepare renders them as empty values (a parameter only
@@ -573,6 +589,7 @@
         name: name.trim(),
         files: $state.snapshot(files),
         folder: start === "folder" ? folder : undefined,
+        options: $state.snapshot(caseOptions),
         doe: needsCase && columns.length > 0 ? { columns: [...columns], rows: $state.snapshot(rows) } : undefined,
         setup,
         generate,
@@ -587,6 +604,32 @@
   {#each shownWarnings as warning (warning)}
     <p class="mt-2 flex items-start gap-1.5 text-sm text-ui-warning"><Icon name="alert" size={14} /> {warning}</p>
   {/each}
+{/snippet}
+
+<!-- What csauto read from the case's main input file, and the choices that override it. -->
+{#snippet caseSetup()}
+  {#each setupNotes as note (note.text)}
+    {#if note.level !== "info"}
+      <p class="mt-2 flex items-start gap-1.5 text-sm text-ui-warning"><Icon name="alert" size={14} /> {note.text}</p>
+    {:else}
+      <p class="mt-2 flex items-start gap-1.5 text-xs text-ui-text-muted"><Icon name="check" size={12} /> {note.text}</p>
+    {/if}
+  {/each}
+  {#if solver && inspection}
+    {#each solver.options as option (option.key)}
+      <div class="mt-2 grid max-w-md gap-1">
+        <label class="text-xs text-ui-text-secondary" for={`option-${option.key}`}>{option.label}</label>
+        <Select
+          id={`option-${option.key}`}
+          options={[{ value: "", label: option.automatic_label }, ...option.choices.map((choice) => ({ value: choice, label: choice }))]}
+          value={caseOptions[option.key] ?? ""}
+          onSelect={(value) => chooseOption(option.key, value)}
+          disabled={busy}
+        />
+        {#if option.hint}<p class="text-xs text-ui-text-muted">{option.hint}</p>{/if}
+      </div>
+    {/each}
+  {/if}
 {/snippet}
 
 {#snippet tableTools(withAddRow: boolean)}
@@ -805,6 +848,7 @@
             </div>
           {/if}
           {@render warnings()}
+          {@render caseSetup()}
         </li>
       {:else if start === "folder"}
         <li class="card">
@@ -822,6 +866,7 @@
           {#if inspection}
             <p class="mt-2 text-xs text-ui-text-muted">Input file found: <code>{inspection.setup_file}</code></p>
             {@render warnings()}
+            {@render caseSetup()}
           {/if}
         </li>
       {/if}

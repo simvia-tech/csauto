@@ -11,7 +11,16 @@ from ..control import control_case
 from ..execution import resolve_runtime
 from ..logs import find_case_file
 from ..maintenance import cleanup_runs
-from ..registry import STATUS_DONE, STATUS_FAILED, STATUS_PREPARED, STATUS_RUNNING, registry_transaction, update_case
+from ..registry import (
+    STATUS_DONE,
+    STATUS_FAILED,
+    STATUS_PREPARED,
+    STATUS_RUNNING,
+    campaign_case_dirs,
+    registry_transaction,
+    update_case,
+    write_campaign_settings,
+)
 from ..runner import resolve_case_resources, run_cases
 from ..web_support import default_web_max_parallel, kill_case, log_case_action, normalize_convergence
 from .common import shared_models
@@ -472,6 +481,31 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         )
         return {"status": "ok"}
 
+    @app.post("/api/case_options", response_model=None)
+    def api_set_case_options(
+        payload: dict[str, Any],
+        request: Request,
+        x_csauto_token: str | None = Header(default=None),
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        """Save case options ({"options": {key: value}}, "" for automatic) for the campaign, in RUNS/campaign.json.
+
+        csauto keeps them itself: no file of the cases or of the template changes.
+        """
+        ctx.require_auth(x_csauto_token, authorization)
+        options = payload.get("options")
+        if not isinstance(options, dict) or not all(isinstance(v, str) for v in options.values()):
+            raise ctx.http_exception_cls(status_code=400, detail="Expected {'options': {key: value}}.")
+        try:
+            chosen = ctx.adapter.check_case_options(options)
+        except ValueError as exc:
+            raise ctx.http_exception_cls(status_code=400, detail=str(exc)) from exc
+        settings = write_campaign_settings(ctx.runs_dir, chosen)
+        actor = request.client.host if request.client else None
+        for case_dir in campaign_case_dirs(ctx.runs_dir):
+            log_case_action(ctx.runs_dir, case_dir.name, "case_options", {"options": chosen}, actor=actor)
+        return {"settings": settings}
+
     @app.post("/api/setup_warnings", response_model=None)
     def api_setup_warnings(
         payload: KillCasesPayload,
@@ -488,7 +522,9 @@ def register_action_routes(app: Any, ctx: Any, components: dict[str, Any]) -> No
         for case_id in case_ids:
             with contextlib.suppress(OSError, ValueError):  # FileNotFoundError is an OSError
                 setup_file = ctx.adapter.find_setup_file(ctx.runs_dir / case_id)
-                warnings += [w for w in ctx.adapter.setup_warnings(setup_file) if w not in warnings]
+                # Only what stops the run: the warnings are already shown above the dashboard's panels.
+                notes = [note.text for note in ctx.adapter.setup_notes(setup_file) if note.level == "error"]
+                warnings += [w for w in [*notes, *ctx.adapter.setup_warnings(setup_file)] if w not in warnings]
         return {"warnings": warnings}
 
     @app.post("/api/run_case", response_model=SuccessResponse)

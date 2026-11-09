@@ -189,3 +189,28 @@ def test_code_aster_export_is_written_or_relinked(tmp_path: Path) -> None:
     assert "P time_limit 60" in relinked
     assert "F comm study.comm D 1" in relinked
     assert "F mmed ../MESH/part.med D 20" in relinked
+
+
+def test_new_campaign_keeps_the_chosen_options(tmp_path):
+    from csauto.new_campaign import inspect_inputs
+    from csauto.registry import read_campaign_settings
+
+    cas = tmp_path / "in" / "study.cas"
+    cas.parent.mkdir()
+    cas.write_text("TITLE = 'NOTHING TELLS THE MODULE'\nRESULTS FILE = r.slf\n", encoding="utf-8")
+    [solver] = [entry for entry in list_solvers() if entry["name"] == "openTELEMAC"]
+    assert [option["key"] for option in solver["options"]] == ["module"]
+
+    undecided = inspect_inputs("openTELEMAC", {"cas": [cas]})
+    assert [note["level"] for note in undecided["notes"]] == ["error"]
+    chosen = inspect_inputs("openTELEMAC", {"cas": [cas]}, {"module": "telemac3d"})
+    assert [note["level"] for note in chosen["notes"]] == ["info"] and "telemac3d" in chosen["notes"][0]["text"]
+
+    target = create_campaign(
+        tmp_path / "campaign", "openTELEMAC", "docker", files={"cas": [cas]}, options={"module": "telemac3d"}
+    )
+    assert "csauto" not in (target / "TEMPLATE" / "study.cas").read_text(encoding="utf-8")  # the user's file, as is
+    assert read_campaign_settings(target / "RUNS") == {"module": "telemac3d"}
+    assert case_info(target / "TEMPLATE", "openTELEMAC", {"module": "artemis"})["notes"][0]["level"] == "info"
+    with pytest.raises(ValueError, match="has no 'points' option"):
+        case_info(target / "TEMPLATE", "openTELEMAC", {"points": "80"})

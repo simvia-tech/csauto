@@ -70,9 +70,37 @@ class CaseInput(NamedTuple):
     hint: str = ""  # one line shown under the picker
 
 
+class CaseOption(NamedTuple):
+    """A choice for a campaign's cases, offered by New Campaign and above the dashboard's panels.
+
+    csauto keeps it (RUNS/campaign.json), never in the solver's files; "" means automatic.
+    """
+
+    key: str
+    label: str
+    choices: tuple[str, ...]
+    hint: str = ""  # one line shown under the choice
+    automatic_label: str = "Automatic"  # how the "" choice reads
+
+
+class SimulationProgress(NamedTuple):
+    """How far a run has got towards its end, shown in the status table's Progress column."""
+
+    fraction: float  # 0..1, for sorting
+    label: str  # what the column shows, e.g. "12.5 / 30 d (42 %)"
+
+
+class SetupNote(NamedTuple):
+    """A line about a case's main input file, shown by New Campaign and the dashboard."""
+
+    level: str  # "info"; "warn": worth knowing; "error": csauto or the solver cannot run the case so
+    text: str
+
+
 ALL_DASHBOARD_PANELS = ("status", "residuals", "probes", "performance", "compare", "tail", "errors")
 ALL_RUNTIMES = (RUNTIME_NATIVE, RUNTIME_DOCKER, RUNTIME_SINGULARITY)
 ANOMALY_LABELS = ("error", "warn")
+SETUP_NOTE_LEVELS = ("info", "warn", "error")
 VALUE_KINDS = ("int", "float")
 
 CAPABILITY_RESIDUALS = "residuals"
@@ -82,6 +110,7 @@ CAPABILITY_COMPARE = "compare"
 CAPABILITY_CONTROL = "control"
 CAPABILITY_RESTART = "restart"
 CAPABILITY_GUI = "gui"
+CAPABILITY_SETUP = "setup"  # notes on the cases' input files, or case options
 
 # Panels any run can feed, whatever the solver: status comes from the registry,
 # tail and errors from the csauto.stdout / csauto.stderr launcher logs. Every
@@ -107,6 +136,7 @@ class SolverAdapter(ABC):
     description: ClassVar[str] = ""  # one line; an adapter without one is not offered (test solvers)
     example_dir: ClassVar[str] = ""  # folder under examples/ a new campaign can start from
     case_inputs: ClassVar[tuple[CaseInput, ...]] = ()  # the files a case is built from, by assemble_case
+    case_options: ClassVar[tuple[CaseOption, ...]] = ()  # settings of the cases, read by campaign_settings
 
     # Launch.
     supported_runtimes: ClassVar[frozenset[str]] = frozenset(ALL_RUNTIMES)
@@ -185,6 +215,8 @@ class SolverAdapter(ABC):
             caps.add(CAPABILITY_PERFORMANCE)
         if self.control_actions:
             caps.add(CAPABILITY_CONTROL)
+        if self._provides("setup_notes") or self.case_options:
+            caps.add(CAPABILITY_SETUP)
         return frozenset(caps)
 
     @property
@@ -229,6 +261,15 @@ class SolverAdapter(ABC):
 
         Called with the main input file, and with each file picked in New Campaign (return [] for those you
         do not check): assemble_case may already have cleaned the problem from the copy.
+        """
+        return []
+
+    def setup_notes(self, setup_file: Path, settings: Mapping[str, str] | None = None) -> list[SetupNote]:
+        """What to know about a case's main input file (never another picked file), shown with its warnings.
+
+        For example what csauto read from it to run it ("info"), and an "error" note when it could not:
+        New Campaign then refuses to create the campaign. `settings` are the campaign's case options
+        (default: campaign_settings of the file's folder).
         """
         return []
 
@@ -326,6 +367,10 @@ class SolverAdapter(ABC):
         """Current iteration or time step, shown as Last Iter in the status table."""
         return None
 
+    def read_simulation_progress(self, case_dir: Path, start_time: str | None = None) -> SimulationProgress | None:
+        """How much of its simulated time (or of its iterations) a run has done, when the solver says so."""
+        return None
+
     def read_restart_origin(self, case_dir: Path) -> dict[str, int | float]:
         """Iteration and/or time the latest run restarted from ({"iteration": ..., "time": ...})."""
         return {}
@@ -347,6 +392,26 @@ class SolverAdapter(ABC):
         raise ValueError(f"Control actions not supported for solver {self.name!r}")
 
     # Files and results layout.
+
+    def check_case_options(self, options: Mapping[str, str] | None) -> dict[str, str]:
+        """The options given, each one of its `case_options` choices or "" (automatic); ValueError otherwise."""
+        declared = {option.key: option for option in self.case_options}
+        chosen = {}
+        for key, value in (options or {}).items():
+            option = declared.get(key)
+            if option is None:
+                raise ValueError(f"{self.name} has no {key!r} option.")
+            value = value.strip()
+            if value and value not in option.choices:
+                raise ValueError(f"{option.label}: {value!r} is not one of {', '.join(option.choices)}.")
+            chosen[key] = value
+        return chosen
+
+    def campaign_settings(self, case_dir: Path) -> dict[str, str]:
+        """The case options chosen for the campaign `case_dir` belongs to (RUNS/case0001 -> RUNS/campaign.json)."""
+        from ..registry import read_campaign_settings
+
+        return read_campaign_settings(case_dir.parent)
 
     def assemble_case(self, campaign_dir: Path, files: Mapping[str, Sequence[Path]]) -> None:
         """Build a campaign's case from the files picked for each of `case_inputs`.

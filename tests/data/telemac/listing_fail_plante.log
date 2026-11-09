@@ -1,0 +1,192 @@
+# C:\openTELEMAC\9.1.1\external\python-3.12.10\python.exe C:\openTELEMAC\9.1.1\scripts\python3\telemac2d.py t2d_gouttedo.cas
+
+
+Loading configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   ___      __ 
+  / _ \    /_ |
+ | (_) |    | |
+  \__, |    | |
+    / /  _  | |
+   /_/  (_) |_|
+               
+               
+
+
+Running your CAS file(s) for:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    +> root:    C:\openTELEMAC\9.1.1
+    +> build:   C:\openTELEMAC\9.1.1
+    +> modules: api / artemis / bief / damocles
+                gaia  / gretel  / hermes  / khione
+                mascaret  / nestor  / parallel  / partel
+                postel3d  / special  / stbtel  / telemac2d
+                telemac3d / tomawac / waqtel
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+... processing the steering file
+  ~> Checking keyword/rubrique coherence
+
+... checking parallelisation
+
+... handling temporary directories
+         copying: t2d_gouttedo.cas -> C:\runs\runs\t2d_gouttedo_20261006-145543\t2d_gouttedo.cas_2026-10-06-14h55min50s\T2DCAS
+         copying: telemac2d.dico -> C:\runs\runs\t2d_gouttedo_20261006-145543\t2d_gouttedo.cas_2026-10-06-14h55min50s\T2DDICO
+         copying: geo_gouttedo.cli -> C:\runs\runs\t2d_gouttedo_20261006-145543\t2d_gouttedo.cas_2026-10-06-14h55min50s\T2DCLI
+         copying: geo_gouttedo.slf -> C:\runs\runs\t2d_gouttedo_20261006-145543\t2d_gouttedo.cas_2026-10-06-14h55min50s\T2DGEO
+
+... checking the executable
+  ~> Compiling Fortran files
+         compiling: user_condin_h.f ... completed
+         compiling: user_condin_trac.f ... completed
+         created: libuser_fortran.dll
+
+
+Running your simulation(s) :
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+
+In C:\runs\runs\t2d_gouttedo_20261006-145543\t2d_gouttedo.cas_2026-10-06-14h55min50s:
+mpiexec -n 1 C:\runs\runs\t2d_gouttedo_20261006-145543\t2d_gouttedo.cas_2026-10-06-14h55min50s\telemac2d.exe
+
+
+ MASTER PROCESSOR NUMBER            0  OF THE GROUP OF            1
+ EXECUTABLE FILE: C:\runs\runs\t2d_gouttedo_20261006-145543\t2d_gouttedo.cas_2026-10-06-14h55min50s\A.EXE
+ LISTING OF TELEMAC2D------------------------------------------------------------------------------
+
+                TTTTT  EEEEE  L      EEEEE  M   M  AAAAA  CCCCC
+                  T    E      L      E      MM MM  A   A  C
+                  T    EEE    L      EEE    M M M  AAAAA  C
+                  T    E      L      E      M   M  A   A  C
+                  T    EEEEE  LLLLL  EEEEE  M   M  A   A  CCCCC
+
+                        2D    VERSION 9.1    FORTRAN 2003
+
+                        ~^~^~^~^~^~^~^~^~^~^~^^~^~^~^~^~^~
+                          ~                            ~
+                               \   '    o      '
+                               /\ o       \  o
+                             >=)'>    '   /\ '
+                               \/   \   >=)'>        ~
+                               /    /\    \/
+                        ~         >=)'>   /     .
+                                    \/                   )
+                                    /                   (
+                                          ~          )   )
+                          }     ~              (    (   (
+                         {                      )    )   )
+                          }  }         .       (    (   (
+                         {  {               /^^^^^^^^^^^^
+                        ^^^^^^^^^\         /
+                                  ^^^^^^^^^
+
+ DIFFERENT NUMBER OF PARALLEL PROCESSORS:
+ DECLARED BEFORE (CASE OF COUPLING ?):           1
+ TELEMAC-2D :           0
+ VALUE            1  IS KEPT
+
+                   ********************************************
+                   *               LECDON:                    *
+                   *        AFTER CALLING DAMOCLES            *
+                   *        CHECKING OF DATA  READ            *
+                   *         IN THE STEERING FILE             *
+                   ********************************************
+
+ EXITING LECDON. NAME OF THE STUDY:
+ TELEMAC 2D: DROPLET IN A BASIN
+
+ OPENING FILES FOR TELEMAC2D
+ OPENING: T2DGEO-geo_gouttedo.slf
+ OPENING: T2DCLI-geo_gouttedo.cli
+ OPENING: T2DRES-r2d_gouttedo_v1p0.slf
+
+                          *****************************
+                          *    MEMORY ORGANIZATION    *
+                          *****************************
+
+ READ_MESH_INFO: TITLE= TELEMAC 2D : GOUTTE D'EAU DANS UN BASSIN$
+            NUMBER OF ELEMENTS:     8978
+            NUMBER OF POINTS:     4624
+
+            TYPE OF ELEMENT: TRIANGLE
+            TYPE OF BND ELEMENT: POINT
+
+            SINGLE PRECISION FORMAT (R4)
+
+ MXPTEL (BIEF) : MAXIMUM NUMBER OF ELEMENTS AROUND A POINT:   7
+                 MAXIMUM NUMBER OF POINTS AROUND A POINT:   7
+ USER_CORRXY (BIEF):NO MODIFICATION OF COORDINATES
+
+ MESH: MESH   ALLOCATED
+
+                     *************************************
+                     *    END OF MEMORY ORGANIZATION:    *
+                     *************************************
+
+ INITIALIZING TELEMAC2D FOR
+ INBIEF (BIEF): NOT A VECTOR MACHINE (ACCORDING TO YOUR DATA)
+
+ FONSTR (BIEF): NO BATHYMETRY IN THE GEOMETRY FILE
+                AND NO BATHYMETRY FILE. THE BOTTOM
+                LEVEL IS FIXED TO ZERO BUT STILL
+                CAN BE MODIFIED IN CORFON.
+
+ STRCHE (BIEF): NO MODIFICATION OF FRICTION
+
+ THERE IS     1 SOLID BOUNDARIES:
+
+ BOUNDARY    1 :
+  BEGINS AT BOUNDARY POINT:        1 , WITH GLOBAL NUMBER:         1
+  AND COORDINATES:     0.000000           0.000000
+  ENDS AT BOUNDARY POINT:        1 , WITH GLOBAL NUMBER:         1
+  AND COORDINATES:     0.000000           0.000000
+
+ USER_CORFON (TELEMAC2D): NO MODIFICATION OF BOTTOM
+
+ CORFON (TELEMAC2D): NO BOTTOM SMOOTHINGS
+
+ USER_CONDIN_H: TEST ERROR, NEGATIVE INITIAL DEPTH
+
+ PLANTE: PROGRAM STOPPED AFTER AN ERROR
+ RETURNING EXIT CODE:            2
+
+job aborted:
+[ranks] message
+
+[0] application aborted
+aborting MPI_COMM_WORLD (comm=0x44000000), error 2, comm rank 0
+
+---- error analysis -----
+
+[0] on LAPTOP-A-0226
+C:\runs\runs\t2d_gouttedo_20261006-145543\t2d_gouttedo.cas_2026-10-06-14h55min50s\telemac2d.exe aborted the job. abort code 2
+
+---- error analysis -----
+Traceback (most recent call last):
+  File "C:\openTELEMAC\9.1.1\scripts\python3\telemac2d.py", line 9, in <module>
+    sys.exit(main('telemac2d'))
+             ^^^^^^^^^^^^^^^^^
+  File "C:\openTELEMAC\9.1.1\scripts\python3\runcode.py", line 284, in main
+    run_study(cas_file, code_name, options)
+  File "C:\openTELEMAC\9.1.1\scripts\python3\execution\run_cas.py", line 170, in run_study
+    run_local_cas(my_study, options)
+  File "C:\openTELEMAC\9.1.1\scripts\python3\execution\run_cas.py", line 66, in run_local_cas
+    my_study.run(options)
+  File "C:\openTELEMAC\9.1.1\scripts\python3\execution\study.py", line 682, in run
+    self.run_local()
+  File "C:\openTELEMAC\9.1.1\scripts\python3\execution\study.py", line 488, in run_local
+    run_code(self.run_cmd, self.sortie_file)
+  File "C:\openTELEMAC\9.1.1\scripts\python3\execution\run.py", line 180, in run_code
+    raise TelemacException(f'Failed to run {exe}\n')
+utils.exceptions.TelemacException: Failed to run mpiexec -n 1 C:\runs\runs\t2d_gouttedo_20261006-145543\t2d_gouttedo.cas_2026-10-06-14h55min50s\telemac2d.exe
+

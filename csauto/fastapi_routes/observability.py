@@ -9,7 +9,9 @@ from ..logs import (
     collect_recent_errors,
     read_performance_rows,
 )
+from ..registry import campaign_case_dirs, read_campaign_settings
 from ..residuals import render_residuals_svg, residual_columns, residual_series
+from ..solvers.base import CAPABILITY_SETUP
 from ..web_services import get_status_payload
 from ..web_support import log_case_action
 from .common import expand_csv_query, shared_models
@@ -149,6 +151,47 @@ def register_observability_routes(app: Any, ctx: Any, components: dict[str, Any]
                 for column in ctx.adapter.performance_columns
             ],
             "records": read_performance_rows(ctx.runs_dir, ctx.validate_cases(query.case), adapter=ctx.adapter),
+        }
+
+    @app.get("/api/setup_notes", response_model=None)
+    def api_setup_notes(
+        x_csauto_token: str | None = Header(default=None),
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        """The adapter's notes on each case's main input file, merged: one entry per text with its cases."""
+        ctx.require_auth(x_csauto_token, authorization)
+        if CAPABILITY_SETUP not in ctx.adapter.capabilities:
+            return {"notes": []}  # nothing to read in the cases
+        notes: dict[tuple[str, str], list[str]] = {}
+        order = {"error": 0, "warn": 1, "info": 2}  # errors first
+        case_dirs = sorted(campaign_case_dirs(ctx.runs_dir))
+        for case_dir in case_dirs:
+            try:
+                setup_file = ctx.adapter.find_setup_file(case_dir)
+                case_notes = ctx.adapter.setup_notes(setup_file)
+            except (OSError, ValueError):  # FileNotFoundError is an OSError
+                continue
+            for note in case_notes:
+                notes.setdefault((note.level, note.text), []).append(case_dir.name)
+        return {
+            "notes": [
+                {"level": level, "text": text, "cases": cases, "all_cases": len(cases) == len(case_dirs)}
+                for (level, text), cases in sorted(notes.items(), key=lambda item: order[item[0][0]])
+            ]
+        }
+
+    @app.get("/api/case_options", response_model=None)
+    def api_case_options(
+        x_csauto_token: str | None = Header(default=None),
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        """The adapter's case options, with the campaign's values ("" = automatic)."""
+        ctx.require_auth(x_csauto_token, authorization)
+        settings = read_campaign_settings(ctx.runs_dir)
+        return {
+            "options": [
+                {**option._asdict(), "value": settings.get(option.key, "")} for option in ctx.adapter.case_options
+            ]
         }
 
     @app.get("/api/app_config", response_model=AppConfigModel)

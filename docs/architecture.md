@@ -15,7 +15,7 @@ The web UI is the primary interface for daily operations. After `prepare` and op
 
 - `csauto/cli.py` - CLI argument parsing and command dispatch
 - `csauto/config.py` - `csauto.toml` loading and `Config` class
-- `csauto/solvers/` - solver adapters: the `SolverAdapter` base class, code_saturne, code_aster, the test stub (see below)
+- `csauto/solvers/` - solver adapters: the `SolverAdapter` base class, code_saturne, code_aster, openTELEMAC, the test stub (see below)
 - `csauto/doe.py` - DOE parsing and case generation
 - `csauto/template.py` - placeholder and IF rendering
 - `csauto/runner.py` - launch, restart, kill, status transitions
@@ -52,6 +52,8 @@ csauto/solvers/__init__.py     # available_solvers(), get_solver_adapter(name)
 csauto/solvers/base.py         # SolverAdapter: declarations, hooks and their defaults
 csauto/solvers/code_saturne.py # CodeSaturneAdapter
 csauto/solvers/code_aster.py   # CodeAsterAdapter
+csauto/solvers/telemac/        # TelemacAdapter (adapter.py: every openTELEMAC module, through runcode.py),
+                               # its listing and SERAFIN time series readers, its generated module keywords
 csauto/solvers/stub.py         # StubAdapter (fake solver used by integration tests)
 csauto/solvers/logos/          # solver logos and icons served to the dashboard
 ```

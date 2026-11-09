@@ -1,0 +1,52 @@
+/---------------------------------------------------------------------/
+BOUNDARY CONDITIONS FILE = '../MESH/geo_node_by_node_bdy.cli'
+GEOMETRY FILE            = '../MESH/geo_node_by_node_bdy.slf'
+LIQUID BOUNDARIES FILE   = 'liq_node_by_node_bdy.txt'
+RESULTS FILE             = 'RESU/r2d_node_by_node_bdy.slf'
+TIME SERIES COORDINATES FILE 1 = 'probes.txt'
+TIME SERIES FILE 1       = 'RESU/probes_node_by_node_bdy.slf'
+/
+/---------------------------------------------------------------------/
+/  GENERAL INFORMATION - OUTPUTS
+/---------------------------------------------------------------------/
+/
+TITLE                            = 'NODE BY NODE BOUNDARY'
+VARIABLES FOR GRAPHIC PRINTOUTS  = 'U,V,S,T*'
+GRAPHIC PRINTOUT PERIOD          = 50
+LISTING PRINTOUT PERIOD          = 50
+TIME STEP                        = 0.1
+NUMBER OF TIME STEPS             = 500
+MASS-BALANCE                     = YES
+/
+/---------------------------------------------------------------------/
+/  INITIAL CONDITIONS
+/---------------------------------------------------------------------/
+/
+INITIAL CONDITIONS     = 'CONSTANT ELEVATION'
+INITIAL ELEVATION      = 2.0
+/
+/---------------------------------------------------------------------/
+/  BOUNDARY CONDITIONS
+/---------------------------------------------------------------------/
+/
+OPTION FOR LIQUID BOUNDARIES FILE = 2
+MAXIMUM NUMBER OF BOUNDARIES      = 400
+/
+/---------------------------------------------------------------------/
+/  PHYSICAL PARAMETERS
+/---------------------------------------------------------------------/
+/
+LAW OF BOTTOM FRICTION           = 5
+FRICTION COEFFICIENT             = {friction}
+TURBULENCE MODEL                 = 1
+VELOCITY DIFFUSIVITY             = 0.1
+/
+/---------------------------------------------------------------------/
+/  TRACER
+/---------------------------------------------------------------------/
+/
+NUMBER OF TRACERS                = 2
+INITIAL VALUES OF TRACERS        = 0.0; 0.0
+DIFFUSION OF TRACERS             = NO
+/
+/---------------------------------------------------------------------/

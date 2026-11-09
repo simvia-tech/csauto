@@ -996,6 +996,7 @@ def _compute_refresh_result(
             job_id = None
 
     last_iter = adapter.read_progress(case_dir, start_time)
+    progress = adapter.read_simulation_progress(case_dir, start_time)
 
     duration_record = dict(record)
     duration_record["end_time"] = end_time
@@ -1012,6 +1013,8 @@ def _compute_refresh_result(
         "nprocs": record.get("nprocs"),
         "nt": record.get("nt"),
         "last_iter": last_iter,
+        "progress": progress.label if progress else None,
+        "progress_fraction": progress.fraction if progress else None,
         "duration_s": duration_s,
         "duration": duration,
         "last_mod": last_mod,

@@ -9,12 +9,13 @@ Adding a solver means writing one adapter class, registering its name and
 adding a sample case to the test suite. No other part of csauto changes,
 including the dashboard.
 
-Three adapters ship with csauto:
+Four adapters ship with csauto:
 
 | Adapter | Read it for |
 |---|---|
 | `csauto/solvers/stub.py` | The smallest complete adapter: a fake solver used by the tests. Start here. |
 | `csauto/solvers/code_aster.py` | A real solver in about 100 lines: environment setup in containers, results written straight into `RESU/`, verdict read from the solver's standard output. |
+| `csauto/solvers/telemac/` | One launcher for several modules (the module is read from the input file and passed in `run_argv`), probes read from the solver's own time series files and listing, timing parsed from its standard output. |
 | `csauto/solvers/code_saturne.py` | The most complete adapter: residuals, probes, timing, restart, live control, GUI, a custom Slurm script. |
 
 ## 1. Write the adapter
@@ -250,11 +251,14 @@ Optional, with their default:
 | `compare_kinds`, `performance_columns`, `control_actions`, `restart_modes`, `default_residual_columns` | none |
 | `logo_file`, `icon_file` | none |
 | `description` | none: one line shown by the VS Code extension's New Campaign; without it the solver is not offered there (test solvers) |
+| `case_options` | none: choices for the campaign's cases (`CaseOption`: key, label, choices; `""` means automatic), offered by New Campaign and above the dashboard's panels and kept by csauto in `RUNS/campaign.json`; the adapter reads them with `campaign_settings(case_dir)` (openTELEMAC: the module) |
+| `setup_notes` | none: `SetupNote(level, text)` lines about a case's main input file, shown by New Campaign and above the dashboard's panels: `info`, `warn` (worth knowing) or `error` (the case cannot run so: New Campaign refuses to create it); `error` notes also reach the Run dialog |
 | `case_inputs`, `assemble_case` | none: the files the extension's New Campaign asks for to build a case (`CaseInput`: label, extensions, destination folder, required, multiple, rename), and how they are placed; override `assemble_case` when the files reference each other (code_aster writes or relinks its `.export`) |
 | `example_dir` | none: a folder under `examples/` a new campaign can start from (also list its parts under `force-include` in `pyproject.toml`, which a test checks) |
 | `prepare_launch` | does nothing |
 | `detect_outcome` | no verdict: the exit status decides |
 | `read_progress`, `read_restart_origin` | no value |
+| `read_simulation_progress` | none: `SimulationProgress(fraction, label)`, how far a run has got (openTELEMAC: `13 / 30 d (43 %)`), shown in the status table's Progress column |
 | `locate_case_file` | paths relative to the case folder |
 | `list_run_dirs` | subfolders of `results_dirname`, newest first |
 | `find_run_config` | none: a second rendered input file (code_saturne's `run.cfg`) |

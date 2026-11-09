@@ -17,7 +17,7 @@ from csauto.logs import list_tail_files
 from csauto.registry import STATUS_DONE
 from csauto.runner import final_outcome
 from csauto.solvers import available_solvers, get_solver_adapter
-from csauto.solvers.base import ALL_DASHBOARD_PANELS, GENERIC_PANELS
+from csauto.solvers.base import ALL_DASHBOARD_PANELS, GENERIC_PANELS, SETUP_NOTE_LEVELS
 
 
 def sample_code_saturne(case_dir: Path) -> None:
@@ -51,6 +51,22 @@ def sample_stub(case_dir: Path) -> None:
     run_dir.mkdir(parents=True)
     (case_dir / "stub.toml").write_text("steps = 2\n", encoding="utf-8")
     (run_dir / "stub.log").write_text("step 1\nstep 2\nSTUB CALCULATION COMPLETE\n", encoding="utf-8")
+
+
+def sample_openTELEMAC(case_dir: Path) -> None:
+    case_dir.mkdir(parents=True)
+    (case_dir / "t2d_study.cas").write_text(
+        "GEOMETRY FILE = geo.slf\nRESULTS FILE = 'RESU/r2d.slf'\nVELOCITY DIFFUSIVITY = 0.1\n", encoding="utf-8"
+    )
+    (case_dir / "csauto.stdout").write_text(
+        " ITERATION        1    TIME:   0.1000 S\n"
+        " GMRES (BIEF) :        7 ITERATIONS, RELATIVE PRECISION:   0.3E-08\n"
+        " ELAPSE TIME :\n                              2  SECONDS\n"
+        "My work is done\n",
+        encoding="utf-8",
+    )
+    (case_dir / "RESU").mkdir()
+    (case_dir / "RESU" / "r2d.slf").write_bytes(b"\x00\x00\x00\x50")
 
 
 @pytest.fixture(params=available_solvers())
@@ -102,6 +118,15 @@ def test_capabilities_come_with_what_they_need(adapter) -> None:
         for field in (0, 1):  # names identify options, labels tell them apart in the dashboard
             values = [option[field] for option in options]
             assert len(values) == len(set(values)), f"duplicate names or labels in {options}"
+
+
+def test_case_options_and_setup_notes_are_well_formed(adapter, finished_case: Path) -> None:
+    keys = [option.key for option in adapter.case_options]
+    assert len(keys) == len(set(keys)), "case option keys repeat"
+    for option in adapter.case_options:
+        assert option.choices and "" not in option.choices, f"{option.key}: choices, without the automatic one"
+    for note in adapter.setup_notes(adapter.find_setup_file(finished_case)):
+        assert note.level in SETUP_NOTE_LEVELS and note.text
 
 
 def test_launch_command_for_every_supported_runtime(adapter, finished_case: Path) -> None:

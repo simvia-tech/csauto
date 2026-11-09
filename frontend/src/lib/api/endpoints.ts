@@ -15,6 +15,9 @@ import type {
   RestartOriginResponse,
   ProbePositionResponse,
   CleanupResponse,
+  SetupNote,
+  CaseOption,
+  CaseOptionsResult,
   TailLinesResponse,
 } from "./types";
 
@@ -223,6 +226,27 @@ export function runCase(params: {
     restart_value: params.restartValue ?? undefined,
     restart_path: params.restartPath || undefined,
   }).then(() => undefined);
+}
+
+/** What the solver read from the cases' main input files, and what it could not. */
+export function fetchSetupNotes(): Promise<SetupNote[]> {
+  return apiGet<{ notes?: SetupNote[] }>("/api/setup_notes").then(
+    (res) => res.notes ?? [],
+  );
+}
+
+/** The solver's case options and their current values. */
+export function fetchCaseOptions(): Promise<CaseOption[]> {
+  return apiGet<{ options?: CaseOption[] }>("/api/case_options").then(
+    (res) => res.options ?? [],
+  );
+}
+
+/** Save case options ("" = automatic) for the campaign, in RUNS/campaign.json: no case or template file changes. */
+export function setCaseOptions(
+  options: Record<string, string>,
+): Promise<CaseOptionsResult> {
+  return apiPost<CaseOptionsResult>("/api/case_options", { options });
 }
 
 /** Problems in the input files of these cases, worth showing before running them. */

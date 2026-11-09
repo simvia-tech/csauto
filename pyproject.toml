@@ -40,6 +40,11 @@ artifacts = ["csauto/_frontend/"]
 "examples/single-case/TEMPLATE" = "csauto/_examples/single-case/TEMPLATE"
 "examples/single-case/csauto.toml" = "csauto/_examples/single-case/csauto.toml"
 "examples/single-case/doe.csv" = "csauto/_examples/single-case/doe.csv"
+"examples/telemac2d-node-by-node/MESH" = "csauto/_examples/telemac2d-node-by-node/MESH"
+"examples/telemac2d-node-by-node/README.md" = "csauto/_examples/telemac2d-node-by-node/README.md"
+"examples/telemac2d-node-by-node/TEMPLATE" = "csauto/_examples/telemac2d-node-by-node/TEMPLATE"
+"examples/telemac2d-node-by-node/csauto.toml" = "csauto/_examples/telemac2d-node-by-node/csauto.toml"
+"examples/telemac2d-node-by-node/doe.csv" = "csauto/_examples/telemac2d-node-by-node/doe.csv"
 
 [tool.hatch.build.targets.sdist]
 exclude = ["frontend/node_modules", "tests", "examples", ".github"]

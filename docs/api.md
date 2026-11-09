@@ -101,7 +101,8 @@ Fields:
 
 - `panels`: dashboard tabs, in display order
 - `capabilities`: what the solver can do (`residuals`, `probes`, `performance`,
-  `compare`, `control`, `restart`, `gui`). Restart, control and GUI requests the
+  `compare`, `control`, `restart`, `gui`, `setup`: notes on the cases' input
+  files or case options, openTELEMAC only). Restart, control and GUI requests the
   solver does not support are refused with `400`; the residuals, probes and
   timing endpoints of a solver without them return empty results
 - `compare_kinds`: files offered by Compare; the first one is the default `kind` of `/api/compare_runs`
@@ -232,6 +233,28 @@ Each item contains:
 - `case_id`, `file`, `severity`
 - `line_html` (highlighted + context)
 - `tail_index`, `tail_total`
+
+## `GET /api/setup_notes`
+
+Purpose:
+
+- what the solver read from each case's main input file (the openTELEMAC module, say), and what it could not
+
+Response:
+
+- `{ "notes": [{ "level": "error" | "warn" | "info", "text": "...", "cases": ["case0001", ...], "all_cases": true }] }`, errors first, then warnings, one entry per text
+
+`POST /api/setup_warnings` includes the `warn` notes of the cases it is given.
+
+## `GET /api/case_options` and `POST /api/case_options`
+
+Purpose:
+
+- the solver's choices for the campaign's cases (openTELEMAC: the module), each with its `choices` and the
+  campaign's `value` (`""`: automatic)
+- `POST` with `{ "options": { "module": "telemac3d" } }` saves them in `RUNS/campaign.json`
+  (`""` brings one back to automatic) and answers `{ "settings": {...} }`, or 400 for an unknown option or value;
+  no file of the cases or of the template changes
 
 ## `GET /api/residual_columns`
 
@@ -731,7 +754,7 @@ Rules:
 - `n`, `nt`, `max_parallel` must be integers `> 0`
 - without `max_parallel`, local runs are capped to `cpu_count // (n * nt)` at once, with the largest `n * nt` among the selected cases (a scheduler receives every selected case) (`max_parallel` in
   `csauto.toml` only applies to `csauto run`)
-- a restart needs the `restart` capability (code_saturne only)
+- a restart needs the `restart` capability (code_saturne and openTELEMAC)
 - `restart_mode` must be one of the solver's `restart_modes` (see
   `/api/app_config`); code_saturne: `iterations`, `physical_time`
 - `restart_value` must be positive, and a whole number for an `int` mode; it

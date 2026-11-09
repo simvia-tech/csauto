@@ -1,9 +1,10 @@
 """Real runs of the shipped examples in the solvers' docker images.
 
 Opt-in: set CSAUTO_DOCKER_TESTS=1 with docker running and the images pulled
-(simvia/code_saturne, simvia/code_aster:17.4.0). Cases are written under
-CSAUTO_DOCKER_TEST_DIR (default ~/.cache/csauto-docker-tests), because Docker
-Desktop cannot mount /tmp from WSL2. The filesystem-only test always runs.
+(simvia/code_saturne, simvia/code_aster:17.4.0, simvia/opentelemac:v9.1.0).
+Cases are written under CSAUTO_DOCKER_TEST_DIR (default
+~/.cache/csauto-docker-tests), because Docker Desktop cannot mount /tmp from
+WSL2. The filesystem-only test always runs.
 """
 
 from __future__ import annotations
@@ -96,6 +97,28 @@ def test_code_aster_example_runs_in_docker(study_dir: Path, monkeypatch) -> None
     assert list_tail_files(case_dir, get_solver_adapter("code_aster"))[0] == "csauto.stdout"
     # Preparing again after a launch must still recognise every case.
     assert main(["prepare", "doe.csv", "TEMPLATE", "RUNS"]) == 0
+
+
+@needs_docker
+def test_telemac_example_runs_in_docker(study_dir: Path, monkeypatch) -> None:
+    _copy_example("telemac2d-node-by-node", study_dir, rows=2)
+
+    rows = _run_campaign(study_dir, "openTELEMAC", monkeypatch)
+
+    assert {row["status"] for row in rows.values()} == {STATUS_DONE}
+    assert {row["last_iter"] for row in rows.values()} == {500}
+    adapter = get_solver_adapter("openTELEMAC")
+    case_dir = study_dir / "RUNS" / "case0001"
+    assert (case_dir / "RESU" / "r2d_node_by_node_bdy.slf").is_file()  # with its mesh read from ../MESH
+    probes = adapter.list_probe_files(case_dir)
+    # TELEMAC's own probes (TIME SERIES FILE 1, points in TEMPLATE/probes.txt) first, then the listing's.
+    assert probes[:2] == ["Velocity U at probes.csv", "Velocity V at probes.csv"]
+    assert probes[-1] == "Solver iterations (diagnostics).csv"
+    [surface] = adapter.locate_probe_files(case_dir, "Free surface at probes.csv")
+    columns, rows = adapter.read_probe_file(surface)
+    assert columns == ["time", "inlet", "middle", "outlet"]
+    assert float(rows[-1]["time"]) == pytest.approx(50.0, abs=0.2)  # up to the end of the 50 s simulated
+    assert adapter.parse_performance(case_dir / "csauto.stdout")["time_steps"] == "500"
 
 
 def test_generate_doctor_and_cleanup_with_code_aster_solver(tmp_path: Path) -> None:

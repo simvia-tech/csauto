@@ -38,7 +38,7 @@ class TestFactory:
             get_solver_adapter("openfoam")
 
     def test_available_solvers(self):
-        assert set(available_solvers()) == {"code_saturne", "code_aster", "stub"}
+        assert set(available_solvers()) == {"code_saturne", "code_aster", "stub", "openTELEMAC"}
 
     def test_adapters_satisfy_protocol(self):
         assert isinstance(get_solver_adapter("code_saturne"), SolverAdapter)
@@ -551,3 +551,10 @@ def test_docker_image_defaults_to_the_solvers_own(monkeypatch) -> None:
     assert (
         resolve_runtime("docker", docker_image="mine", adapter=get_solver_adapter("code_aster")).docker_image == "mine"
     )
+
+
+def test_only_opentelemac_has_setup_notes() -> None:
+    """The dashboard asks for setup notes and case options only with the setup capability."""
+    for name in ("code_saturne", "code_aster", "stub"):
+        assert "setup" not in get_solver_adapter(name).capabilities
+    assert "setup" in get_solver_adapter("openTELEMAC").capabilities

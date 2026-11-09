@@ -1,0 +1,10 @@
+1 3
+0 50 1
+2.5   1.0   1 inlet
+10.0  1.0   2 middle
+17.5  1.0   3 outlet
+
+TELEMAC's TIME SERIES COORDINATES FILE: 1 period and 3 points.
+2nd line: the period's start time, end time and interval.
+Then one line per point: x and y coordinates, station number, station name.
+csauto names the curves of the Probes panel after the station names.

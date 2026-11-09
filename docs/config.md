@@ -119,6 +119,131 @@ custom image needs `bash`, and `run_aster` on its `PATH` once that file is
 sourced (or from the start, when the image has no such file). An image whose
 ENTRYPOINT starts `run_aster` itself only gets its arguments.
 
+### openTELEMAC
+
+```toml
+solver = "openTELEMAC"
+runtime = "docker"   # docker_image defaults to simvia/opentelemac:v9.1.0
+
+max_parallel = 2
+```
+
+Every module (TELEMAC-2D, TELEMAC-3D, TOMAWAC, ARTEMIS...) is started by the
+same launcher, from the case folder:
+`runcode.py <module> --ncsize <n> --mpi <main .cas>`. `n` sets the number of
+MPI processes (`PARALLEL PROCESSORS` in the steering file is ignored), `nt` is
+not used, and `--mpi` keeps runcode from submitting its own job when
+`systel.cfg` describes a batch queue: csauto submits to Slurm itself.
+
+**Module.** csauto detects it automatically from the main steering file:
+the keywords it sets that only one module's dictionary has, in English or
+French (`NUMBER OF HORIZONTAL LEVELS` for TELEMAC-3D, `NUMBER OF FREQUENCIES`
+for TOMAWAC...; the tables are generated from the openTELEMAC v9.1
+dictionaries by `scripts/telemac_keywords.py`), else the file name prefix
+(`t2d_`, `t3d_`, `tom_`, `art_`).
+
+The VS Code extension's New Campaign and the dashboard (above its panels) show
+the module found and offer a **TELEMAC module** menu: *Detect automatically*,
+or one module. csauto keeps the choice with the campaign, in
+`RUNS/campaign.json`; your steering files are never changed. `csauto doctor`
+lists the module of each case. When it cannot be detected,
+New Campaign, the dashboard, its Run dialog, `csauto doctor` and the VS Code
+sidebar warn that it has to be set, and a run stops with that message.
+
+**Main steering file.** A case may hold several `.cas` files when modules are
+coupled (`COUPLING WITH = 'GAIA'` with `GAIA STEERING FILE = 'gai.cas'`): the
+main one is the only `.cas` no other one names as a coupled module's steering
+file. runcode runs the coupled modules itself, and DOE placeholders work in
+every `.cas`. New Campaign and the dashboard list the coupled modules
+("Coupled with GAIA (gai.cas), TOMAWAC (tom.cas)") and say when the coupling
+cannot work: a module in `COUPLING WITH` without its `<MODULE> STEERING FILE`
+keyword, or naming a file the case does not hold (New Campaign then refuses to
+create the campaign), or a steering file named for a module `COUPLING WITH`
+leaves out, which TELEMAC then does not run.
+
+**Files.** Write results under `RESU/` (`RESULTS FILE = 'RESU/r2d.slf'`): it
+is the folder csauto treats as the case's run, which Clean deletes. A large
+mesh can sit in a `MESH/` folder next to `TEMPLATE` and be named
+`'../MESH/geo.slf'`. Keep paths holding a `/` in quotes: in a `.cas` file, `/`
+starts a comment. csauto warns about both when it checks the steering file.
+
+**Monitoring.** csauto shows only values TELEMAC writes. runcode prints the
+listing on its standard output, saved as `csauto.stdout`: Last Iter is its
+last time step (TELEMAC-2D, TELEMAC-3D and TOMAWAC formats), the status
+table's **Progress** column is the simulated time reached against the time to
+simulate (`DURATION`, else `NUMBER OF TIME STEPS` x `TIME STEP`), for example
+`13 / 30 d (43 %)`, and a run is DONE when runcode prints `My work is done`.
+TELEMAC prints no equation residuals, so its dashboard has no Residuals tab;
+the **Probes** tab offers these series against the simulated time, physical
+quantities first:
+
+| Series | Read from | Modules |
+|---|---|---|
+| *Variable* at probes (*Temperature at probes*...) | TELEMAC's own probes: the `TIME SERIES FILE` it writes at the points of its `TIME SERIES COORDINATES FILE`, see below | TELEMAC-2D, TELEMAC-3D, TOMAWAC |
+| Boundary discharges | liquid boundary fluxes, `FLUX BOUNDARY n: ... M3/S` | TELEMAC-2D, TELEMAC-3D |
+| Control section discharges | discharge through each control section (`CONTROL SECTIONS` keyword), `DISCHARGE: ...` | TELEMAC-2D, TELEMAC-3D |
+| Water volume | water volume in the domain (m3) | TELEMAC-2D, TELEMAC-3D |
+| Tracer quantities | each tracer's quantity (`BALANCE OF TRACER n`) | with tracers |
+| Courant number | maximum Courant number, when TELEMAC prints it | TELEMAC-2D |
+| Water volume error | relative error in volume since the start (`RELATIVE ERROR IN VOLUME AT T = ...`), or the error in m3 during the time step (`ERROR ON THE VOLUME DURING THIS TIME STEP`) | TELEMAC-2D, TELEMAC-3D |
+| Tracer balance errors | the relative error of each tracer's balance | with tracers |
+| Solver iterations (diagnostics) | iterations of each linear solver, by stage of the time step (`diffusion-propagation: GMRES (BIEF)`); Recent Errors reports `EXCEEDING MAXIMUM ITERATIONS` | all |
+
+The listing's values exist only at its `LISTING PRINTOUT PERIOD`.
+
+**Probes.** To follow variables at chosen points, use TELEMAC's own time
+series in the steering file: a `TIME SERIES COORDINATES FILE` lists the
+points, and TELEMAC writes the values there in a `TIME SERIES FILE`
+(TELEMAC-2D: `... FILE 1` and `... FILE 2`; TELEMAC-3D: one coordinates file,
+a `2D TIME SERIES FILE` and a `3D TIME SERIES FILE`; TOMAWAC: one of each):
+
+```
+TIME SERIES COORDINATES FILE 1 = 'probes.txt'
+TIME SERIES FILE 1             = 'RESU/probes.slf'
+```
+
+```
+1 3
+0 50 1
+2.5   1.0   1 inlet
+10.0  1.0   2 middle
+17.5  1.0   3 outlet
+```
+
+The coordinates file's first line gives the number of periods and of points,
+then each period (start time, end time, interval), then each point: x, y,
+station number and station name. The Probes panel offers one series per
+variable (*Velocity U at probes*...), one curve per point named after its
+station; a 3D file has each point on every plane, from the bottom
+(*inlet_plane1*). As TELEMAC reads it, a station name is one word, or a quoted
+string (`'west bank'`); the rest of its line is ignored. Names never hold
+commas, colons or spaces (they become `_`: `'west bank'` is `west_bank`, the
+listing's volume is `volume_in_the_domain_(m3)`), because the Probes panel
+splits the names it asks for at commas and spaces. During a run they are read from the file TELEMAC is writing in its
+working folder (one file per process in parallel, each with the points in its
+part of the mesh), then from the final file. TELEMAC writes them in chunks, so
+they follow the run with some delay. The series are written as CSV files in
+each case's `.csauto.monitor/` folder.
+The Timing Snapshot shows the elapsed time, the last time step and the
+simulated time.
+
+**Restart.** The dashboard's Restart continues a finished TELEMAC-2D or
+TELEMAC-3D case from its last results, for an **additional simulated time**
+(seconds) or a number of **additional time steps**; without either, it runs
+the steering file's own length again. csauto writes `.csauto.restart.cas`, a
+copy of the main steering file with `PREVIOUS COMPUTATION FILE` set to the
+`RESTART FILE` when the steering file names one (a perfect continuation),
+else to its results file, and runs that copy: your steering file is never
+changed. TELEMAC continues the simulated time from the last record, and
+runcode keeps the previous results as `..._old1.slf`. The Progress column then
+counts the restart's own length. Coupled cases (`COUPLING WITH`) and the other
+modules are not restarted. Time-dependent input files (liquid boundaries,
+meteo...) must cover the continued period, or TELEMAC stops.
+
+For the `native` runtime, source TELEMAC's environment (`HOMETEL`, `PATH`,
+`PYTHONPATH`, `SYSTELCFG`) before starting csauto, so that `runcode.py` is in
+`PATH`, or point `solver_bin` to it.
+
 ### Remote access with authentication
 
 ```toml
@@ -142,10 +267,10 @@ token = "your-secret-token"
 
 | Key | Default | Description |
 |---|---|---|
-| `solver` | `code_saturne` | The campaign's solver: `code_saturne`, `code_aster`, or `stub` (a fake solver for tests). `csauto prepare` records it in `RUNS/campaign.json` (see [architecture.md](./architecture.md#solver-adapter-boundary)) |
+| `solver` | `code_saturne` | The campaign's solver: `code_saturne`, `code_aster`, `openTELEMAC`, or `stub` (a fake solver for tests); the name is case-insensitive. `csauto prepare` records it in `RUNS/campaign.json` (see [architecture.md](./architecture.md#solver-adapter-boundary)) |
 | `runtime` | `auto` | Execution backend: `auto`, `native`, `docker`, or `singularity` |
-| `solver_bin` | (auto-detected) | Path to the native solver executable (`code_saturne`, or `run_aster` for code_aster) for `native` runtime |
-| `docker_image` | (the solver's own image) | Docker image name for `docker` runtime; defaults to `simvia/code_saturne` for code_saturne, `simvia/code_aster:17.4.0` for code_aster. csauto keeps the image's own ENTRYPOINT (see [Docker container](#docker-container)) |
+| `solver_bin` | (auto-detected) | Path to the native solver executable (`code_saturne`, `run_aster` for code_aster, `runcode.py` for openTELEMAC) for `native` runtime |
+| `docker_image` | (the solver's own image) | Docker image name for `docker` runtime; defaults to `simvia/code_saturne` for code_saturne, `simvia/code_aster:17.4.0` for code_aster, `simvia/opentelemac:v9.1.0` for openTELEMAC. csauto keeps the image's own ENTRYPOINT (see [Docker container](#docker-container)) |
 | `singularity_image` | (none) | Path or URI to `.sif` image for `singularity` runtime |
 | `singularity_bin` | (auto-detected) | Path to `apptainer` or `singularity` binary |
 | `use_slurm` | (auto-detected) | `true` to force Slurm submission, `false` to force local |

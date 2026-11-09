@@ -10,7 +10,7 @@
 
 # csauto
 
-Automate [code_saturne](https://www.code-saturne.org/) and [code_aster](https://www.code-aster.org/) simulation campaigns: generate hundreds of cases from one parameter table and a template, run them locally or on Slurm, and follow them in a dashboard inside VS Code.
+Automate [code_saturne](https://www.code-saturne.org/), [code_aster](https://www.code-aster.org/) and [openTELEMAC](https://www.opentelemac.org/) simulation campaigns: generate hundreds of cases from one parameter table and a template, run them locally or on Slurm, and follow them in a dashboard inside VS Code.
 
 ![csauto in VS Code](assets/ui-overview.png)
 

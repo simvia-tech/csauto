@@ -87,11 +87,16 @@
       { key: "nprocs", label: "MPI Ranks", kind: "calc" },
       { key: "nt", label: "Thread Count", kind: "calc" },
       { key: "last_iter", label: "Last Iter", kind: "calc" },
+      { key: "progress", label: "Progress", kind: "calc" },
       { key: "duration", label: "Duration", kind: "calc" },
       { key: "last_mod", label: "Last Modified", kind: "calc" },
       { key: "resu_size_mb", label: "Results (MB)", kind: "calc" },
     ];
-    const trailing = allTrailing.filter((c) => visibleBase.has(c.key));
+    // Progress only when the solver gives it (openTELEMAC: simulated time against the run's target).
+    const hasProgress = rows.some((row) => row.progress);
+    const trailing = allTrailing.filter(
+      (c) => visibleBase.has(c.key) && (c.key !== "progress" || hasProgress),
+    );
     const actions: Column[] = hasCapability("gui")
       ? [{ key: "_actions", label: "", kind: "meta", sticky: "right" }]
       : [];
@@ -205,6 +210,7 @@
     if (col.key === "nt") return row.nt != null ? String(row.nt) : "";
     if (col.key === "last_iter")
       return row.last_iter != null ? String(row.last_iter) : "";
+    if (col.key === "progress") return row.progress ?? "";
     if (col.key === "duration") return row.duration ?? "";
     if (col.key === "last_mod") return formatLastMod(row.last_mod);
     if (col.key === "resu_size_mb")
