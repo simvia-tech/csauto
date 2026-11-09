@@ -25,7 +25,7 @@ const soft = localFont({
 
 const url = "https://simvia-tech.github.io/csauto/";
 const description =
-  "csauto generates, runs and monitors code_saturne and code_aster simulation campaigns from VS Code: one parameter table, hundreds of cases, local or Slurm.";
+  "csauto generates, runs and monitors code_saturne, code_aster and openTELEMAC simulation campaigns from VS Code: one parameter table, hundreds of cases, local or Slurm.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(url),

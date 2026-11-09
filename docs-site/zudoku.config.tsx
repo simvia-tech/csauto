@@ -11,7 +11,7 @@ const config: ZudokuConfig = {
       width: "44px",
     },
   },
-  metadata: { favicon: "/favicon.svg", title: "%s | csauto", description: "Documentation for csauto, simulation campaigns for code_saturne and code_aster." },
+  metadata: { favicon: "/favicon.svg", title: "%s | csauto", description: "Documentation for csauto, simulation campaigns for code_saturne, code_aster and openTELEMAC." },
   theme: {
     customCss: `
       @font-face { font-family: "EDF2020"; font-weight: 300; src: url("/csauto/docs/fonts/EDF2020W05-Light.woff2") format("woff2"); font-display: swap; }

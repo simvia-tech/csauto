@@ -2,7 +2,7 @@
 title: csauto documentation
 ---
 
-**csauto** automates [code_saturne](https://www.code-saturne.org/) and [code_aster](https://www.code-aster.org/) simulation campaigns: it generates cases from a parameter table and a template, runs them locally or on Slurm, and follows them in a dashboard.
+**csauto** automates [code_saturne](https://www.code-saturne.org/), [code_aster](https://www.code-aster.org/) and [openTELEMAC](https://www.opentelemac.org/) simulation campaigns: it generates cases from a parameter table and a template, runs them locally or on Slurm, and follows them in a dashboard.
 
 The [VS Code extension](/extension) is the primary interface and embeds the dashboard in your editor, also over Remote-SSH on HPC clusters. The [CLI](/cli) is the companion for headless machines and scripts, and `csauto serve` shows the same dashboard in a browser.
 

@@ -8,7 +8,9 @@ minutes and will make this page much clearer.
 
 This guide uses code_saturne. For code_aster, the steps are the same with
 `solver = "code_aster"` in `csauto.toml`; [examples/codeaster-cube](../examples/codeaster-cube/README.md)
-is a complete code_aster campaign.
+is a complete code_aster campaign. For openTELEMAC, use `solver = "openTELEMAC"`;
+[examples/telemac2d-node-by-node](../examples/telemac2d-node-by-node/README.md)
+is a complete TELEMAC-2D campaign.
 
 ---
 
