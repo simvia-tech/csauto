@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-19
+
 ### Added
 - openTELEMAC support (`solver = "openTELEMAC"`), with a `telemac2d-node-by-node` example and the Docker image `simvia/opentelemac:v9.1.0` by default:
   - **Launch:** every module runs through `runcode.py <module> --ncsize <n> --mpi`.

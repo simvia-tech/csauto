@@ -4,16 +4,16 @@
 
 This roadmap is a declaration of intent, not a contractual engagement. It is updated at each minor or major release.
 
-*Last updated: v1.1.0 (2026-10-19)*
+*Last updated: v1.2.0 (2026-11-19)*
 
-## Current Capabilities (v1.1.0)
+## Current Capabilities (v1.2.0)
 
 - Case generation from DOE CSV + template directory, or a generated parameter spec
 - Local and Slurm job execution
 - Web monitoring dashboard (status, logs, errors, compare; residuals, probes and timings for code_saturne) with interactive client-side charts
 - Restart from checkpoint, live case steering (stop/extend/checkpoint), input file comparison, cleanup
 - Support for native, Docker, and Singularity runtimes
-- code_saturne and code_aster solvers, each described by one adapter class that the CLI and dashboard follow
+- code_saturne, code_aster and openTELEMAC solvers, each described by one adapter class that the CLI and dashboard follow
 
 ## Short Term
 

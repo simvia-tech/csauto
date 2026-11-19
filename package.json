@@ -1,8 +1,8 @@
 {
   "name": "csauto",
   "displayName": "csauto",
-  "version": "1.1.0",
-  "description": "Automate and monitor CFD simulation campaigns from VS Code (code_saturne and other solver adapters)",
+  "version": "1.2.0",
+  "description": "Automate and monitor simulation campaigns from VS Code (code_saturne, code_aster and openTELEMAC)",
   "publisher": "simvia",
   "license": "GPL-3.0",
   "author": {
