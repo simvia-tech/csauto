@@ -60,6 +60,26 @@ jobs:
           name: reports-python
           path: reports/
 
+  # Coverage for Codacy, which analyses the code itself on every push.
+  # Skipped until the secret CODACY_PROJECT_TOKEN exists (empty on pull requests from forks).
+  codacy:
+    needs: [test]
+    if: always() && github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          pattern: reports-*
+          path: reports/
+          merge-multiple: true
+      - uses: codacy/codacy-coverage-reporter-action@v1
+        continue-on-error: true
+        with:
+          project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
+          coverage-reports: reports/coverage-python.xml
+
   frontend:
     # Not part of the quality reports.
     if: github.event_name != 'schedule'
